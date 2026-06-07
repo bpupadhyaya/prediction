@@ -28,12 +28,17 @@ def get_prediction(ticker: str, horizon: str = "1w"):
 def get_top_predictions(sector: str | None = None, limit: int = 20):
     from backend.database.duckdb_client import get_conn
     conn = get_conn()
-    query = "SELECT ticker FROM stocks"
+    # Use prices table as source of truth — stocks table only populated on demand
+    query = """
+        SELECT p.ticker
+        FROM (SELECT DISTINCT ticker FROM prices) p
+        LEFT JOIN stocks s ON p.ticker = s.ticker
+    """
     params = []
     if sector:
-        query += " WHERE sector = ?"
+        query += " WHERE s.sector = ?"
         params.append(sector)
-    query += f" ORDER BY market_cap DESC NULLS LAST LIMIT {limit}"
+    query += f" ORDER BY COALESCE(s.market_cap, 0) DESC LIMIT {limit * 3}"
     tickers = [r[0] for r in conn.execute(query, params).fetchall()]
 
     results = []

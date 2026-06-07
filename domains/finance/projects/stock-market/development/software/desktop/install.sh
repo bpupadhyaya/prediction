@@ -1,57 +1,84 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+# install.sh — One-shot setup for the stock-market prediction desktop app.
+#
+# Usage:
+#   ./install.sh          # full setup
+#   ./install.sh --skip-data  # install deps only, skip data download + training
+#
+set -euo pipefail
 
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
+
+SKIP_DATA=false
+for arg in "$@"; do
+    [[ "$arg" == "--skip-data" ]] && SKIP_DATA=true
+done
 
 echo -e "${BLUE}Stock Market Prediction — Setup${NC}"
 echo "================================="
+echo ""
 
-# Python check
-if ! command -v python3 &>/dev/null; then
-    echo "Python 3 not found. Installing..."
+# --- Find a compatible Python (3.10–3.12) ---
+# Default python3 may be 3.13+ which lacks ML package wheels.
+# Auto-detect a compatible version before requiring manual steps.
+find_python() {
+    for candidate in python3.12 python3.11 python3.10 python3; do
+        if command -v "$candidate" &>/dev/null; then
+            local minor
+            minor=$("$candidate" -c "import sys; print(sys.version_info.minor)" 2>/dev/null)
+            local major
+            major=$("$candidate" -c "import sys; print(sys.version_info.major)" 2>/dev/null)
+            if [[ "$major" -eq 3 && "$minor" -ge 10 && "$minor" -le 12 ]]; then
+                echo "$candidate"
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
+PYTHON=$(find_python || true)
+
+if [[ -z "$PYTHON" ]]; then
+    echo -e "${YELLOW}No compatible Python (3.10–3.12) found.${NC}"
+    echo "ML packages (scikit-learn, onnxruntime, numpy) require Python 3.10–3.12."
+    echo ""
     if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "Installing python@3.11 via Homebrew..."
         if ! command -v brew &>/dev/null; then
             /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         fi
-        brew install python3
+        brew install python@3.11
+        PYTHON=python3.11
     else
-        sudo apt-get update && sudo apt-get install -y python3 python3-pip python3-venv
+        echo "Run: sudo apt-get install -y python3.11 python3.11-venv"
+        exit 1
     fi
 fi
 
-echo "Python: $(python3 --version)"
+echo "Using: $PYTHON ($($PYTHON --version))"
+echo ""
 
-# Enforce Python 3.10–3.12 (3.13+ lacks ML package wheels)
-PY_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
-PY_MAJOR=$(python3 -c "import sys; print(sys.version_info.major)")
-if [[ "$PY_MAJOR" -ne 3 ]] || [[ "$PY_MINOR" -lt 10 ]] || [[ "$PY_MINOR" -gt 12 ]]; then
-    echo ""
-    echo "ERROR: Python 3.10–3.12 required (found $(python3 --version))."
-    echo "ML packages (scikit-learn, onnxruntime, numpy) have no wheels for 3.13+."
-    echo ""
-    echo "Fix:"
-    echo "  brew install python@3.11"
-    echo "  python3.11 -m venv .venv"
-    echo "  source .venv/bin/activate"
-    echo "  pip install -r requirements.txt"
-    echo "  python3 -m backend.setup"
-    exit 1
+# --- Virtual environment ---
+if [[ ! -d ".venv" ]]; then
+    echo "Creating virtual environment..."
+    "$PYTHON" -m venv .venv
 fi
-
-# Virtual environment
-if [ ! -d ".venv" ]; then
-    python3 -m venv .venv
-fi
+# shellcheck disable=SC1091
 source .venv/bin/activate
+echo "Virtual environment: $(python3 --version) at $(which python3)"
+echo ""
 
-# Dependencies
+# --- Dependencies ---
+echo "Installing Python dependencies (this takes a few minutes first time)..."
 pip install --upgrade pip --quiet
-pip install -r requirements.txt --quiet
-echo "Python dependencies installed."
+pip install -r requirements.txt
+echo ""
 
-# Frontend build (only if Node.js available)
+# --- Frontend build ---
 if command -v node &>/dev/null; then
     echo "Building frontend..."
     cd frontend && npm install --silent && npm run build --silent && cd ..
@@ -59,12 +86,18 @@ if command -v node &>/dev/null; then
 else
     echo "Node.js not found — using pre-built frontend (dist/)."
 fi
+echo ""
 
-# Database + initial data
-echo "Initialising database and downloading initial data..."
-echo "This may take a few minutes on first run..."
-python3 -m backend.setup
+# --- Database + initial data + model training ---
+if [[ "$SKIP_DATA" == "true" ]]; then
+    echo "Skipping data download and model training (--skip-data)."
+else
+    echo "Initialising database, downloading S&P 500 history, and training model..."
+    echo "This takes 10–30 min on first run depending on your CPU and connection."
+    echo ""
+    python3 -m backend.setup
+fi
 
 echo ""
 echo -e "${GREEN}Setup complete!${NC}"
-echo "Run ./start.sh to launch."
+echo "Run ./start.sh to launch the app."

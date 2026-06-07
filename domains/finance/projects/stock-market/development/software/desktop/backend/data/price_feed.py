@@ -1,21 +1,41 @@
 import yfinance as yf
 import pandas as pd
+import requests
+import io
 from datetime import datetime, timedelta
 from backend.database.duckdb_client import get_conn
 import logging
 
 logger = logging.getLogger(__name__)
 
+# Fallback: 100 large-cap S&P 500 constituents used when Wikipedia is unreachable
+_FALLBACK_TICKERS = [
+    "AAPL","MSFT","NVDA","AMZN","GOOGL","GOOG","META","TSLA","BRK-B","AVGO",
+    "JPM","LLY","UNH","V","XOM","MA","JNJ","PG","HD","COST",
+    "MRK","ABBV","CVX","CRM","NFLX","BAC","AMD","PEP","KO","TMO",
+    "ACN","MCD","WMT","CSCO","ABT","LIN","TXN","ORCL","DHR","QCOM",
+    "PM","INTU","GE","CAT","IBM","GS","MS","SPGI","ISRG","RTX",
+    "AMGN","AXP","T","BLK","BKNG","DE","ELV","ADI","VRTX","REGN",
+    "SYK","CI","PLD","CB","GILD","ADP","SCHW","MDLZ","MO","ZTS",
+    "CVS","ETN","SO","DUK","NOC","MMM","CL","WM","TJX","PGR",
+    "BSX","AON","HUM","MCO","EOG","OXY","USB","BDX","ITW","SLB",
+    "CME","EW","APD","FCX","EMR","NSC","MMC","ICE","MPC","ROP",
+]
+
 
 def fetch_sp500_tickers() -> list[str]:
+    url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; stock-prediction-app/1.0)"}
     try:
-        tables = pd.read_html(
-            "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-        )
-        return tables[0]["Symbol"].str.replace(".", "-").tolist()
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        tables = pd.read_html(io.StringIO(resp.text))
+        tickers = tables[0]["Symbol"].str.replace(".", "-").tolist()
+        logger.info(f"Fetched {len(tickers)} tickers from Wikipedia")
+        return tickers
     except Exception as e:
-        logger.error(f"Failed to fetch S&P 500 tickers: {e}")
-        return []
+        logger.warning(f"Wikipedia ticker fetch failed ({e}) — using fallback list of {len(_FALLBACK_TICKERS)} tickers")
+        return _FALLBACK_TICKERS
 
 
 def fetch_stock_info(ticker: str) -> dict | None:

@@ -79,16 +79,12 @@ echo.
 
 
 :: --- Database + initial data + model training ---
-set DATA_DIR=%USERPROFILE%\.prediction\stock-market
 if %SKIP_DATA%==1 (
     echo Skipping data download and model training (--skip-data^).
-) else if exist "%DATA_DIR%\market.duckdb" (
-    echo Existing database found at %DATA_DIR%\market.duckdb -- skipping data download.
-    echo To reset: uninstall.bat then install.bat
 ) else (
-    echo Initialising database and downloading S^&P 500 history (10-15 min)...
-    echo Then training the prediction model (5-15 min)...
-    echo Total first-run time: 15-30 min. The terminal will appear quiet -- this is normal.
+    echo Downloading S^&P 500 history and training model...
+    echo Already-downloaded tickers are skipped -- safe to re-run after interruption.
+    echo First run: 20-35 min. Resume after Ctrl+C: only downloads what's missing.
     echo.
     python -m backend.setup
 )

@@ -2,6 +2,7 @@ import yfinance as yf
 import pandas as pd
 import requests
 import io
+import time
 from datetime import datetime, timedelta
 from backend.database.duckdb_client import get_conn
 import logging
@@ -99,8 +100,53 @@ def refresh_ticker(ticker: str, full: bool = False) -> bool:
 
 
 def initial_load(tickers: list[str]) -> None:
-    logger.info(f"Loading initial price data for {len(tickers)} tickers...")
+    conn = get_conn()
+    existing = {r[0] for r in conn.execute("SELECT DISTINCT ticker FROM prices").fetchall()}
+    pending = [t for t in tickers if t not in existing]
+    logger.info(f"Loading price data: {len(pending)} new tickers ({len(existing)} already in DB)...")
+
+    batch_size = 50
+    start = datetime.today() - timedelta(days=365 * 5)
+    total_ok = 0
+
+    for i in range(0, len(pending), batch_size):
+        batch = pending[i:i + batch_size]
+        logger.info(f"  Batch {i // batch_size + 1}/{(len(pending) + batch_size - 1) // batch_size}: {len(batch)} tickers...")
+        try:
+            df = yf.download(batch, start=start, progress=False, auto_adjust=True, group_by="ticker")
+            if df.empty:
+                continue
+            # Multi-ticker download returns a MultiIndex DataFrame
+            for ticker in batch:
+                try:
+                    if len(batch) == 1:
+                        tdf = df.copy()
+                    else:
+                        tdf = df[ticker].copy() if ticker in df.columns.get_level_values(0) else pd.DataFrame()
+                    if tdf.empty or tdf["Close"].isna().all():
+                        continue
+                    tdf = tdf.reset_index()
+                    tdf.columns = [c.lower() for c in tdf.columns]
+                    tdf["ticker"] = ticker
+                    tdf["adj_close"] = tdf["close"]
+                    tdf = tdf[["ticker", "date", "open", "high", "low", "close", "volume", "adj_close"]].dropna()
+                    if not tdf.empty:
+                        upsert_prices(tdf)
+                        total_ok += 1
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"  Batch failed: {e}")
+        time.sleep(1)
+
+    logger.info(f"Price download complete: {total_ok}/{len(pending)} tickers loaded.")
+
+    # Fetch stock info individually (lightweight)
+    logger.info("Fetching stock metadata...")
     for i, ticker in enumerate(tickers):
-        if i % 50 == 0:
-            logger.info(f"  Progress: {i}/{len(tickers)}")
-        refresh_ticker(ticker, full=True)
+        if i % 100 == 0:
+            logger.info(f"  Metadata {i}/{len(tickers)}...")
+        info = fetch_stock_info(ticker)
+        if info:
+            upsert_stock_info(info)
+        time.sleep(0.05)

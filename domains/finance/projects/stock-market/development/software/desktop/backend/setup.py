@@ -22,6 +22,15 @@ if __name__ == "__main__":
     logging.info("Downloading price history (this takes a few minutes)...")
     initial_load(tickers)
 
+    # Hot stocks not in S&P 500 (curated high-profile tickers)
+    HOT_TICKERS_EXTRA = [
+        "HOOD", "PLTR", "ARM", "SMCI", "COIN", "MSTR", "UBER", "LYFT",
+        "SOFI", "RBLX", "SNAP", "RIVN", "SOUN", "AI", "IONQ", "QUBT",
+        "RDDT", "ACHR", "JOBY",
+    ]
+    logging.info(f"Downloading {len(HOT_TICKERS_EXTRA)} hot stocks not in S&P 500...")
+    initial_load(HOT_TICKERS_EXTRA)
+
     logging.info("Downloading macro indicators...")
     initial_macro_load()
 

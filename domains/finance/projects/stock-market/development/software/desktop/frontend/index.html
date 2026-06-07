@@ -127,8 +127,46 @@
     </div>
 
     <div id="view-home" class="active">
-      <h2 style="margin-bottom:1rem;">Top Signals &mdash; S&amp;P 500</h2>
-      <div class="cards" id="top-cards"><p style="color:var(--muted)">Loading predictions...</p></div>
+      <!-- Market sub-tabs -->
+      <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;border-bottom:1px solid var(--border);padding-bottom:0.75rem">
+        <button id="mtab-sp500" class="active" onclick="switchMarketTab('sp500')"
+          style="background:var(--accent);border:none;color:#fff;padding:0.4rem 1rem;border-radius:6px;cursor:pointer;font-size:0.9rem">
+          S&amp;P 500
+        </button>
+        <button id="mtab-hot" onclick="switchMarketTab('hot')"
+          style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.4rem 1rem;border-radius:6px;cursor:pointer;font-size:0.9rem">
+          Hot Stocks &amp; IPOs
+        </button>
+      </div>
+
+      <!-- S&P 500 panel -->
+      <div id="market-sp500">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem">
+          <h2>Top Signals &mdash; S&amp;P 500</h2>
+          <span id="sp500-count" style="color:var(--muted);font-size:0.85rem"></span>
+        </div>
+        <div class="cards" id="top-cards"><p style="color:var(--muted)">Loading predictions...</p></div>
+        <div id="sp500-more-bar" style="text-align:center;margin-top:1.5rem;display:none">
+          <button onclick="showMoreSP500()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:0.6rem 1.5rem;border-radius:8px;cursor:pointer">
+            Load More
+          </button>
+          <button onclick="showAllSP500()" style="background:none;border:none;color:var(--muted);padding:0.6rem 1rem;cursor:pointer;font-size:0.85rem">
+            Show All
+          </button>
+        </div>
+      </div>
+
+      <!-- Hot Stocks panel -->
+      <div id="market-hot" style="display:none">
+        <h2 style="margin-bottom:0.4rem">Hot Stocks</h2>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1rem">High-profile and trending publicly traded companies. Stocks not yet in the local database show as "No data".</p>
+        <div class="cards" id="hot-cards"><p style="color:var(--muted)">Loading...</p></div>
+        <div style="margin-top:2rem;margin-bottom:0.75rem">
+          <h2>Upcoming IPOs &amp; Pre-IPO Companies</h2>
+          <p style="color:var(--muted);font-size:0.85rem;margin-top:0.25rem">Privately held or pre-IPO — no ticker or price prediction yet. Listed for awareness.</p>
+        </div>
+        <div class="cards" id="pre-ipo-cards"></div>
+      </div>
     </div>
 
     <div id="view-stock">
@@ -186,7 +224,7 @@
     }
     const api = {
       predict:        (ticker, horizon = "1w") => apiFetch(`/predict/${ticker}?horizon=${horizon}`),
-      topPredictions: (limit = 20)             => apiFetch(`/predict/batch/top?limit=${limit}`),
+      topPredictions: (limit = 500)             => apiFetch(`/predict/batch/top?limit=${limit}`),
       prices:         (ticker, days = 365)     => apiFetch(`/stocks/${ticker}/prices?days=${days}`),
       analyzePortfolio: (holdings, horizon = "1w") =>
         apiFetch("/portfolio/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ holdings, horizon }) }),
@@ -222,24 +260,113 @@
       return `${(pred.expected_return_low * 100).toFixed(1)}% to ${(pred.expected_return_high * 100).toFixed(1)}%`;
     }
 
-    // ── Home: top signals ─────────────────────────────────────────────────────
+    // ── Market: sub-tab switching ─────────────────────────────────────────────
+    let _marketTab = "sp500";
+    function switchMarketTab(tab) {
+      _marketTab = tab;
+      document.getElementById("market-sp500").style.display = tab === "sp500" ? "" : "none";
+      document.getElementById("market-hot").style.display  = tab === "hot"   ? "" : "none";
+      const sp = document.getElementById("mtab-sp500");
+      const ht = document.getElementById("mtab-hot");
+      if (tab === "sp500") {
+        sp.style.background = "var(--accent)"; sp.style.color = "#fff"; sp.style.border = "none";
+        ht.style.background = "none"; ht.style.color = "var(--muted)"; ht.style.border = "1px solid var(--border)";
+      } else {
+        ht.style.background = "var(--accent)"; ht.style.color = "#fff"; ht.style.border = "none";
+        sp.style.background = "none"; sp.style.color = "var(--muted)"; sp.style.border = "1px solid var(--border)";
+        if (!_hotLoaded) loadHotStocks();
+      }
+    }
+
+    // ── S&P 500 signals ───────────────────────────────────────────────────────
+    let _sp500All = [];
+    let _sp500Shown = 50;
+
+    function _renderSP500() {
+      const container = document.getElementById("top-cards");
+      const moreBar   = document.getElementById("sp500-more-bar");
+      const countEl   = document.getElementById("sp500-count");
+      const slice = _sp500All.slice(0, _sp500Shown);
+      container.innerHTML = slice.map(p => `
+        <div class="card" onclick="showView('stock'); document.getElementById('ticker-input').value='${p.ticker}'; lookupStock()">
+          <div class="ticker">${p.ticker}</div>
+          ${dirBadge(p)}
+          <div class="stat"><span>Expected return</span><span>${returnRange(p)}</span></div>
+          <div class="stat"><span>${accuracyBadge(p.model_accuracy)}</span><span>1-week</span></div>
+        </div>`).join("");
+      countEl.textContent = `Showing ${slice.length} of ${_sp500All.length} stocks`;
+      moreBar.style.display = _sp500Shown < _sp500All.length ? "" : "none";
+    }
+
+    function showMoreSP500()  { _sp500Shown += 50; _renderSP500(); }
+    function showAllSP500()   { _sp500Shown = _sp500All.length; _renderSP500(); }
+
     async function loadTopPredictions() {
       const container = document.getElementById("top-cards");
       try {
-        const preds = await api.topPredictions(20);
-        if (!preds.length) {
-          container.innerHTML = "<p style='color:var(--muted)'>No predictions yet — run setup first.</p>";
+        _sp500All = await api.topPredictions(500);
+        if (!_sp500All.length) {
+          container.innerHTML = "<p style='color:var(--muted)'>No predictions yet — run setup first or wait for model training to complete.</p>";
           return;
         }
-        container.innerHTML = preds.map(p => `
-          <div class="card" onclick="showView('stock'); document.getElementById('ticker-input').value='${p.ticker}'; lookupStock()">
-            <div class="ticker">${p.ticker}</div>
-            ${dirBadge(p)}
-            <div class="stat"><span>Expected return</span><span>${returnRange(p)}</span></div>
-            <div class="stat"><span>${accuracyBadge(p.model_accuracy)}</span><span>1-week</span></div>
-          </div>`).join("");
+        _sp500Shown = 50;
+        _renderSP500();
       } catch (e) {
         container.innerHTML = "<p style='color:var(--muted)'>Could not load predictions. Is the server running?</p>";
+      }
+    }
+
+    // ── Hot Stocks ─────────────────────────────────────────────────────────────
+    let _hotLoaded = false;
+
+    function _predCard(p) {
+      if (!p.model_ready) {
+        return `
+          <div class="card" style="opacity:0.6" onclick="showView('stock'); document.getElementById('ticker-input').value='${p.ticker}'; lookupStock()">
+            <div class="ticker">${p.ticker}</div>
+            <div style="color:var(--muted);font-size:0.8rem;margin-top:0.4rem">No historical data in DB yet</div>
+            <div style="color:var(--muted);font-size:0.75rem;margin-top:0.25rem">Run data refresh to add this ticker</div>
+          </div>`;
+      }
+      return `
+        <div class="card" onclick="showView('stock'); document.getElementById('ticker-input').value='${p.ticker}'; lookupStock()">
+          <div class="ticker">${p.ticker}</div>
+          ${dirBadge(p)}
+          <div class="stat"><span>Expected return</span><span>${returnRange(p)}</span></div>
+          <div class="stat"><span>${accuracyBadge(p.model_accuracy)}</span><span>1-week</span></div>
+        </div>`;
+    }
+
+    const _STATUS_COLORS = {
+      "Pre-IPO":  { bg: "rgba(251,191,36,0.12)", color: "#fbbf24" },
+      "Filed IPO":{ bg: "rgba(79,142,247,0.12)",  color: "var(--accent)" },
+      "Private":  { bg: "rgba(100,116,139,0.15)", color: "var(--muted)" },
+    };
+
+    function _preIpoCard(c) {
+      const sc = _STATUS_COLORS[c.status] || _STATUS_COLORS["Private"];
+      return `
+        <div class="card" style="opacity:0.85;cursor:default">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem">
+            <div class="ticker" style="font-size:1.1rem">${c.name}</div>
+            <span style="background:${sc.bg};color:${sc.color};font-size:0.72rem;font-weight:600;padding:0.2rem 0.5rem;border-radius:4px;white-space:nowrap">${c.status}</span>
+          </div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:0.35rem">${c.sector}</div>
+          <div style="font-size:0.82rem;color:var(--text)">${c.description}</div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem">Est. valuation: <strong style="color:var(--text)">${c.est_valuation}</strong></div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.4rem;font-style:italic">No ticker / prediction available yet</div>
+        </div>`;
+    }
+
+    async function loadHotStocks() {
+      _hotLoaded = true;
+      document.getElementById("hot-cards").innerHTML = "<p style='color:var(--muted)'>Loading...</p>";
+      try {
+        const data = await apiFetch("/predict/batch/hot");
+        document.getElementById("hot-cards").innerHTML = data.traded.map(_predCard).join("");
+        document.getElementById("pre-ipo-cards").innerHTML = data.pre_ipo.map(_preIpoCard).join("");
+      } catch (e) {
+        document.getElementById("hot-cards").innerHTML = `<p style='color:var(--danger)'>Error: ${e.message}</p>`;
       }
     }
 

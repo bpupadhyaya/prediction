@@ -24,19 +24,17 @@ import numpy as np
 from pathlib import Path
 
 from backend.config import MODELS_DIR
+from backend.models.trainer import HORIZON_MODEL_PATHS, HORIZON_SCALER_PATHS, FEATURE_COLS
 
 logger = logging.getLogger(__name__)
 
-MODEL_PATH = MODELS_DIR / "direction_model.pkl"
-SCALER_PATH = MODELS_DIR / "scaler.pkl"
+# Export the 1w model for mobile use; feature list must match trainer.FEATURE_COLS
+MODEL_PATH = HORIZON_MODEL_PATHS["1w"]
+SCALER_PATH = HORIZON_SCALER_PATHS["1w"]
 ONNX_PATH = MODELS_DIR / "stock_predictor.onnx"
 
-N_FEATURES = 9
-FEATURE_NAMES = [
-    "return_1d", "return_5d", "return_20d",
-    "ma_5", "ma_20", "ma_50",
-    "volatility_20", "volume_ratio", "rsi",
-]
+FEATURE_NAMES = FEATURE_COLS
+N_FEATURES = len(FEATURE_NAMES)
 
 
 def export(verify: bool = False) -> Path:
@@ -100,6 +98,8 @@ def _verify(onnx_model) -> None:
 
     sess = rt.InferenceSession(onnx_model.SerializeToString())
     dummy = np.random.randn(4, N_FEATURES).astype(np.float32)
+    # Cross-sectional rank features must be in [0, 1] — clip dummy to valid range
+    dummy[:, -5:] = np.clip(dummy[:, -5:], 0.0, 1.0)
     label, prob = sess.run(None, {"input": dummy})
 
     assert label.shape == (4,), f"Unexpected label shape: {label.shape}"

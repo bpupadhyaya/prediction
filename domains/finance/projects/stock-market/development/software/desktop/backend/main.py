@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -8,14 +9,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.database.duckdb_client import init_db
 from backend.api import stocks, predict, portfolio, sync
 from backend.data.scheduler import start_scheduler
+from backend.models.trainer import HORIZON_MODEL_PATHS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+
+def _background_retrain():
+    try:
+        from backend.models.trainer import retrain_if_needed
+        retrain_if_needed()
+    except Exception as e:
+        logger.warning(f"Background retrain failed: {e}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     start_scheduler()
+    # If new per-horizon model files are missing, retrain in background so server starts instantly
+    if any(not p.exists() for p in HORIZON_MODEL_PATHS.values()):
+        logger.info("Per-horizon models not found — retraining in background...")
+        threading.Thread(target=_background_retrain, daemon=True).start()
     yield
 
 

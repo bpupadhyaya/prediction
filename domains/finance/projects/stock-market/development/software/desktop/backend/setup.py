@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 from backend.database.duckdb_client import init_db
 from backend.data.price_feed import fetch_sp500_tickers, initial_load
 from backend.data.macro_feed import initial_macro_load
-from backend.models.trainer import train_model
+from backend.models.trainer import train_all_models
 from backend.models.exporter import export as export_onnx
 
 if __name__ == "__main__":
@@ -25,9 +25,9 @@ if __name__ == "__main__":
     logging.info("Downloading macro indicators...")
     initial_macro_load()
 
-    logging.info("Training initial prediction model...")
-    accuracy = train_model()
-    logging.info(f"Initial model trained — directional accuracy: {accuracy:.3f}")
+    logging.info("Training prediction models (1d / 1w / 1m)...")
+    avg_accuracy = train_all_models()
+    logging.info(f"Models trained — avg directional accuracy: {avg_accuracy:.3f}")
 
     logging.info("Exporting ONNX model for mobile platforms...")
     try:

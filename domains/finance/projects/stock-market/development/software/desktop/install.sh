@@ -85,6 +85,25 @@ echo ""
 echo "Installing Python dependencies (this takes a few minutes first time)..."
 pip install --upgrade pip --quiet
 pip install -r requirements.txt
+
+# llama-cpp-python: install with Metal support on Apple Silicon, CPU-only elsewhere.
+# This is separate from requirements.txt because the Metal wheel needs a special index URL.
+if ! python3 -c "import llama_cpp" &>/dev/null 2>&1; then
+    echo "Installing llama-cpp-python (LLM inference engine)..."
+    ARCH=$(uname -m)
+    OS=$(uname -s)
+    if [[ "$OS" == "Darwin" && "$ARCH" == "arm64" ]]; then
+        echo "  Apple Silicon detected — installing with Metal GPU acceleration..."
+        pip install llama-cpp-python \
+            --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/metal \
+            --quiet || pip install llama-cpp-python --quiet
+    else
+        echo "  Installing CPU-only llama-cpp-python..."
+        pip install llama-cpp-python --quiet
+    fi
+else
+    echo "llama-cpp-python already installed."
+fi
 echo ""
 
 

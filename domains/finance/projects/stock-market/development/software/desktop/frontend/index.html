@@ -25,6 +25,26 @@
       padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
     }
     nav button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .compat-ok   { color: var(--accent2); font-weight: 600; }
+    .compat-warn { color: #fbbf24; font-weight: 600; }
+    .compat-bad  { color: var(--danger); }
+    .model-card  { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+    .model-card.active-model { border-color: var(--accent); }
+    .model-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+    .model-name { font-weight: 700; font-size: 1rem; }
+    .model-meta { font-size: 0.8rem; color: var(--muted); margin: 0.3rem 0 0.6rem; }
+    .model-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
+    .model-actions button { padding: 0.35rem 0.85rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; border: 1px solid var(--border); }
+    .btn-download { background: var(--accent); color: #fff; border-color: var(--accent) !important; }
+    .btn-activate { background: var(--accent2); color: #000; border-color: var(--accent2) !important; }
+    .btn-deactivate { background: var(--surface); color: var(--muted); }
+    .btn-delete  { background: none; color: var(--danger); border-color: var(--danger) !important; }
+    .btn-gbm     { background: var(--accent2); color: #000; border-color: var(--accent2) !important; }
+    .progress-wrap { margin-top: 0.5rem; background: var(--border); border-radius: 4px; height: 6px; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.3s; }
+    .hw-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; gap: 2rem; flex-wrap: wrap; }
+    .hw-bar span { color: var(--text); font-weight: 600; }
+    .tag { display: inline-block; background: rgba(79,142,247,0.12); color: var(--accent); font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; margin-left: 0.3rem; }
     main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
     .search-bar { display: flex; gap: 0.5rem; margin-bottom: 2rem; }
     .search-bar input {
@@ -53,8 +73,8 @@
     canvas { width: 100% !important; }
     .disclaimer { color: var(--muted); font-size: 0.75rem; margin-top: 2rem; text-align: center; }
     .accuracy-badge { background: rgba(79,142,247,0.15); color: var(--accent); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
-    #view-home, #view-stock, #view-portfolio { display: none; }
-    #view-home.active, #view-stock.active, #view-portfolio.active { display: block; }
+    #view-home, #view-stock, #view-portfolio, #view-models { display: none; }
+    #view-home.active, #view-stock.active, #view-portfolio.active, #view-models.active { display: block; }
     .portfolio-form textarea {
       width: 100%; background: var(--surface); border: 1px solid var(--border);
       color: var(--text); padding: 0.75rem; border-radius: 8px; font-family: monospace;
@@ -96,6 +116,7 @@
       <button class="active" onclick="showView('home')">Market</button>
       <button onclick="showView('stock')">Lookup</button>
       <button onclick="showView('portfolio')">Portfolio</button>
+      <button onclick="showView('models')">Models</button>
     </nav>
   </header>
 
@@ -137,6 +158,18 @@
       <div id="portfolio-result" style="margin-top:1.5rem;"></div>
     </div>
 
+    <div id="view-models">
+      <h2 style="margin-bottom:0.5rem;">LLM Models</h2>
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.25rem;">
+        Download an open-source model to get AI-powered predictions with reasoning.
+        Models run 100% locally — no internet needed after download.
+        The built-in statistical model (GBM) is always available without any download.
+      </p>
+      <div class="hw-bar" id="hw-bar">Loading hardware info...</div>
+      <div id="active-model-bar" style="margin-bottom:1.25rem;"></div>
+      <div id="model-catalog">Loading catalog...</div>
+    </div>
+
     <p class="disclaimer">
       Predictions are probabilistic and for informational purposes only.
       Model accuracy is displayed with every prediction. This is not financial advice.
@@ -160,15 +193,19 @@
       triggerSync: () =>
         apiFetch("/sync/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }),
       syncStatus: () => apiFetch("/sync/status"),
+      modelCatalog: () => apiFetch("/models/catalog"),
+      modelConfig:  () => apiFetch("/models/config"),
     };
 
     // ── Navigation ────────────────────────────────────────────────────────────
+    const _VIEWS = ["home", "stock", "portfolio", "models"];
     function showView(view) {
       document.querySelectorAll("[id^=view-]").forEach(el => el.classList.remove("active"));
       document.querySelectorAll("nav button").forEach((b, i) => {
-        b.classList.toggle("active", ["home", "stock", "portfolio"][i] === view);
+        b.classList.toggle("active", _VIEWS[i] === view);
       });
       document.getElementById("view-" + view).classList.add("active");
+      if (view === "models") loadModelCatalog();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -368,6 +405,193 @@
         document.getElementById("sync-status").textContent =
           s.last_completed ? `Last synced: ${new Date(s.last_completed).toLocaleString()}` : "Never synced — click Refresh Data";
       } catch { document.getElementById("sync-status").textContent = "Server offline"; }
+    }
+
+    // ── LLM predict button in stock lookup ────────────────────────────────────
+    let _currentLookupTicker = null;
+
+    async function runLlmPredict(ticker, horizon) {
+      const btn = document.getElementById("llm-btn");
+      const out = document.getElementById("llm-result");
+      if (!btn || !out) return;
+      btn.disabled = true;
+      btn.textContent = "Analyzing...";
+      out.innerHTML = "<p style='color:var(--muted);font-size:0.85rem'>Running LLM inference — this may take 10–60 seconds...</p>";
+      try {
+        const r = await apiFetch(`/predict/${ticker}/llm?horizon=${horizon}`, { method: "POST" });
+        const cls = r.direction === "up" ? "up" : "down";
+        const arrow = r.direction === "up" ? "▲" : "▼";
+        out.innerHTML = `
+          <div class="card" style="margin-top:0.75rem;border-color:var(--accent)">
+            <div style="font-size:0.75rem;color:var(--accent);margin-bottom:0.4rem">LLM: ${r.model_id}</div>
+            <div style="margin-bottom:0.5rem"><span class="badge ${cls}">${arrow} ${Math.round(r.confidence*100)}% ${r.direction.toUpperCase()}</span></div>
+            <div style="font-size:0.85rem;color:var(--muted)"><em>"${r.reasoning}"</em></div>
+          </div>`;
+      } catch (e) {
+        out.innerHTML = `<p style='color:var(--danger);font-size:0.85rem'>${e.message}</p>`;
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = "Analyze with LLM"; }
+      }
+    }
+
+    // Patch lookupStock to add LLM button after GBM result
+    const _origLookup = lookupStock;
+    lookupStock = async function() {
+      await _origLookup.call(this);
+      _currentLookupTicker = document.getElementById("ticker-input").value.trim().toUpperCase();
+      const container = document.getElementById("stock-result");
+      const cfg = await apiFetch("/models/config").catch(() => null);
+      if (cfg && cfg.active_model_id && container.querySelector(".chart-container")) {
+        const horizon = "1w";
+        const div = document.createElement("div");
+        div.innerHTML = `
+          <div style="margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem">
+            <button id="llm-btn" class="btn-activate" style="padding:0.5rem 1.2rem;border-radius:8px;border:none;cursor:pointer;font-size:0.9rem"
+              onclick="runLlmPredict('${_currentLookupTicker}', '${horizon}')">Analyze with LLM</button>
+            <span style="font-size:0.8rem;color:var(--muted)">Active: ${cfg.active_model_id}</span>
+          </div>
+          <div id="llm-result"></div>`;
+        container.appendChild(div);
+      }
+    };
+
+    // ── Models tab ────────────────────────────────────────────────────────────
+    let _pollTimers = {};
+
+    async function loadModelCatalog() {
+      const catalogEl = document.getElementById("model-catalog");
+      const hwEl = document.getElementById("hw-bar");
+      const activeBar = document.getElementById("active-model-bar");
+      catalogEl.innerHTML = "<p style='color:var(--muted)'>Loading...</p>";
+      try {
+        const data = await apiFetch("/models/catalog");
+        const hw = data.hardware;
+
+        // Hardware bar
+        hwEl.innerHTML = `
+          RAM: <span>${hw.total_ram_gb} GB</span> &nbsp;|&nbsp;
+          CPU cores: <span>${hw.cpu_count}</span> &nbsp;|&nbsp;
+          Architecture: <span>${hw.machine}</span>
+          ${hw.is_apple_silicon ? '&nbsp;|&nbsp; <span style="color:var(--accent2)">Apple Silicon ✓ Metal GPU</span>' : ''}`;
+
+        // Active model bar
+        if (data.active_model_id) {
+          activeBar.innerHTML = `
+            <div style="background:rgba(79,142,247,0.1);border:1px solid var(--accent);border-radius:8px;padding:0.6rem 1rem;font-size:0.85rem;display:flex;align-items:center;justify-content:space-between">
+              <span>Active LLM: <strong>${data.active_model_id}</strong> — predictions in Lookup tab will show an "Analyze with LLM" button</span>
+              <button class="btn-deactivate" onclick="deactivateModel()" style="border:1px solid var(--border);background:none;color:var(--muted);padding:0.3rem 0.7rem;border-radius:6px;cursor:pointer;font-size:0.8rem">Use GBM only</button>
+            </div>`;
+        } else {
+          activeBar.innerHTML = `
+            <div style="color:var(--muted);font-size:0.85rem">
+              Active model: <strong>GBM (built-in, fast)</strong> — download and activate an LLM below for AI-powered reasoning
+            </div>`;
+        }
+
+        // Model cards
+        const compatLabel = { compatible: "✓ Compatible", marginal: "⚠ Marginal", insufficient: "✗ Needs more RAM", unknown: "?" };
+        const compatCls   = { compatible: "compat-ok",   marginal: "compat-warn",  insufficient: "compat-bad",  unknown: "" };
+
+        catalogEl.innerHTML = data.models.map(m => {
+          const compat = m.compatibility;
+          const isActive = m.active;
+          const isDl = m.downloaded;
+          const dlStatus = m.download_status;
+          const tags = m.tags.map(t => `<span class="tag">${t}</span>`).join("");
+
+          let progressHtml = "";
+          if (dlStatus && dlStatus.status === "downloading") {
+            const pct = Math.round((dlStatus.progress || 0) * 100);
+            progressHtml = `
+              <div class="progress-wrap"><div class="progress-fill" id="prog-${m.id}" style="width:${pct}%"></div></div>
+              <div style="font-size:0.75rem;color:var(--muted);margin-top:0.3rem" id="prog-txt-${m.id}">${pct}% downloaded</div>`;
+          }
+
+          let actions = "";
+          if (!isDl && !(dlStatus && dlStatus.status === "downloading")) {
+            actions += `<button class="model-actions button btn-download" onclick="downloadModel('${m.id}')">Download ${m.size_gb} GB</button>`;
+          } else if (dlStatus && dlStatus.status === "downloading") {
+            actions += `<button class="model-actions button" disabled style="opacity:0.5">Downloading...</button>`;
+          } else if (isDl && !isActive) {
+            actions += `<button class="model-actions button btn-activate" onclick="activateModel('${m.id}')">Activate</button>`;
+            actions += `<button class="model-actions button btn-delete" onclick="deleteModel('${m.id}')">Clear (free ${m.size_gb} GB)</button>`;
+          } else if (isActive) {
+            actions += `<button class="model-actions button btn-deactivate" onclick="deactivateModel()">Deactivate</button>`;
+            actions += `<button class="model-actions button btn-delete" onclick="deleteModel('${m.id}')">Clear from disk</button>`;
+          }
+
+          return `
+            <div class="model-card ${isActive ? "active-model" : ""}" id="mcard-${m.id}">
+              <div class="model-header">
+                <div>
+                  <div class="model-name">${m.name} ${tags}</div>
+                  <div class="model-meta">${m.params_b}B params · ${m.quantization} · ${m.size_gb} GB · ${m.ram_min_gb} GB RAM required</div>
+                  <div style="font-size:0.82rem;color:var(--muted)">${m.description}</div>
+                </div>
+                <div class="${compatCls[compat]}" style="white-space:nowrap;font-size:0.82rem">${compatLabel[compat] || compat}</div>
+              </div>
+              ${progressHtml}
+              <div class="model-actions">${actions}</div>
+            </div>`;
+        }).join("");
+
+        // Poll for any in-progress downloads
+        data.models.forEach(m => {
+          if (m.download_status && m.download_status.status === "downloading") {
+            _startPollDownload(m.id);
+          }
+        });
+      } catch (e) {
+        catalogEl.innerHTML = `<p style='color:var(--danger)'>Error: ${e.message}</p>`;
+      }
+    }
+
+    async function downloadModel(modelId) {
+      try {
+        await apiFetch(`/models/download/${modelId}`, { method: "POST" });
+        _startPollDownload(modelId);
+        loadModelCatalog();
+      } catch (e) {
+        alert(`Download failed: ${e.message}`);
+      }
+    }
+
+    function _startPollDownload(modelId) {
+      if (_pollTimers[modelId]) return;
+      _pollTimers[modelId] = setInterval(async () => {
+        try {
+          const s = await apiFetch(`/models/download/${modelId}/status`);
+          const fill = document.getElementById(`prog-${modelId}`);
+          const txt  = document.getElementById(`prog-txt-${modelId}`);
+          if (fill) fill.style.width = Math.round((s.progress || 0) * 100) + "%";
+          if (txt)  txt.textContent = Math.round((s.progress || 0) * 100) + "% downloaded";
+          if (s.status === "done" || s.status === "error") {
+            clearInterval(_pollTimers[modelId]);
+            delete _pollTimers[modelId];
+            loadModelCatalog();
+          }
+        } catch { clearInterval(_pollTimers[modelId]); delete _pollTimers[modelId]; }
+      }, 2000);
+    }
+
+    async function activateModel(modelId) {
+      await apiFetch("/models/activate", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ model_id: modelId }) });
+      loadModelCatalog();
+    }
+
+    async function deactivateModel() {
+      await apiFetch("/models/activate", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ model_id: null }) });
+      loadModelCatalog();
+    }
+
+    async function deleteModel(modelId) {
+      if (!confirm("Remove this model from disk? You can re-download it later.")) return;
+      try {
+        await apiFetch(`/models/${modelId}`, { method: "DELETE" });
+        loadModelCatalog();
+      } catch (e) {
+        alert(`Delete failed: ${e.message}`);
+      }
     }
 
     updateSyncStatus();

@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database.duckdb_client import init_db
-from backend.api import stocks, predict, portfolio, sync
+from backend.api import stocks, predict, portfolio, sync, models_api
 from backend.data.scheduler import start_scheduler
 from backend.models.trainer import HORIZON_MODEL_PATHS
 
@@ -52,6 +52,7 @@ app.include_router(stocks.router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(predict.router, prefix="/api/predict", tags=["predict"])
 app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
 app.include_router(sync.router, prefix="/api/sync", tags=["sync"])
+app.include_router(models_api.router, prefix="/api/models", tags=["models"])
 
 # Serve frontend — standalone index.html, no build step required
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")

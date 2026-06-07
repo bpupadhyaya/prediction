@@ -5,6 +5,23 @@ from backend.config import PREDICTION_HORIZONS
 router = APIRouter()
 
 
+@router.post("/{ticker}/llm")
+def get_llm_prediction(ticker: str, horizon: str = "1w"):
+    """Run prediction with the active LLM model. Slower than GBM but returns reasoning."""
+    if horizon not in PREDICTION_HORIZONS:
+        raise HTTPException(status_code=400, detail=f"horizon must be one of {PREDICTION_HORIZONS}")
+    from backend.api.models_api import _load_config
+    from backend.models.llm_predictor import predict_with_llm
+    cfg = _load_config()
+    model_id = cfg.get("active_model_id")
+    if not model_id:
+        raise HTTPException(status_code=400, detail="No LLM model activated. Go to Models tab to download and activate one.")
+    result = predict_with_llm(ticker.upper(), horizon, model_id)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return {"ticker": ticker.upper(), "horizon": horizon, "model_id": model_id, **result}
+
+
 @router.get("/{ticker}")
 def get_prediction(ticker: str, horizon: str = "1w"):
     if horizon not in PREDICTION_HORIZONS:

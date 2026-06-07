@@ -81,7 +81,7 @@ echo.
 where node >nul 2>&1
 if %errorlevel% equ 0 (
     echo Building frontend (1-3 min, downloading node_modules)...
-    cd frontend && npm install --silent && npm run build --silent && cd ..
+    cd frontend && npm install && npm run build && cd ..
     echo Frontend built.
 ) else (
     echo Node.js not found -- using pre-built frontend.

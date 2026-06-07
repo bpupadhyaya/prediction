@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Market Prediction</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a;
+      --accent: #4f8ef7; --accent2: #34d399; --danger: #f87171;
+      --text: #e2e8f0; --muted: #64748b;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem;
+    }
+    header h1 { font-size: 1.2rem; font-weight: 600; }
+    nav { display: flex; gap: 0.5rem; margin-left: auto; }
+    nav button {
+      background: none; border: 1px solid var(--border); color: var(--muted);
+      padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+    }
+    nav button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+    .search-bar {
+      display: flex; gap: 0.5rem; margin-bottom: 2rem;
+    }
+    .search-bar input {
+      flex: 1; background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); padding: 0.75rem 1rem; border-radius: 8px; font-size: 1rem;
+    }
+    .search-bar button {
+      background: var(--accent); border: none; color: #fff;
+      padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-size: 1rem;
+    }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem;
+    }
+    .card h3 { font-size: 1rem; margin-bottom: 0.25rem; }
+    .card .ticker { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.75rem; }
+    .badge {
+      display: inline-block; padding: 0.25rem 0.6rem; border-radius: 4px;
+      font-size: 0.8rem; font-weight: 600;
+    }
+    .badge.up { background: rgba(52,211,153,0.15); color: var(--accent2); }
+    .badge.down { background: rgba(248,113,113,0.15); color: var(--danger); }
+    .stat { display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.85rem; }
+    .stat span:last-child { color: var(--muted); }
+    .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    canvas { width: 100% !important; }
+    .disclaimer { color: var(--muted); font-size: 0.75rem; margin-top: 2rem; text-align: center; }
+    .accuracy-badge { background: rgba(79,142,247,0.15); color: var(--accent); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+    #view-home, #view-stock, #view-portfolio { display: none; }
+    #view-home.active, #view-stock.active, #view-portfolio.active { display: block; }
+    .portfolio-form textarea {
+      width: 100%; background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); padding: 0.75rem; border-radius: 8px; font-family: monospace;
+      font-size: 0.9rem; height: 140px; resize: vertical;
+    }
+    .portfolio-form button {
+      margin-top: 0.75rem; background: var(--accent); border: none; color: #fff;
+      padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer;
+    }
+    .sync-bar {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.75rem 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;
+    }
+    .sync-bar button { background: var(--accent); border: none; color: #fff; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    .sync-bar span { color: var(--muted); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📈 Stock Market Prediction</h1>
+    <nav>
+      <button class="active" onclick="showView('home')">Market</button>
+      <button onclick="showView('stock')">Lookup</button>
+      <button onclick="showView('portfolio')">Portfolio</button>
+    </nav>
+  </header>
+
+  <main>
+    <div class="sync-bar">
+      <button onclick="triggerSync()">↻ Refresh Data</button>
+      <span id="sync-status">Last synced: checking...</span>
+    </div>
+
+    <!-- Home: top predictions -->
+    <div id="view-home" class="active">
+      <h2 style="margin-bottom:1rem;">Top Signals — S&amp;P 500</h2>
+      <div class="cards" id="top-cards">Loading predictions...</div>
+    </div>
+
+    <!-- Stock lookup -->
+    <div id="view-stock">
+      <div class="search-bar">
+        <input id="ticker-input" type="text" placeholder="Enter ticker (e.g. AAPL)" />
+        <button onclick="lookupStock()">Predict</button>
+      </div>
+      <div id="stock-result"></div>
+    </div>
+
+    <!-- Portfolio -->
+    <div id="view-portfolio">
+      <h2 style="margin-bottom:1rem;">Portfolio Analysis</h2>
+      <div class="portfolio-form">
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.5rem;">
+          Enter holdings as TICKER:QUANTITY (one per line). Optionally add :PURCHASE_PRICE.
+        </p>
+        <textarea id="portfolio-input" placeholder="AAPL:50:150.00&#10;MSFT:30:280.00&#10;GOOGL:20"></textarea>
+        <button onclick="analyzePortfolio()">Analyze Portfolio</button>
+      </div>
+      <div id="portfolio-result" style="margin-top:1.5rem;"></div>
+    </div>
+
+    <p class="disclaimer">
+      Predictions are probabilistic and for informational purposes only.
+      Model accuracy is displayed with every prediction. This is not financial advice.
+    </p>
+  </main>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -98,8 +98,12 @@ fi
 echo ""
 
 # --- Database + initial data + model training ---
+DATA_DIR="$HOME/.prediction/stock-market"
 if [[ "$SKIP_DATA" == "true" ]]; then
     echo "Skipping data download and model training (--skip-data)."
+elif [[ -f "$DATA_DIR/market.duckdb" ]]; then
+    echo "Existing database found at $DATA_DIR/market.duckdb — skipping data download."
+    echo "To reset: ./uninstall.sh && ./install.sh"
 else
     echo "Initialising database, downloading S&P 500 history, and training model..."
     echo "This takes 10–30 min on first run depending on your CPU and connection."

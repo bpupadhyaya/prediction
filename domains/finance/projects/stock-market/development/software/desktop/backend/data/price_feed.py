@@ -140,13 +140,5 @@ def initial_load(tickers: list[str]) -> None:
         time.sleep(1)
 
     logger.info(f"Price download complete: {total_ok}/{len(pending)} tickers loaded.")
-
-    # Fetch stock info individually (lightweight)
-    logger.info("Fetching stock metadata...")
-    for i, ticker in enumerate(tickers):
-        if i % 100 == 0:
-            logger.info(f"  Metadata {i}/{len(tickers)}...")
-        info = fetch_stock_info(ticker)
-        if info:
-            upsert_stock_info(info)
-        time.sleep(0.05)
+    # Stock metadata (name, sector, market cap) is fetched on-demand when users look up
+    # individual stocks — not during initial setup to avoid Yahoo Finance rate limits.

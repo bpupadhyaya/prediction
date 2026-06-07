@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from backend.database.duckdb_client import get_conn
+from backend.data.price_feed import fetch_stock_info, upsert_stock_info
 
 router = APIRouter()
 
@@ -38,12 +39,19 @@ def get_prices(ticker: str, days: int = 365):
 
 @router.get("/{ticker}/info")
 def get_stock_info(ticker: str):
+    t = ticker.upper()
     conn = get_conn()
     row = conn.execute("""
         SELECT ticker, name, sector, industry, market_cap, updated_at
         FROM stocks WHERE ticker = ?
-    """, [ticker.upper()]).fetchone()
+    """, [t]).fetchone()
     if not row:
-        raise HTTPException(status_code=404, detail=f"Stock {ticker} not found")
+        # Fetch on demand and cache — avoids bulk metadata download during setup
+        info = fetch_stock_info(t)
+        if not info:
+            raise HTTPException(status_code=404, detail=f"Stock {ticker} not found")
+        upsert_stock_info(info)
+        return {"ticker": info["ticker"], "name": info["name"], "sector": info["sector"],
+                "industry": info["industry"], "market_cap": info["market_cap"], "updated_at": None}
     return {"ticker": row[0], "name": row[1], "sector": row[2],
             "industry": row[3], "market_cap": row[4], "updated_at": str(row[5])}

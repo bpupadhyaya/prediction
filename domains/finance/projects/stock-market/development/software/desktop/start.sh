@@ -1,10 +1,15 @@
 #!/bin/bash
 source .venv/bin/activate
 
-# Refresh data in background if internet is available
-python3 -m backend.data.scheduler --once &
+# Kill any existing server on port 8080 to release the DuckDB lock
+EXISTING=$(lsof -ti tcp:8080 2>/dev/null || true)
+if [[ -n "$EXISTING" ]]; then
+    echo "Stopping existing server (PID $EXISTING)..."
+    kill "$EXISTING" 2>/dev/null || true
+    sleep 1
+fi
 
-# Start server
+# Start server (APScheduler inside handles daily refresh — no separate process needed)
 python3 -m uvicorn backend.main:app --host 127.0.0.1 --port 8080 &
 SERVER_PID=$!
 

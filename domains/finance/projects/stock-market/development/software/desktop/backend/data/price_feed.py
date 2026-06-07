@@ -63,7 +63,16 @@ def upsert_prices(df: pd.DataFrame) -> None:
     if df.empty:
         return
     conn = get_conn()
-    conn.execute("INSERT OR REPLACE INTO prices SELECT * FROM df")
+    conn.execute("""
+        INSERT INTO prices SELECT * FROM df
+        ON CONFLICT (ticker, date) DO UPDATE SET
+            open      = EXCLUDED.open,
+            high      = EXCLUDED.high,
+            low       = EXCLUDED.low,
+            close     = EXCLUDED.close,
+            volume    = EXCLUDED.volume,
+            adj_close = EXCLUDED.adj_close
+    """)
     conn.commit()
 
 

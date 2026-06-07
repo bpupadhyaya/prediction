@@ -80,7 +80,7 @@ echo.
 :: --- Frontend build ---
 where node >nul 2>&1
 if %errorlevel% equ 0 (
-    echo Building frontend...
+    echo Building frontend (1-3 min, downloading node_modules)...
     cd frontend && npm install --silent && npm run build --silent && cd ..
     echo Frontend built.
 ) else (
@@ -96,8 +96,9 @@ if %SKIP_DATA%==1 (
     echo Existing database found at %DATA_DIR%\market.duckdb -- skipping data download.
     echo To reset: uninstall.bat then install.bat
 ) else (
-    echo Initialising database, downloading S^&P 500 history, and training model...
-    echo This takes 10-30 min on first run depending on your CPU and connection.
+    echo Initialising database and downloading S^&P 500 history (10-15 min)...
+    echo Then training the prediction model (5-15 min)...
+    echo Total first-run time: 15-30 min. The terminal will appear quiet -- this is normal.
     echo.
     python -m backend.setup
 )

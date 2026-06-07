@@ -89,7 +89,7 @@ echo ""
 
 # --- Frontend build ---
 if command -v node &>/dev/null; then
-    echo "Building frontend..."
+    echo "Building frontend (1–3 min, downloading node_modules)..."
     cd frontend && npm install --silent && npm run build --silent && cd ..
     echo "Frontend built."
 else
@@ -105,8 +105,9 @@ elif [[ -f "$DATA_DIR/market.duckdb" ]]; then
     echo "Existing database found at $DATA_DIR/market.duckdb — skipping data download."
     echo "To reset: ./uninstall.sh && ./install.sh"
 else
-    echo "Initialising database, downloading S&P 500 history, and training model..."
-    echo "This takes 10–30 min on first run depending on your CPU and connection."
+    echo "Initialising database and downloading S&P 500 history (~10–15 min)..."
+    echo "Then training the prediction model (~5–15 min)..."
+    echo "Total first-run time: 15–30 min. The terminal will appear quiet — this is normal."
     echo ""
     python3 -m backend.setup
 fi

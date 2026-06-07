@@ -43,12 +43,18 @@ install.bat
 > **Windows Python note:** Python 3.13+ is not supported. Download Python 3.11 from https://www.python.org/downloads/release/python-3119/ and check **"Add Python to PATH"** during install. `install.bat` auto-detects it.
 
 This does everything in one shot:
-1. Detects a compatible Python (3.10–3.12), installs one via Homebrew if not found
-2. Creates `.venv/` and installs all Python dependencies
-3. Builds the frontend (if Node.js is available)
-4. Downloads 5 years of S&P 500 price history (~15 min)
-5. Downloads macro indicators (FRED)
-6. Trains the initial prediction model (~10–30 min depending on CPU)
+
+| Step | What happens | Time |
+|------|-------------|------|
+| 1 | Detects Python 3.10–3.12, installs via Homebrew if not found | < 1 min |
+| 2 | Creates `.venv/` and installs all Python dependencies | 2–5 min |
+| 3 | Builds the frontend (if Node.js is available) | 1–3 min |
+| 4 | Downloads 5 years of S&P 500 price history | 10–15 min |
+| 5 | Downloads macro indicators (FRED) | 1–2 min |
+| 6 | Trains the initial prediction model | 5–15 min |
+| **Total** | | **~20–40 min** |
+
+> **The terminal will appear quiet during steps 4–6 — this is normal.** Each step runs in the background with no progress bar. Do not close the terminal window.
 
 ### Start the app
 

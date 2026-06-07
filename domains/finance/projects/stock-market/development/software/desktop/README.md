@@ -2,7 +2,18 @@
 
 Local-first app — runs entirely on your laptop/desktop. No cloud, no Docker, no server setup. One script does everything.
 
-## Requirements
+## System Requirements
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| **RAM** | 4 GB | 8 GB — model training loads ~600K feature rows into memory |
+| **Disk** | 1 GB free | 2 GB — ~500 MB Python venv + deps, ~400 MB DuckDB history, ~100 MB model/ONNX files, ~50 MB frontend |
+| **CPU** | Any modern x86_64 or Apple Silicon | 4+ cores — GradientBoostingClassifier training uses all cores; first setup takes 10–30 min depending on CPU |
+| **OS** | macOS 12+, Ubuntu 20.04+, Windows 10+ | — |
+| **Python** | 3.10 | 3.11+ |
+| **Network** | Broadband | — (first-time data download: ~15 min for full S&P 500 history) |
+
+## Software Requirements
 
 - Python 3.10+ (check: `python3 --version`)
 - Internet connection for first-time data download (~15 min for full S&P 500 history)
@@ -14,8 +25,8 @@ Local-first app — runs entirely on your laptop/desktop. No cloud, no Docker, n
 ### macOS / Linux
 
 ```bash
-cd platforms/desktop
-chmod +x install.sh start.sh
+cd domains/finance/projects/stock-market/development/software/desktop
+chmod +x install.sh start.sh uninstall.sh
 ./install.sh          # one-time setup: venv, pip install, DB init, initial data download
 ./start.sh            # start the app (opens browser automatically)
 ```
@@ -23,7 +34,7 @@ chmod +x install.sh start.sh
 ### Windows
 
 ```cmd
-cd platforms\desktop
+cd domains\finance\projects\stock-market\development\software\desktop
 install.bat
 start.bat
 ```
@@ -45,6 +56,24 @@ start.bat
 | ML | GradientBoostingClassifier → ONNX export |
 | Frontend | TypeScript + Vite + Chart.js (pre-built, served by FastAPI) |
 | Data | yfinance (prices), FRED API (macro), SEC EDGAR (fundamentals) |
+
+## Uninstall
+
+To remove everything this project installed (processes, data, venv, build artifacts):
+
+```bash
+./uninstall.sh            # interactive — shows sizes, asks for confirmation
+./uninstall.sh --dry-run  # preview what would be removed, make no changes
+./uninstall.sh --force    # skip confirmation prompt
+```
+
+Removes:
+- Running server (`localhost:8080`) and scheduler processes
+- `~/.prediction/stock-market/` — DuckDB database, trained models, ONNX export (~400 MB–1 GB)
+- `.venv/` — Python virtual environment (~500 MB)
+- `frontend/dist/` — built frontend
+
+Does **not** touch source code, `install.sh`, `requirements.txt`, or any repo files.
 
 ## Data location
 

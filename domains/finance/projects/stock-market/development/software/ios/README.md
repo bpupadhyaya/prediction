@@ -2,7 +2,29 @@
 
 Fully offline SwiftUI app. After initial setup the app works without internet; optional GitHub Releases sync refreshes data and models.
 
-## Requirements
+## System Requirements
+
+### Device (end user)
+
+| Resource | Minimum | Notes |
+|----------|---------|-------|
+| **Device** | iPhone X / iPad (6th gen) or newer | A12 Bionic chip or newer recommended for fast ONNX inference |
+| **iOS** | 17.0+ | — |
+| **RAM** | 2 GB device RAM | Typical modern iPhone — ONNX model loaded into memory at runtime |
+| **Storage** | 150 MB free | ~50 MB app + bundled ONNX model; ~100 MB SQLite database after first sync |
+| **Network** | Optional | Required only for initial Sync; all predictions run fully on-device |
+
+### Developer (build environment)
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| **Mac RAM** | 8 GB | 16 GB — Xcode + simulator |
+| **Mac Disk** | 15 GB free | 20 GB — Xcode, iOS SDKs, simulators |
+| **Xcode** | 15.2 | latest stable |
+| **macOS** | 14.0 (Sonoma) | — |
+| **XcodeGen** | any | `brew install xcodegen` |
+
+## Software Requirements
 
 - Xcode 15.2+
 - iOS 17.0+ deployment target
@@ -11,7 +33,7 @@ Fully offline SwiftUI app. After initial setup the app works without internet; o
 ## Build
 
 ```bash
-cd platforms/ios
+cd domains/finance/projects/stock-market/development/software/ios
 xcodegen generate          # creates StockPrediction.xcodeproj
 open StockPrediction.xcodeproj
 # Xcode resolves SPM packages (GRDB, OnnxRuntimeGenAI) automatically

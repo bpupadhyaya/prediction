@@ -2,7 +2,30 @@
 
 Fully offline Jetpack Compose app. Works without internet after first sync; optional GitHub Releases sync refreshes data and predictions.
 
-## Requirements
+## System Requirements
+
+### Device (end user)
+
+| Resource | Minimum | Notes |
+|----------|---------|-------|
+| **Android** | 8.0 (API 26) | — |
+| **RAM** | 3 GB device RAM | ONNX Runtime loads model into memory; 2 GB devices may OOM on inference |
+| **Storage** | 200 MB free | ~50 MB APK + ONNX model asset; ~100–150 MB Room database after first sync |
+| **CPU** | arm64-v8a | All Android phones since ~2015; x86_64 supported for emulators |
+| **Network** | Optional | Required only for initial Sync; all predictions run fully on-device |
+
+### Developer (build environment)
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| **RAM** | 8 GB | 16 GB — Android Studio + Gradle daemon + emulator |
+| **Disk** | 10 GB free | 20 GB — Android SDK, build tools, emulator images |
+| **CPU** | Any modern x86_64 | 4+ cores — Gradle parallel builds |
+| **OS** | macOS 12+, Ubuntu 20.04+, Windows 10+ | — |
+| **Android Studio** | Hedgehog (2023.1.1) | latest stable |
+| **JDK** | 17 | Bundled with Android Studio |
+
+## Software Requirements
 
 - Android Studio Hedgehog (2023.1.1) or later
 - JDK 17
@@ -11,7 +34,7 @@ Fully offline Jetpack Compose app. Works without internet after first sync; opti
 ## Build
 
 ```bash
-cd platforms/android
+cd domains/finance/projects/stock-market/development/software/android
 # Open in Android Studio, or:
 ./gradlew assembleDebug          # debug APK
 ./gradlew assembleRelease        # release APK (set up signing first)

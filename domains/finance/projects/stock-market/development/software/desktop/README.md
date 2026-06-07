@@ -19,8 +19,9 @@ Local-first app — runs entirely on your laptop/desktop. No cloud, no Docker, n
 
 - Python 3.10–3.12 — auto-handled by `install.sh`
 - Internet connection — required for first-time data download only
-- Optional: Node.js 18+ to rebuild the frontend from source (pre-built `dist/` is included)
 - Optional: FRED API key for macro indicators (free at https://fred.stlouisfed.org/docs/api/api_key.html)
+
+> **Node.js is not required.** The frontend is a standalone HTML file served directly by FastAPI — no build step, no npm, no node_modules.
 
 ---
 
@@ -48,13 +49,12 @@ This does everything in one shot:
 |------|-------------|------|
 | 1 | Detects Python 3.10–3.12, installs via Homebrew if not found | < 1 min |
 | 2 | Creates `.venv/` and installs all Python dependencies | 2–5 min |
-| 3 | Builds the frontend (if Node.js is available) | 1–3 min |
-| 4 | Downloads 5 years of S&P 500 price history | 10–15 min |
-| 5 | Downloads macro indicators (FRED) | 1–2 min |
-| 6 | Trains the initial prediction model | 5–15 min |
-| **Total** | | **~20–40 min** |
+| 3 | Downloads 5 years of S&P 500 price history | 10–15 min |
+| 4 | Downloads macro indicators (FRED) | 1–2 min |
+| 5 | Trains the initial prediction model | 5–15 min |
+| **Total** | | **~20–35 min** |
 
-> **The terminal will appear quiet during steps 4–6 — this is normal.** Each step runs in the background with no progress bar. Do not close the terminal window.
+> **The terminal will appear quiet during steps 3–5 — this is normal.** Do not close the terminal window.
 
 ### Start the app
 

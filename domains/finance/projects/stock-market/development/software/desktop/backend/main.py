@@ -38,7 +38,7 @@ app.include_router(predict.router, prefix="/api/predict", tags=["predict"])
 app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
 app.include_router(sync.router, prefix="/api/sync", tags=["sync"])
 
-# Serve compiled frontend
-frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
-if os.path.exists(frontend_dist):
-    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
+# Serve frontend — standalone index.html, no build step required
+frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+if os.path.exists(frontend_dir):
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="static")

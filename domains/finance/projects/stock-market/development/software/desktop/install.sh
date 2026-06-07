@@ -87,15 +87,6 @@ pip install --upgrade pip --quiet
 pip install -r requirements.txt
 echo ""
 
-# --- Frontend build ---
-if command -v node &>/dev/null; then
-    echo "Building frontend (1–3 min, downloading node_modules)..."
-    cd frontend && npm install && npm run build && cd ..
-    echo "Frontend built."
-else
-    echo "Node.js not found — using pre-built frontend (dist/)."
-fi
-echo ""
 
 # --- Database + initial data + model training ---
 DATA_DIR="$HOME/.prediction/stock-market"

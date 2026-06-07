@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Stock Market Prediction</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -25,9 +26,7 @@
     }
     nav button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
     main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-    .search-bar {
-      display: flex; gap: 0.5rem; margin-bottom: 2rem;
-    }
+    .search-bar { display: flex; gap: 0.5rem; margin-bottom: 2rem; }
     .search-bar input {
       flex: 1; background: var(--surface); border: 1px solid var(--border);
       color: var(--text); padding: 0.75rem 1rem; border-radius: 8px; font-size: 1rem;
@@ -39,15 +38,14 @@
     .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
     .card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.25rem;
+      border-radius: 12px; padding: 1.25rem; cursor: pointer;
     }
-    .card h3 { font-size: 1rem; margin-bottom: 0.25rem; }
     .card .ticker { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.75rem; }
     .badge {
       display: inline-block; padding: 0.25rem 0.6rem; border-radius: 4px;
       font-size: 0.8rem; font-weight: 600;
     }
-    .badge.up { background: rgba(52,211,153,0.15); color: var(--accent2); }
+    .badge.up   { background: rgba(52,211,153,0.15); color: var(--accent2); }
     .badge.down { background: rgba(248,113,113,0.15); color: var(--danger); }
     .stat { display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.85rem; }
     .stat span:last-child { color: var(--muted); }
@@ -72,11 +70,13 @@
     }
     .sync-bar button { background: var(--accent); border: none; color: #fff; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
     .sync-bar span { color: var(--muted); font-size: 0.85rem; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .horizon-badges { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
   </style>
 </head>
 <body>
   <header>
-    <h1>📈 Stock Market Prediction</h1>
+    <h1>Stock Market Prediction</h1>
     <nav>
       <button class="active" onclick="showView('home')">Market</button>
       <button onclick="showView('stock')">Lookup</button>
@@ -86,26 +86,23 @@
 
   <main>
     <div class="sync-bar">
-      <button onclick="triggerSync()">↻ Refresh Data</button>
-      <span id="sync-status">Last synced: checking...</span>
+      <button onclick="triggerSync()">&#8635; Refresh Data</button>
+      <span id="sync-status">Checking...</span>
     </div>
 
-    <!-- Home: top predictions -->
     <div id="view-home" class="active">
-      <h2 style="margin-bottom:1rem;">Top Signals — S&amp;P 500</h2>
-      <div class="cards" id="top-cards">Loading predictions...</div>
+      <h2 style="margin-bottom:1rem;">Top Signals &mdash; S&amp;P 500</h2>
+      <div class="cards" id="top-cards"><p style="color:var(--muted)">Loading predictions...</p></div>
     </div>
 
-    <!-- Stock lookup -->
     <div id="view-stock">
       <div class="search-bar">
-        <input id="ticker-input" type="text" placeholder="Enter ticker (e.g. AAPL)" />
+        <input id="ticker-input" type="text" placeholder="Enter ticker (e.g. AAPL)" onkeydown="if(event.key==='Enter') lookupStock()" />
         <button onclick="lookupStock()">Predict</button>
       </div>
       <div id="stock-result"></div>
     </div>
 
-    <!-- Portfolio -->
     <div id="view-portfolio">
       <h2 style="margin-bottom:1rem;">Portfolio Analysis</h2>
       <div class="portfolio-form">
@@ -124,6 +121,209 @@
     </p>
   </main>
 
-  <script type="module" src="/src/main.ts"></script>
+  <script>
+    const BASE = "/api";
+
+    async function apiFetch(path, options) {
+      const res = await fetch(BASE + path, options);
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+    const api = {
+      predict:        (ticker, horizon = "1w") => apiFetch(`/predict/${ticker}?horizon=${horizon}`),
+      topPredictions: (limit = 20)             => apiFetch(`/predict/batch/top?limit=${limit}`),
+      prices:         (ticker, days = 365)     => apiFetch(`/stocks/${ticker}/prices?days=${days}`),
+      analyzePortfolio: (holdings, horizon = "1w") =>
+        apiFetch("/portfolio/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ holdings, horizon }) }),
+      triggerSync: () =>
+        apiFetch("/sync/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }),
+      syncStatus: () => apiFetch("/sync/status"),
+    };
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+    function showView(view) {
+      document.querySelectorAll("[id^=view-]").forEach(el => el.classList.remove("active"));
+      document.querySelectorAll("nav button").forEach((b, i) => {
+        b.classList.toggle("active", ["home", "stock", "portfolio"][i] === view);
+      });
+      document.getElementById("view-" + view).classList.add("active");
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function dirBadge(pred) {
+      const pct = Math.round(pred.probability * 100);
+      const cls = pred.direction === "up" ? "up" : "down";
+      const arrow = pred.direction === "up" ? "&#9650;" : "&#9660;";
+      return `<span class="badge ${cls}">${arrow} ${pct}% ${pred.direction.toUpperCase()}</span>`;
+    }
+    function accuracyBadge(acc) {
+      return `<span class="accuracy-badge">Model accuracy: ${Math.round(acc * 100)}%</span>`;
+    }
+    function returnRange(pred) {
+      return `${(pred.expected_return_low * 100).toFixed(1)}% to ${(pred.expected_return_high * 100).toFixed(1)}%`;
+    }
+
+    // ── Home: top signals ─────────────────────────────────────────────────────
+    async function loadTopPredictions() {
+      const container = document.getElementById("top-cards");
+      try {
+        const preds = await api.topPredictions(20);
+        if (!preds.length) {
+          container.innerHTML = "<p style='color:var(--muted)'>No predictions yet — run setup first.</p>";
+          return;
+        }
+        container.innerHTML = preds.map(p => `
+          <div class="card" onclick="showView('stock'); document.getElementById('ticker-input').value='${p.ticker}'; lookupStock()">
+            <div class="ticker">${p.ticker}</div>
+            ${dirBadge(p)}
+            <div class="stat"><span>Expected return</span><span>${returnRange(p)}</span></div>
+            <div class="stat"><span>${accuracyBadge(p.model_accuracy)}</span><span>1-week</span></div>
+          </div>`).join("");
+      } catch (e) {
+        container.innerHTML = "<p style='color:var(--muted)'>Could not load predictions. Is the server running?</p>";
+      }
+    }
+
+    // ── Stock lookup ──────────────────────────────────────────────────────────
+    let priceChart = null;
+
+    async function lookupStock() {
+      const ticker = document.getElementById("ticker-input").value.trim().toUpperCase();
+      if (!ticker) return;
+      const container = document.getElementById("stock-result");
+      container.innerHTML = "<p style='color:var(--muted)'>Loading...</p>";
+      try {
+        const [pred, prices] = await Promise.all([api.predict(ticker, "1w"), api.prices(ticker, 252)]);
+        container.innerHTML = `
+          <div class="two-col">
+            <div class="card">
+              <div class="ticker">${pred.ticker}</div>
+              <div style="margin-bottom:0.75rem">${dirBadge(pred)}</div>
+              <div class="stat"><span>1-week expected return</span><span>${returnRange(pred)}</span></div>
+              <div class="stat"><span>Volatility (ann.)</span><span>${(pred.volatility * 100).toFixed(1)}%</span></div>
+              <div class="stat"><span>Model accuracy</span><span>${Math.round(pred.model_accuracy * 100)}%</span></div>
+            </div>
+            <div class="card">
+              <p style="font-size:0.85rem;color:var(--muted);margin-bottom:0.5rem">Horizons</p>
+              <div class="horizon-badges" id="horizon-badges"></div>
+            </div>
+          </div>
+          <div class="chart-container">
+            <h3 style="margin-bottom:1rem">Price History (1 year)</h3>
+            <canvas id="price-chart"></canvas>
+          </div>`;
+        loadHorizons(ticker);
+        renderPriceChart(prices);
+      } catch (e) {
+        container.innerHTML = `<p style='color:var(--danger)'>Error: ${e.message}</p>`;
+      }
+    }
+
+    async function loadHorizons(ticker) {
+      const container = document.getElementById("horizon-badges");
+      for (const h of ["1d", "1w", "1m"]) {
+        try {
+          const p = await api.predict(ticker, h);
+          const span = document.createElement("span");
+          span.className = `badge ${p.direction === "up" ? "up" : "down"}`;
+          span.textContent = `${h}: ${Math.round(p.probability * 100)}% ${p.direction}`;
+          container.appendChild(span);
+        } catch { /* skip */ }
+      }
+    }
+
+    function renderPriceChart(prices) {
+      const canvas = document.getElementById("price-chart");
+      if (!canvas) return;
+      if (priceChart) priceChart.destroy();
+      const sorted = [...prices].reverse();
+      priceChart = new Chart(canvas.getContext("2d"), {
+        type: "line",
+        data: {
+          labels: sorted.map(p => p.date),
+          datasets: [{ label: "Close", data: sorted.map(p => p.adj_close),
+            borderColor: "#4f8ef7", borderWidth: 2, pointRadius: 0, fill: false, tension: 0.1 }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { maxTicksLimit: 8, color: "#64748b" }, grid: { color: "#2a2d3a" } },
+            y: { ticks: { color: "#64748b" }, grid: { color: "#2a2d3a" } },
+          },
+        },
+      });
+    }
+
+    // ── Portfolio ─────────────────────────────────────────────────────────────
+    async function analyzePortfolio() {
+      const lines = document.getElementById("portfolio-input").value.trim().split("\n").filter(Boolean);
+      const holdings = lines.map(line => {
+        const [ticker, qty, price] = line.split(":");
+        return { ticker: ticker.trim().toUpperCase(), quantity: parseFloat(qty ?? "1"),
+          ...(price ? { purchase_price: parseFloat(price) } : {}) };
+      });
+      const container = document.getElementById("portfolio-result");
+      container.innerHTML = "<p style='color:var(--muted)'>Analyzing...</p>";
+      try {
+        const result = await api.analyzePortfolio(holdings);
+        const h = result.holdings;
+        container.innerHTML = `
+          <div class="card" style="margin-bottom:1rem">
+            <div style="font-size:1.1rem;font-weight:600">
+              Total Value: $${Number(result.total_value).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </div>
+          </div>
+          <div class="cards">
+            ${h.map(holding => `
+              <div class="card">
+                <div class="ticker">${holding.ticker}</div>
+                <div class="stat"><span>Price</span><span>$${Number(holding.current_price).toFixed(2)}</span></div>
+                <div class="stat"><span>Value</span><span>$${Number(holding.position_value).toFixed(2)}</span></div>
+                ${holding.gain_loss_pct != null ? `<div class="stat"><span>Gain/Loss</span><span style="color:${holding.gain_loss_pct >= 0 ? "var(--accent2)" : "var(--danger)"}">${Number(holding.gain_loss_pct).toFixed(2)}%</span></div>` : ""}
+                <div style="margin-top:0.5rem">
+                  <span class="badge ${holding.prediction.direction === 'up' ? 'up' : 'down'}">
+                    ${Math.round(holding.prediction.probability * 100)}% ${holding.prediction.direction}
+                  </span>
+                  ${accuracyBadge(holding.prediction.model_accuracy)}
+                </div>
+              </div>`).join("")}
+          </div>
+          <p class="disclaimer">${result.disclaimer}</p>`;
+      } catch (e) {
+        container.innerHTML = `<p style='color:var(--danger)'>Error: ${e.message}</p>`;
+      }
+    }
+
+    // ── Sync ──────────────────────────────────────────────────────────────────
+    async function triggerSync() {
+      const status = document.getElementById("sync-status");
+      status.textContent = "Starting refresh...";
+      try {
+        await api.triggerSync();
+        status.textContent = "Refresh running in background...";
+        const poll = setInterval(async () => {
+          try {
+            const s = await api.syncStatus();
+            status.textContent = s.running ? s.message : `Last synced: ${s.last_completed ?? "never"}`;
+            if (!s.running) clearInterval(poll);
+          } catch { clearInterval(poll); }
+        }, 2000);
+      } catch (e) {
+        status.textContent = `Sync failed: ${e.message}`;
+      }
+    }
+
+    async function updateSyncStatus() {
+      try {
+        const s = await api.syncStatus();
+        document.getElementById("sync-status").textContent =
+          s.last_completed ? `Last synced: ${new Date(s.last_completed).toLocaleString()}` : "Never synced — click Refresh Data";
+      } catch { document.getElementById("sync-status").textContent = "Server offline"; }
+    }
+
+    updateSyncStatus();
+    loadTopPredictions();
+  </script>
 </body>
 </html>

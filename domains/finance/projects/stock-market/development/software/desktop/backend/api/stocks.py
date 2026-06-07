@@ -29,12 +29,23 @@ def get_prices(ticker: str, days: int = 365):
         LIMIT ?
     """, [ticker.upper(), days]).fetchall()
     if not rows:
-        raise HTTPException(status_code=404, detail=f"No price data for {ticker}")
+        return []   # empty list — frontend handles "no data" gracefully
     return [
         {"date": str(r[0]), "open": r[1], "high": r[2],
          "low": r[3], "close": r[4], "volume": r[5], "adj_close": r[6]}
         for r in rows
     ]
+
+
+@router.post("/{ticker}/fetch")
+def fetch_ticker_on_demand(ticker: str):
+    """Download 5-year price history for a ticker not yet in the database."""
+    from backend.data.price_feed import refresh_ticker
+    t = ticker.upper()
+    success = refresh_ticker(t, full=True)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Could not fetch data for {t} — it may be delisted or invalid")
+    return {"ticker": t, "status": "fetched"}
 
 
 @router.get("/{ticker}/info")

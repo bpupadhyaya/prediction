@@ -158,8 +158,11 @@
 
       <!-- Hot Stocks panel -->
       <div id="market-hot" style="display:none">
-        <h2 style="margin-bottom:0.4rem">Hot Stocks</h2>
-        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1rem">High-profile and trending publicly traded companies. Stocks not yet in the local database show as "No data".</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;flex-wrap:wrap;gap:0.5rem">
+          <h2>Hot Stocks</h2>
+          <span id="hot-count" style="color:var(--muted);font-size:0.85rem"></span>
+        </div>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1rem">High-profile and trending publicly traded companies. Click "Download &amp; Predict" on any stock not yet in your database.</p>
         <div class="cards" id="hot-cards"><p style="color:var(--muted)">Loading...</p></div>
         <div style="margin-top:2rem;margin-bottom:0.75rem">
           <h2>Upcoming IPOs &amp; Pre-IPO Companies</h2>
@@ -322,10 +325,13 @@
     function _predCard(p) {
       if (!p.model_ready) {
         return `
-          <div class="card" style="opacity:0.6" onclick="showView('stock'); document.getElementById('ticker-input').value='${p.ticker}'; lookupStock()">
+          <div class="card" style="opacity:0.7">
             <div class="ticker">${p.ticker}</div>
-            <div style="color:var(--muted);font-size:0.8rem;margin-top:0.4rem">No historical data in DB yet</div>
-            <div style="color:var(--muted);font-size:0.75rem;margin-top:0.25rem">Run data refresh to add this ticker</div>
+            <div style="color:var(--muted);font-size:0.8rem;margin:0.4rem 0 0.6rem">Not in local database yet</div>
+            <button onclick="showView('stock'); document.getElementById('ticker-input').value='${p.ticker}'; fetchAndLookup('${p.ticker}')"
+              style="background:var(--accent);border:none;color:#fff;padding:0.35rem 0.85rem;border-radius:6px;cursor:pointer;font-size:0.82rem">
+              Download &amp; Predict
+            </button>
           </div>`;
       }
       return `
@@ -363,6 +369,10 @@
       document.getElementById("hot-cards").innerHTML = "<p style='color:var(--muted)'>Loading...</p>";
       try {
         const data = await apiFetch("/predict/batch/hot");
+        const withData    = data.traded.filter(p => p.model_ready).length;
+        const withoutData = data.traded.length - withData;
+        document.getElementById("hot-count").textContent =
+          `${withData} with predictions · ${withoutData} not yet downloaded · ${data.pre_ipo.length} pre-IPO`;
         document.getElementById("hot-cards").innerHTML = data.traded.map(_predCard).join("");
         document.getElementById("pre-ipo-cards").innerHTML = data.pre_ipo.map(_preIpoCard).join("");
       } catch (e) {
@@ -373,6 +383,18 @@
     // ── Stock lookup ──────────────────────────────────────────────────────────
     let priceChart = null;
 
+    async function fetchAndLookup(ticker) {
+      const container = document.getElementById("stock-result");
+      container.innerHTML = `<p style='color:var(--muted)'>Downloading price history for ${ticker} — this may take a few seconds...</p>`;
+      try {
+        await apiFetch(`/stocks/${ticker}/fetch`, { method: "POST" });
+        document.getElementById("ticker-input").value = ticker;
+        await lookupStock();
+      } catch (e) {
+        container.innerHTML = `<p style='color:var(--danger)'>Could not download data for ${ticker}: ${e.message}</p>`;
+      }
+    }
+
     async function lookupStock() {
       const ticker = document.getElementById("ticker-input").value.trim().toUpperCase();
       if (!ticker) return;
@@ -380,6 +402,27 @@
       container.innerHTML = "<p style='color:var(--muted)'>Loading...</p>";
       try {
         const [pred, prices] = await Promise.all([api.predict(ticker, "1w"), api.prices(ticker, 252)]);
+
+        // Ticker not in DB — offer to download on demand
+        if (!prices.length) {
+          container.innerHTML = `
+            <div class="card" style="max-width:480px">
+              <div class="ticker">${ticker}</div>
+              <p style="color:var(--muted);font-size:0.9rem;margin:0.75rem 0">
+                No local price data for <strong>${ticker}</strong>.<br>
+                This ticker is not in your database yet.
+              </p>
+              <button onclick="fetchAndLookup('${ticker}')"
+                style="background:var(--accent);border:none;color:#fff;padding:0.6rem 1.2rem;border-radius:8px;cursor:pointer;font-size:0.9rem">
+                Download &amp; Predict
+              </button>
+              <p style="color:var(--muted);font-size:0.75rem;margin-top:0.5rem">
+                Downloads 5 years of price history from Yahoo Finance (~5 seconds).
+              </p>
+            </div>`;
+          return;
+        }
+
         container.innerHTML = `
           <div class="two-col">
             <div class="card">

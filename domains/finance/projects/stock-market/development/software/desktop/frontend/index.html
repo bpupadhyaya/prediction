@@ -472,7 +472,10 @@
           RAM: <span>${hw.total_ram_gb} GB</span> &nbsp;|&nbsp;
           CPU cores: <span>${hw.cpu_count}</span> &nbsp;|&nbsp;
           Architecture: <span>${hw.machine}</span>
-          ${hw.is_apple_silicon ? '&nbsp;|&nbsp; <span style="color:var(--accent2)">Apple Silicon ✓ Metal GPU</span>' : ''}`;
+          ${hw.is_apple_silicon ? '&nbsp;|&nbsp; <span style="color:var(--accent2)">Apple Silicon ✓ Metal GPU</span>' : ''}
+          <br style="margin:0.3rem 0">
+          Models folder: <span style="font-family:monospace;font-size:0.78rem">${data.models_dir}</span>
+          &nbsp;<button onclick="openModelsFolder()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.15rem 0.45rem;border-radius:4px;cursor:pointer;font-size:0.75rem">📂 Open in Finder</button>`;
 
         // Active model bar
         if (data.active_model_id) {
@@ -507,6 +510,11 @@
               <div style="font-size:0.75rem;color:var(--muted);margin-top:0.3rem" id="prog-txt-${m.id}">${pct}% downloaded</div>`;
           }
 
+          let fileInfo = "";
+          if (isDl && m.file_path) {
+            fileInfo = `<div style="font-size:0.75rem;color:var(--muted);margin-top:0.4rem;font-family:monospace;word-break:break-all">${m.file_path}</div>`;
+          }
+
           let actions = "";
           if (!isDl && !(dlStatus && dlStatus.status === "downloading")) {
             actions += `<button class="model-actions button btn-download" onclick="downloadModel('${m.id}')">Download ${m.size_gb} GB</button>`;
@@ -514,9 +522,11 @@
             actions += `<button class="model-actions button" disabled style="opacity:0.5">Downloading...</button>`;
           } else if (isDl && !isActive) {
             actions += `<button class="model-actions button btn-activate" onclick="activateModel('${m.id}')">Activate</button>`;
+            actions += `<button class="model-actions button" onclick="openModelsFolder()" style="background:none;border:1px solid var(--border);color:var(--muted)">📂 Open Folder</button>`;
             actions += `<button class="model-actions button btn-delete" onclick="deleteModel('${m.id}')">Clear (free ${m.size_gb} GB)</button>`;
           } else if (isActive) {
             actions += `<button class="model-actions button btn-deactivate" onclick="deactivateModel()">Deactivate</button>`;
+            actions += `<button class="model-actions button" onclick="openModelsFolder()" style="background:none;border:1px solid var(--border);color:var(--muted)">📂 Open Folder</button>`;
             actions += `<button class="model-actions button btn-delete" onclick="deleteModel('${m.id}')">Clear from disk</button>`;
           }
 
@@ -531,6 +541,7 @@
                 <div class="${compatCls[compat]}" style="white-space:nowrap;font-size:0.82rem">${compatLabel[compat] || compat}</div>
               </div>
               ${progressHtml}
+              ${fileInfo}
               <div class="model-actions">${actions}</div>
             </div>`;
         }).join("");
@@ -582,6 +593,10 @@
     async function deactivateModel() {
       await apiFetch("/models/activate", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ model_id: null }) });
       loadModelCatalog();
+    }
+
+    async function openModelsFolder() {
+      await apiFetch("/models/open-folder", { method: "POST" }).catch(() => {});
     }
 
     async function deleteModel(modelId) {

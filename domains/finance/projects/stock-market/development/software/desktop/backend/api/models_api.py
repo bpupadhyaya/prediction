@@ -2,7 +2,8 @@
 Model management API: browse catalog, download, clear, activate LLM models.
 """
 import json
-import threading
+import platform
+import subprocess
 import requests
 import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks
@@ -62,10 +63,12 @@ def model_catalog():
             "compatibility": model_compatibility(m["ram_min_gb"], hw),
             "downloaded": m["id"] in downloaded,
             "size_on_disk_gb": size_on_disk,
+            "file_path": str(model_path) if model_path.exists() else None,
+            "models_dir": str(LLM_MODELS_DIR),
             "active": m["id"] == active,
             "download_status": dl_status,
         })
-    return {"hardware": hw, "active_model_id": active, "models": result}
+    return {"hardware": hw, "active_model_id": active, "models_dir": str(LLM_MODELS_DIR), "models": result}
 
 
 @router.get("/config")
@@ -108,6 +111,23 @@ def download_status(model_id: str):
         downloaded = model_id in _downloaded_ids()
         return {"status": "done" if downloaded else "not_started", "progress": 1.0 if downloaded else 0.0}
     return _downloads[model_id]
+
+
+@router.post("/open-folder")
+def open_models_folder():
+    """Open the LLM models directory in the system file manager."""
+    folder = str(LLM_MODELS_DIR)
+    sys = platform.system()
+    try:
+        if sys == "Darwin":
+            subprocess.Popen(["open", folder])
+        elif sys == "Windows":
+            subprocess.Popen(["explorer", folder])
+        else:
+            subprocess.Popen(["xdg-open", folder])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"folder": folder}
 
 
 @router.delete("/{model_id}")

@@ -17,6 +17,7 @@ Predictions about economic trajectories, financial health, and wealth outcomes a
 | [financial-distress](projects/financial-distress/) | Risk of bankruptcy, debt crisis, or income disruption | scaffold |
 | [retirement-readiness](projects/retirement-readiness/) | Probability of achieving financially secure retirement | scaffold |
 | [entrepreneurship](projects/entrepreneurship/) | Business survival probability and growth trajectory prediction | scaffold |
+| [stock-market](projects/stock-market/) | Equity direction, magnitude, volatility, and portfolio drawdown risk prediction | scaffold |
 
 ## Research Focus
 

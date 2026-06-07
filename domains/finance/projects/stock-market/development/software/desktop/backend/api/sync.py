@@ -15,6 +15,8 @@ _refresh_status = {"running": False, "last_completed": None, "message": ""}
 def trigger_refresh(background_tasks: BackgroundTasks):
     if _refresh_status["running"]:
         return {"status": "already_running", "message": "Refresh already in progress"}
+    _refresh_status["running"] = True   # set before adding task to close the race window
+    _refresh_status["message"] = "Starting..."
     background_tasks.add_task(_run_refresh)
     return {"status": "started", "message": "Data refresh started in background"}
 
@@ -33,7 +35,6 @@ def refresh_status():
 
 def _run_refresh():
     global _refresh_status
-    _refresh_status["running"] = True
     _refresh_status["message"] = "Fetching latest prices..."
     try:
         conn = get_conn()

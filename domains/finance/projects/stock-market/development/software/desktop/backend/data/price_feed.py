@@ -62,6 +62,8 @@ def fetch_prices(ticker: str, days: int = 365 * 5) -> pd.DataFrame:
 def upsert_prices(df: pd.DataFrame) -> None:
     if df.empty:
         return
+    # Deduplicate within the DataFrame itself — yfinance occasionally returns duplicate dates
+    df = df.drop_duplicates(subset=["ticker", "date"], keep="last")
     conn = get_conn()
     conn.execute("""
         INSERT INTO prices SELECT * FROM df

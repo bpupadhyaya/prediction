@@ -1,7 +1,8 @@
 from fastapi import APIRouter, BackgroundTasks
-from backend.data.price_feed import fetch_sp500_tickers, refresh_ticker
+from backend.data.price_feed import refresh_ticker
 from backend.data.macro_feed import refresh_all_macro
 from backend.models.trainer import retrain_if_needed
+from backend.database.duckdb_client import get_conn
 import logging
 
 router = APIRouter()
@@ -20,6 +21,13 @@ def trigger_refresh(background_tasks: BackgroundTasks):
 
 @router.get("/status")
 def refresh_status():
+    if _refresh_status["last_completed"] is None:
+        conn = get_conn()
+        count = conn.execute("SELECT COUNT(*) FROM prices").fetchone()[0]
+        if count > 0:
+            max_date = conn.execute("SELECT MAX(date) FROM prices").fetchone()[0]
+            return {**_refresh_status, "last_completed": str(max_date),
+                    "message": f"Setup data loaded ({count:,} price bars through {max_date})"}
     return _refresh_status
 
 
@@ -28,7 +36,8 @@ def _run_refresh():
     _refresh_status["running"] = True
     _refresh_status["message"] = "Fetching latest prices..."
     try:
-        tickers = fetch_sp500_tickers()
+        conn = get_conn()
+        tickers = [r[0] for r in conn.execute("SELECT DISTINCT ticker FROM prices").fetchall()]
         for i, ticker in enumerate(tickers):
             _refresh_status["message"] = f"Refreshing {ticker} ({i+1}/{len(tickers)})"
             refresh_ticker(ticker, full=False)

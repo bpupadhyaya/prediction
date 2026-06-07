@@ -49,6 +49,9 @@ def get_top_predictions(sector: str | None = None, limit: int = 20):
                 "ticker": pred.ticker,
                 "direction": pred.direction,
                 "probability": pred.probability,
+                "expected_return_low": pred.expected_return_low,
+                "expected_return_high": pred.expected_return_high,
+                "volatility": pred.volatility,
                 "model_accuracy": pred.model_accuracy,
             })
     results.sort(key=lambda x: abs(x["probability"] - 0.5), reverse=True)

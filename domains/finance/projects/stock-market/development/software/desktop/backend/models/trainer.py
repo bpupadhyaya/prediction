@@ -20,6 +20,7 @@ ACCURACY_LOG_PATH = MODELS_DIR / "accuracy_history.json"
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy().sort_values("date")
     c = df["close"]
+    vol = df["volume"].fillna(0).astype(float)
 
     df["return_1d"] = c.pct_change(1)
     df["return_5d"] = c.pct_change(5)
@@ -28,7 +29,8 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     df["ma_20"] = c.rolling(20).mean() / c - 1
     df["ma_50"] = c.rolling(50).mean() / c - 1
     df["volatility_20"] = c.pct_change().rolling(20).std()
-    df["volume_ratio"] = df["volume"] / df["volume"].rolling(20).mean()
+    roll_mean = vol.rolling(20).mean().replace(0, np.nan)
+    df["volume_ratio"] = vol / roll_mean
 
     # RSI
     delta = c.diff()

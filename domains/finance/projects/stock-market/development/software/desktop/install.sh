@@ -23,6 +23,23 @@ fi
 
 echo "Python: $(python3 --version)"
 
+# Enforce Python 3.10–3.12 (3.13+ lacks ML package wheels)
+PY_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
+PY_MAJOR=$(python3 -c "import sys; print(sys.version_info.major)")
+if [[ "$PY_MAJOR" -ne 3 ]] || [[ "$PY_MINOR" -lt 10 ]] || [[ "$PY_MINOR" -gt 12 ]]; then
+    echo ""
+    echo "ERROR: Python 3.10–3.12 required (found $(python3 --version))."
+    echo "ML packages (scikit-learn, onnxruntime, numpy) have no wheels for 3.13+."
+    echo ""
+    echo "Fix:"
+    echo "  brew install python@3.11"
+    echo "  python3.11 -m venv .venv"
+    echo "  source .venv/bin/activate"
+    echo "  pip install -r requirements.txt"
+    echo "  python3 -m backend.setup"
+    exit 1
+fi
+
 # Virtual environment
 if [ ! -d ".venv" ]; then
     python3 -m venv .venv

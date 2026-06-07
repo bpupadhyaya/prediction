@@ -18,23 +18,6 @@ Predictions about interpersonal relationships, behavioral health, social traject
 | [social-mobility](projects/social-mobility/) | Probability of upward economic and social mobility | scaffold |
 | [mental-health-episodes](projects/mental-health-episodes/) | Prediction of acute mental health episodes (crisis events) | scaffold |
 
-## Research Focus
-
-See [research/](research/) for:
-- Longitudinal behavioral studies and outcome datasets
-- Relationship science research (Gottman, attachment theory, etc.)
-- Addiction neuroscience and risk factor literature
-- Social mobility research (Chetty et al., OECD mobility data)
-- Ethical framework for sensitive behavioral predictions
-
-## Development Focus
-
-See [development/](development/) for:
-- Survey and self-report data collection frameworks
-- Behavioral sequence modeling approaches
-- Crisis prediction model implementations
-- Privacy-preserving ML techniques for sensitive behavioral data
-
 ## Data Sources (Catalog)
 
 - Add Health (National Longitudinal Study of Adolescent to Adult Health)

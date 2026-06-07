@@ -11,7 +11,7 @@
 # their local database and on-device model.
 #
 # Requirements:
-#   - Python venv activated: source platforms/desktop/.venv/bin/activate
+#   - Python venv activated: source domains/finance/projects/stock-market/development/software/desktop/.venv/bin/activate
 #   - gh CLI authenticated: gh auth login
 #   - GITHUB_TOKEN or gh CLI session with write:packages permission
 #
@@ -30,7 +30,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DESKTOP_DIR="$REPO_ROOT/platforms/desktop"
+DESKTOP_DIR="$REPO_ROOT/domains/finance/projects/stock-market/development/software/desktop"
 VENV="$DESKTOP_DIR/.venv"
 DATA_DIR="$HOME/.prediction/stock-market"
 RELEASE_DIR="/tmp/prediction-release"
@@ -66,7 +66,7 @@ echo ""
 
 # --- Activate venv ---
 if [[ ! -f "$VENV/bin/activate" ]]; then
-    echo "ERROR: Python venv not found at $VENV. Run ./platforms/desktop/install.sh first." >&2
+    echo "ERROR: Python venv not found at $VENV. Run ./domains/finance/projects/stock-market/development/software/desktop/install.sh first." >&2
     exit 1
 fi
 source "$VENV/bin/activate"
@@ -77,7 +77,7 @@ mkdir -p "$RELEASE_DIR"
 
 # --- Step 1: Export ONNX model ---
 echo "==> Exporting ONNX model..."
-cd "$REPO_ROOT/platforms/desktop"
+cd "$REPO_ROOT/domains/finance/projects/stock-market/development/software/desktop"
 python3 -m backend.models.exporter --verify
 ONNX_SRC="$DATA_DIR/models/stock_predictor.onnx"
 if [[ ! -f "$ONNX_SRC" ]]; then
@@ -163,8 +163,8 @@ PYEOF
 
 # --- Step 4b: Copy ONNX into mobile platform source trees ---
 echo "==> Copying ONNX into iOS Resources + Android assets..."
-IOS_RESOURCES="$REPO_ROOT/platforms/ios/StockPrediction/Resources"
-ANDROID_ASSETS="$REPO_ROOT/platforms/android/app/src/main/assets"
+IOS_RESOURCES="$REPO_ROOT/domains/finance/projects/stock-market/development/software/ios/StockPrediction/Resources"
+ANDROID_ASSETS="$REPO_ROOT/domains/finance/projects/stock-market/development/software/android/app/src/main/assets"
 mkdir -p "$IOS_RESOURCES" "$ANDROID_ASSETS"
 cp "$RELEASE_DIR/stock_predictor.onnx" "$IOS_RESOURCES/stock_predictor.onnx"
 cp "$RELEASE_DIR/stock_predictor.onnx" "$ANDROID_ASSETS/stock_predictor.onnx"

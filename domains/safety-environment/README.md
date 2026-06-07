@@ -18,22 +18,6 @@ Predictions about physical safety risks, environmental exposures, and how the ph
 | [climate-impact](projects/climate-impact/) | Long-term climate change effects on a specific location and population | scaffold |
 | [pollution-health](projects/pollution-health/) | Health effects of air, water, and soil pollution exposure | scaffold |
 
-## Research Focus
-
-See [research/](research/) for:
-- Environmental epidemiology literature
-- Disaster risk modeling research (IPCC, FEMA, UNDRR)
-- Air quality and health outcome studies
-- Climate attribution science
-
-## Development Focus
-
-See [development/](development/) for:
-- Environmental sensor data ingestion pipelines
-- Geospatial ML model frameworks
-- Real-time hazard integration (USGS, NOAA, EPA)
-- Location-based risk scoring APIs
-
 ## Data Sources (Catalog)
 
 - EPA Air Quality System (AQS) data

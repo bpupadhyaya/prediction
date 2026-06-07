@@ -18,22 +18,6 @@ Predictions about the trajectory of aging — physical, cognitive, and social �
 | [caregiver-dependency](projects/caregiver-dependency/) | Timeline to needing assisted living or caregiver support | scaffold |
 | [end-of-life-costs](projects/end-of-life-costs/) | Estimated medical and care costs in final years of life | scaffold |
 
-## Research Focus
-
-See [research/](research/) for:
-- Gerontology and aging science literature
-- Longitudinal aging studies (Health and Retirement Study, ELSA, SHARE)
-- Dementia prediction research (Framingham Dementia Risk Score, etc.)
-- Ethical framework for end-of-life prediction and planning tools
-
-## Development Focus
-
-See [development/](development/) for:
-- Longitudinal data ingestion for aging cohort studies
-- Cognitive assessment score time-series models
-- Physical function decline trajectory models
-- Cost projection frameworks
-
 ## Data Sources (Catalog)
 
 - Health and Retirement Study (HRS) — University of Michigan

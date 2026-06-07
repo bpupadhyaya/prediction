@@ -1,5 +1,16 @@
 # Stock Market Prediction — Development
 
+## Structure
+
+```
+development/
+  software/
+    ios/       SwiftUI app (GRDB, ONNX Runtime, GitHub Releases sync)
+    android/   Jetpack Compose app (Room, Hilt, ONNX Runtime)
+    desktop/   FastAPI + DuckDB backend + TypeScript/Vite frontend
+  hardware/    Sensor / embedded integration (future)
+```
+
 ## Purpose
 
 Build the data pipelines, feature engineering, model training, backtesting, and prediction serving infrastructure for the stock market prediction project.

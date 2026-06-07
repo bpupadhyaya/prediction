@@ -18,22 +18,6 @@ Predictions for the earliest stages of human life — from conception through ch
 | [allergy-susceptibility](projects/allergy-susceptibility/) | Risk of food, environmental, and drug allergies | scaffold |
 | [cognitive-indicators](projects/cognitive-indicators/) | Early cognitive development indicators (not IQ labeling) | scaffold |
 
-## Research Focus
-
-See [research/](research/) for:
-- Developmental pediatrics literature
-- Neonatal and pediatric genetic risk research
-- Early intervention efficacy research
-- Ethical framework for pediatric prediction (especially cognitive indicators)
-
-## Development Focus
-
-See [development/](development/) for:
-- Pediatric data collection pipelines (with consent frameworks)
-- Longitudinal tracking model architectures
-- Integration with newborn screening programs
-- Developmental milestone assessment tools
-
 ## Data Sources (Catalog)
 
 - CDC growth and developmental milestone data

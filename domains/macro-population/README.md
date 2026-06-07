@@ -17,22 +17,6 @@ Predictions at population and societal scale — events and trends that affect m
 | [economic-impact](projects/economic-impact/) | Recession probability, unemployment trajectory, sector-level disruption | scaffold |
 | [migration-pressure](projects/migration-pressure/) | Population movement drivers, refugee flows, urbanization trends | scaffold |
 
-## Research Focus
-
-See [research/](research/) for:
-- Epidemiological modeling literature (SIR models, agent-based models)
-- Economic forecasting research
-- Climate-migration research
-- Ensemble forecasting approaches for macro prediction
-
-## Development Focus
-
-See [development/](development/) for:
-- Real-time epidemiological data ingestion (WHO, CDC, ECDC)
-- Economic indicator aggregation pipelines
-- Geospatial population flow models
-- Ensemble forecasting infrastructure
-
 ## Data Sources (Catalog)
 
 - WHO Global Health Observatory

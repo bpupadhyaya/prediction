@@ -18,22 +18,6 @@ Predictions about learning trajectories, academic outcomes, and the educational 
 | [career-aptitude](projects/career-aptitude/) | Career paths most aligned with individual strengths and interests | scaffold |
 | [college-admission](projects/college-admission/) | College admission probability by institution and program | scaffold |
 
-## Research Focus
-
-See [research/](research/) for:
-- Literature on educational outcome prediction
-- Open educational datasets (PISA, NAEP, longitudinal studies)
-- Ethical analysis of algorithmic college admissions and tracking
-- Accuracy benchmarks vs. counselor assessments and standardized testing
-
-## Development Focus
-
-See [development/](development/) for:
-- Educational data collection and anonymization pipelines
-- Early-warning model implementations
-- Skill and aptitude assessment frameworks
-- Integration with learning management system APIs
-
 ## Data Sources (Catalog)
 
 - PISA (Programme for International Student Assessment)

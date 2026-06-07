@@ -20,22 +20,6 @@ Predictions across the full spectrum of physical and mental health, from individ
 | [pharmacogenomics](projects/pharmacogenomics/) | Drug response and adverse reaction prediction by genetic profile | scaffold |
 | [fertility](projects/fertility/) | Reproductive health and fertility outcome prediction | scaffold |
 
-## Research Focus
-
-See [research/](research/) for:
-- Systematic reviews of health prediction literature
-- Catalog of open health datasets (UK Biobank, NIH All of Us, WHO data, etc.)
-- Ethical analysis: privacy, genetic discrimination, clinical responsibility
-- Accuracy benchmarks against clinical risk tools (Framingham, QRISK, etc.)
-
-## Development Focus
-
-See [development/](development/) for:
-- Health data collection pipelines
-- Common feature engineering for health prediction models
-- Shared evaluation metrics for clinical prediction tasks
-- Integration with FHIR and other health data standards
-
 ## Data Sources (Catalog)
 
 - NIH All of Us Research Program

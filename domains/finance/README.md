@@ -19,22 +19,6 @@ Predictions about economic trajectories, financial health, and wealth outcomes a
 | [entrepreneurship](projects/entrepreneurship/) | Business survival probability and growth trajectory prediction | scaffold |
 | [stock-market](projects/stock-market/) | Equity direction, magnitude, volatility, and portfolio drawdown risk prediction | scaffold |
 
-## Research Focus
-
-See [research/](research/) for:
-- Literature on income prediction and wealth mobility research
-- Open financial datasets (Federal Reserve SCF, SIPP, tax record studies)
-- Macroeconomic model integration approaches
-- Ethical analysis of algorithmic credit and financial scoring
-
-## Development Focus
-
-See [development/](development/) for:
-- Financial data collection pipelines (public sources only)
-- Time-series models for income and savings trajectory
-- Monte Carlo simulation frameworks for retirement modeling
-- Business survival model implementations
-
 ## Data Sources (Catalog)
 
 - Federal Reserve Survey of Consumer Finances (SCF)

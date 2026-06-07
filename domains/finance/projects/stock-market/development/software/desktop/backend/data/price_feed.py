@@ -99,46 +99,49 @@ def refresh_ticker(ticker: str, full: bool = False) -> bool:
     return True
 
 
+def _fetch_prices_single(ticker: str, start: datetime) -> pd.DataFrame:
+    """Download price history for one ticker using Ticker.history() — more reliable than yf.download()."""
+    try:
+        t = yf.Ticker(ticker)
+        df = t.history(start=start, auto_adjust=True)
+        if df.empty:
+            return pd.DataFrame()
+        df = df.reset_index()
+        df.columns = [c.lower() for c in df.columns]
+        df["ticker"] = ticker
+        df["adj_close"] = df["close"]
+        cols = ["ticker", "date", "open", "high", "low", "close", "volume", "adj_close"]
+        return df[[c for c in cols if c in df.columns]].dropna(subset=["close"])
+    except Exception:
+        return pd.DataFrame()
+
+
 def initial_load(tickers: list[str]) -> None:
     conn = get_conn()
     existing = {r[0] for r in conn.execute("SELECT DISTINCT ticker FROM prices").fetchall()}
     pending = [t for t in tickers if t not in existing]
     logger.info(f"Loading price data: {len(pending)} new tickers ({len(existing)} already in DB)...")
 
-    batch_size = 50
     start = datetime.today() - timedelta(days=365 * 5)
     total_ok = 0
+    total = len(pending)
 
-    for i in range(0, len(pending), batch_size):
-        batch = pending[i:i + batch_size]
-        logger.info(f"  Batch {i // batch_size + 1}/{(len(pending) + batch_size - 1) // batch_size}: {len(batch)} tickers...")
-        try:
-            df = yf.download(batch, start=start, progress=False, auto_adjust=True, group_by="ticker")
-            if df.empty:
-                continue
-            # Multi-ticker download returns a MultiIndex DataFrame
-            for ticker in batch:
-                try:
-                    if len(batch) == 1:
-                        tdf = df.copy()
-                    else:
-                        tdf = df[ticker].copy() if ticker in df.columns.get_level_values(0) else pd.DataFrame()
-                    if tdf.empty or tdf["Close"].isna().all():
-                        continue
-                    tdf = tdf.reset_index()
-                    tdf.columns = [c.lower() for c in tdf.columns]
-                    tdf["ticker"] = ticker
-                    tdf["adj_close"] = tdf["close"]
-                    tdf = tdf[["ticker", "date", "open", "high", "low", "close", "volume", "adj_close"]].dropna()
-                    if not tdf.empty:
-                        upsert_prices(tdf)
-                        total_ok += 1
-                except Exception:
-                    pass
-        except Exception as e:
-            logger.warning(f"  Batch failed: {e}")
-        time.sleep(1)
+    for i, ticker in enumerate(pending):
+        if i % 25 == 0:
+            logger.info(f"  Progress: {i}/{total} ({total_ok} loaded so far)...")
+        df = _fetch_prices_single(ticker, start)
+        if not df.empty:
+            upsert_prices(df)
+            total_ok += 1
+        else:
+            # Retry once with a longer pause
+            time.sleep(2)
+            df = _fetch_prices_single(ticker, start)
+            if not df.empty:
+                upsert_prices(df)
+                total_ok += 1
+        time.sleep(0.4)
 
-    logger.info(f"Price download complete: {total_ok}/{len(pending)} tickers loaded.")
+    logger.info(f"Price download complete: {total_ok}/{total} tickers loaded.")
     # Stock metadata (name, sector, market cap) is fetched on-demand when users look up
     # individual stocks — not during initial setup to avoid Yahoo Finance rate limits.

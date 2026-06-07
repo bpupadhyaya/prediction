@@ -56,18 +56,7 @@ def fetch_stock_info(ticker: str) -> dict | None:
 
 def fetch_prices(ticker: str, days: int = 365 * 5) -> pd.DataFrame:
     start = datetime.today() - timedelta(days=days)
-    try:
-        df = yf.download(ticker, start=start, progress=False, auto_adjust=True)
-        if df.empty:
-            return pd.DataFrame()
-        df = df.reset_index()
-        df.columns = [c.lower() for c in df.columns]
-        df["ticker"] = ticker
-        df["adj_close"] = df["close"]
-        return df[["ticker", "date", "open", "high", "low", "close", "volume", "adj_close"]]
-    except Exception as e:
-        logger.warning(f"Could not fetch prices for {ticker}: {e}")
-        return pd.DataFrame()
+    return _fetch_prices_single(ticker, start)
 
 
 def upsert_prices(df: pd.DataFrame) -> None:

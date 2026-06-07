@@ -12,7 +12,10 @@ def run_daily_refresh() -> None:
 
     logger.info(f"Daily refresh started at {datetime.now()}")
 
-    tickers = fetch_sp500_tickers()
+    from backend.database.duckdb_client import get_conn
+    conn = get_conn()
+    tickers = [r[0] for r in conn.execute("SELECT DISTINCT ticker FROM prices").fetchall()]
+    logger.info(f"Refreshing {len(tickers)} tickers from DB...")
     for ticker in tickers:
         refresh_ticker(ticker, full=False)
 

@@ -77,7 +77,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
 
 ## License
 
-[Apache 2.0](LICENSE) — open, permissive, allows commercial use. Proprietary products built on this foundation are welcome; the baseline remains open and free forever.
+[MIT](LICENSE) — open, permissive, allows commercial use. Proprietary products built on this foundation are welcome; the baseline remains open and free forever.
 
 ---
 

@@ -13,6 +13,7 @@ import com.prediction.stockmarket.ui.stock.StockDetailScreen
 import com.prediction.stockmarket.ui.portfolio.PortfolioScreen
 import com.prediction.stockmarket.ui.watchlist.WatchlistScreen
 import com.prediction.stockmarket.ui.sync.SyncScreen
+import com.prediction.stockmarket.ui.models.ModelsScreen
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
@@ -21,7 +22,8 @@ private val tabs = listOf(
     Tab("search", "Lookup", Icons.Default.Search),
     Tab("portfolio", "Portfolio", Icons.Default.Work),
     Tab("watchlist", "Watchlist", Icons.Default.Star),
-    Tab("sync", "Sync", Icons.Default.Sync)
+    Tab("sync", "Sync", Icons.Default.Sync),
+    Tab("models", "Models", Icons.Default.Build)
 )
 
 @Composable
@@ -58,6 +60,7 @@ fun AppNavigation() {
             composable("portfolio") { PortfolioScreen(navController, padding) }
             composable("watchlist") { WatchlistScreen(navController, padding) }
             composable("sync") { SyncScreen(padding) }
+            composable("models") { ModelsScreen(padding) }
             composable(
                 "stock/{ticker}",
                 arguments = listOf(navArgument("ticker") { type = NavType.StringType })

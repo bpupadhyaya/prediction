@@ -19,6 +19,9 @@ struct ContentView: View {
 
             SyncView()
                 .tabItem { Label("Sync", systemImage: "arrow.triangle.2.circlepath") }
+
+            ModelsView()
+                .tabItem { Label("Models", systemImage: "wrench.and.screwdriver") }
         }
         .accentColor(.blue)
     }

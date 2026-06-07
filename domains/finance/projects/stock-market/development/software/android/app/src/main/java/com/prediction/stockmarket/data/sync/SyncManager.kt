@@ -79,13 +79,85 @@ class SyncManager @Inject constructor(
         }
     }
 
-    private suspend fun importFromSnapshot(file: File) {
-        // Open the snapshot as a separate Room-compatible SQLite and copy rows.
-        // For simplicity we parse a JSON sidecar (market.json.gz) that the desktop
-        // backend produces alongside the SQLite. Both are published in the release.
-        // This avoids cross-process SQLite file locking.
-        // Full SQLite-to-SQLite merge would use Android's SQLiteDatabase.openDatabase.
-        // The JSON approach is safer for the first version.
-        // (Placeholder — real data import is via JSON sidecar described in README)
+    private suspend fun importFromSnapshot(file: File) = withContext(Dispatchers.IO) {
+        val snapDb = android.database.sqlite.SQLiteDatabase.openDatabase(
+            file.absolutePath, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+        )
+
+        // Import stocks
+        val stocks = mutableListOf<StockEntity>()
+        snapDb.rawQuery("SELECT ticker, name, sector, industry, market_cap FROM stocks", null).use { c ->
+            while (c.moveToNext()) {
+                stocks.add(
+                    StockEntity(
+                        ticker = c.getString(0),
+                        name = c.getString(1),
+                        sector = c.getString(2),
+                        industry = c.getString(3),
+                        marketCap = if (c.isNull(4)) null else c.getDouble(4)
+                    )
+                )
+            }
+        }
+        if (stocks.isNotEmpty()) stockDao.upsertAll(stocks)
+
+        // Import prices
+        val prices = mutableListOf<PriceBarEntity>()
+        snapDb.rawQuery(
+            "SELECT ticker, date, open, high, low, close, adj_close, volume FROM prices", null
+        ).use { c ->
+            while (c.moveToNext()) {
+                prices.add(
+                    PriceBarEntity(
+                        ticker = c.getString(0),
+                        date = java.util.Date(
+                            c.getString(1).let {
+                                try {
+                                    java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                                        .parse(it)?.time ?: 0L
+                                } catch (_: Exception) { 0L }
+                            }
+                        ),
+                        open = c.getDouble(2),
+                        high = c.getDouble(3),
+                        low = c.getDouble(4),
+                        close = c.getDouble(5),
+                        adjClose = c.getDouble(6),
+                        volume = c.getLong(7)
+                    )
+                )
+                if (prices.size >= 500) {
+                    priceDao.upsertAll(prices)
+                    prices.clear()
+                }
+            }
+        }
+        if (prices.isNotEmpty()) priceDao.upsertAll(prices)
+
+        // Import predictions
+        val preds = mutableListOf<PredictionEntity>()
+        snapDb.rawQuery(
+            "SELECT ticker, horizon, direction, probability, expected_return_low, expected_return_high, volatility, model_accuracy FROM predictions",
+            null
+        ).use { c ->
+            while (c.moveToNext()) {
+                preds.add(
+                    PredictionEntity(
+                        ticker = c.getString(0),
+                        horizon = c.getString(1),
+                        direction = c.getString(2).uppercase(),
+                        probability = c.getDouble(3),
+                        expectedReturnLow = c.getDouble(4),
+                        expectedReturnHigh = c.getDouble(5),
+                        volatility = c.getDouble(6),
+                        modelAccuracy = c.getDouble(7),
+                        generatedAt = java.util.Date()
+                    )
+                )
+            }
+        }
+        if (preds.isNotEmpty()) predictionDao.upsertAll(preds)
+
+        snapDb.close()
     }
 }

@@ -26,12 +26,21 @@ Local-first app — runs entirely on your laptop/desktop. No cloud, no Docker, n
 
 ## Installation
 
-### First-time install
+### First-time install — macOS / Linux
 
 ```bash
 cd domains/finance/projects/stock-market/development/software/desktop
 ./install.sh
 ```
+
+### First-time install — Windows
+
+```cmd
+cd domains\finance\projects\stock-market\development\software\desktop
+install.bat
+```
+
+> **Windows Python note:** Python 3.13+ is not supported. Download Python 3.11 from https://www.python.org/downloads/release/python-3119/ and check **"Add Python to PATH"** during install. `install.bat` auto-detects it.
 
 This does everything in one shot:
 1. Detects a compatible Python (3.10–3.12), installs one via Homebrew if not found
@@ -55,12 +64,20 @@ Opens `http://localhost:8080` in your browser. Also starts the daily background 
 
 ### Update code only — keep existing database and trained model
 
-Re-running `./install.sh` is safe. It detects the existing database and skips the data download and model training:
+Re-running the install script is safe. It detects the existing database and skips the data download and model training:
 
 ```bash
+# macOS / Linux
 git pull
 ./install.sh    # updates deps only; database and model are untouched
 ./start.sh
+```
+
+```cmd
+:: Windows
+git pull
+install.bat
+start.bat
 ```
 
 What is preserved:
@@ -76,7 +93,10 @@ What is updated:
 ### Update Python dependencies only — skip everything else
 
 ```bash
-./install.sh --skip-data
+./install.sh --skip-data      # macOS / Linux
+```
+```cmd
+install.bat --skip-data       :: Windows
 ```
 
 Installs/upgrades Python packages and rebuilds the frontend. Does not touch the database, model, or run any data download.
@@ -88,14 +108,23 @@ Installs/upgrades Python packages and rebuilds the frontend. Does not touch the 
 Use this when you want a completely fresh state: new database, new model, updated data from scratch.
 
 ```bash
+# macOS / Linux
 ./uninstall.sh    # interactive — shows what will be removed and asks for confirmation
 ./install.sh      # full reinstall from scratch
+```
+```cmd
+:: Windows
+uninstall.bat
+install.bat
 ```
 
 Or non-interactively:
 
 ```bash
-./uninstall.sh --force && ./install.sh
+./uninstall.sh --force && ./install.sh    # macOS / Linux
+```
+```cmd
+uninstall.bat --force && install.bat      :: Windows
 ```
 
 `uninstall.sh` removes:
@@ -111,7 +140,10 @@ It does **not** touch source code, `install.sh`, `requirements.txt`, or any othe
 ### Preview what uninstall will remove (dry run)
 
 ```bash
-./uninstall.sh --dry-run
+./uninstall.sh --dry-run      # macOS / Linux
+```
+```cmd
+uninstall.bat --dry-run       :: Windows
 ```
 
 Shows file sizes and what would be deleted — makes no changes.
@@ -142,14 +174,14 @@ domains/finance/projects/stock-market/development/software/desktop/
 
 ## What the scripts do
 
-| Script | Action |
-|--------|--------|
-| `install.sh` | Auto-detects Python, creates `.venv`, installs deps, builds frontend, downloads data + trains model (skipped if DB exists) |
-| `install.sh --skip-data` | Same but skips data download and model training unconditionally |
-| `start.sh` | Activates venv, starts daily scheduler in background, launches FastAPI on `localhost:8080`, opens browser |
-| `uninstall.sh` | Stops processes, removes data dir + venv + dist; interactive by default |
-| `uninstall.sh --dry-run` | Preview only — no changes |
-| `uninstall.sh --force` | Skip confirmation prompt |
+| Script (macOS/Linux) | Script (Windows) | Action |
+|----------------------|------------------|--------|
+| `install.sh` | `install.bat` | Auto-detects Python 3.10–3.12, creates `.venv`, installs deps, builds frontend, downloads data + trains model (skipped if DB exists) |
+| `install.sh --skip-data` | `install.bat --skip-data` | Same but skips data download and model training unconditionally |
+| `start.sh` | `start.bat` | Activates venv, starts daily scheduler in background, launches FastAPI on `localhost:8080`, opens browser |
+| `uninstall.sh` | `uninstall.bat` | Stops processes, removes data dir + venv + dist; interactive by default |
+| `uninstall.sh --dry-run` | `uninstall.bat --dry-run` | Preview only — no changes made |
+| `uninstall.sh --force` | `uninstall.bat --force` | Skip confirmation prompt |
 
 ## Stack
 

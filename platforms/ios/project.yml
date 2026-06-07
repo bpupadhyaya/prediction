@@ -17,6 +17,10 @@ targets:
     platform: iOS
     sources:
       - StockPrediction
+    resources:
+      - path: StockPrediction/Resources
+        excludes:
+          - ".gitkeep"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.prediction.stockmarket

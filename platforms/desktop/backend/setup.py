@@ -9,6 +9,7 @@ from backend.database.duckdb_client import init_db
 from backend.data.price_feed import fetch_sp500_tickers, initial_load
 from backend.data.macro_feed import initial_macro_load
 from backend.models.trainer import train_model
+from backend.models.exporter import export as export_onnx
 
 if __name__ == "__main__":
     logging.info("Initialising database...")
@@ -27,5 +28,12 @@ if __name__ == "__main__":
     logging.info("Training initial prediction model...")
     accuracy = train_model()
     logging.info(f"Initial model trained — directional accuracy: {accuracy:.3f}")
+
+    logging.info("Exporting ONNX model for mobile platforms...")
+    try:
+        onnx_path = export_onnx(verify=True)
+        logging.info(f"ONNX model exported → {onnx_path}")
+    except Exception as e:
+        logging.warning(f"ONNX export failed (non-fatal): {e}")
 
     logging.info("Setup complete.")

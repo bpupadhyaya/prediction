@@ -111,11 +111,11 @@ def train_model(horizon_days: int = 5) -> float:
 
 
 def retrain_if_needed() -> None:
+    retrained = False
     if not MODEL_PATH.exists():
         train_model()
-        return
-
-    if ACCURACY_LOG_PATH.exists():
+        retrained = True
+    elif ACCURACY_LOG_PATH.exists():
         with open(ACCURACY_LOG_PATH) as f:
             history = json.load(f)
         if history:
@@ -123,3 +123,12 @@ def retrain_if_needed() -> None:
             if latest_accuracy < ACCURACY_THRESHOLD:
                 logger.info(f"Accuracy {latest_accuracy:.3f} below threshold — retraining")
                 train_model()
+                retrained = True
+
+    if retrained:
+        try:
+            from backend.models.exporter import export as export_onnx
+            export_onnx(verify=False)
+            logger.info("ONNX model re-exported after retraining")
+        except Exception as e:
+            logger.warning(f"ONNX export failed after retrain (non-fatal): {e}")

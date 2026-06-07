@@ -1,14 +1,15 @@
 import duckdb
+import threading
 from backend.config import DB_PATH
 
-_conn: duckdb.DuckDBPyConnection | None = None
+# Each thread gets its own connection — DuckDB 1.0+ supports multiple concurrent connections
+_local = threading.local()
 
 
 def get_conn() -> duckdb.DuckDBPyConnection:
-    global _conn
-    if _conn is None:
-        _conn = duckdb.connect(str(DB_PATH))
-    return _conn
+    if not hasattr(_local, "conn") or _local.conn is None:
+        _local.conn = duckdb.connect(str(DB_PATH))
+    return _local.conn
 
 
 def init_db() -> None:

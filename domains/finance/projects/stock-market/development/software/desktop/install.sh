@@ -63,8 +63,17 @@ echo "Using: $PYTHON ($($PYTHON --version))"
 echo ""
 
 # --- Virtual environment ---
+# Recreate if it was built with the wrong Python version
+if [[ -d ".venv" ]]; then
+    VENV_VER=$(.venv/bin/python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "unknown")
+    NEED_VER=$("$PYTHON" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+    if [[ "$VENV_VER" != "$NEED_VER" ]]; then
+        echo -e "${YELLOW}Existing .venv uses Python $VENV_VER but need $NEED_VER — recreating...${NC}"
+        rm -rf .venv
+    fi
+fi
 if [[ ! -d ".venv" ]]; then
-    echo "Creating virtual environment..."
+    echo "Creating virtual environment with $($PYTHON --version)..."
     "$PYTHON" -m venv .venv
 fi
 # shellcheck disable=SC1091

@@ -30,13 +30,13 @@ def analyze_portfolio(req: PortfolioRequest):
             ORDER BY date DESC LIMIT 1
         """, [ticker]).fetchone()
 
-        current_price = price_row[0] if price_row else 0.0
+        current_price = float(price_row[0]) if price_row else 0.0
         position_value = current_price * h.quantity
         total_value += position_value
 
         pred = predict_ticker(ticker, req.horizon)
         gain_loss = None
-        if h.purchase_price:
+        if h.purchase_price and h.purchase_price > 0:
             gain_loss = round((current_price - h.purchase_price) / h.purchase_price * 100, 2)
 
         results.append({
@@ -45,6 +45,7 @@ def analyze_portfolio(req: PortfolioRequest):
             "current_price": round(current_price, 2),
             "position_value": round(position_value, 2),
             "gain_loss_pct": gain_loss,
+            "weight": 0.0,  # filled in below once total_value is known
             "prediction": {
                 "direction": pred.direction,
                 "probability": pred.probability,
@@ -55,9 +56,19 @@ def analyze_portfolio(req: PortfolioRequest):
             }
         })
 
-    # Portfolio-level risk
-    bullish = sum(1 for r in results if r["prediction"]["direction"] == "up")
-    avg_volatility = sum(r["prediction"]["volatility"] for r in results) / len(results) if results else 0
+    # Portfolio-level weighted metrics
+    weighted_return = 0.0
+    weighted_vol = 0.0
+    bullish = 0
+
+    for r in results:
+        w = r["position_value"] / total_value if total_value > 0 else 0.0
+        r["weight"] = round(w * 100, 1)
+        mid = (r["prediction"]["expected_return_low"] + r["prediction"]["expected_return_high"]) / 2
+        weighted_return += w * mid
+        weighted_vol += w * r["prediction"]["volatility"]
+        if r["prediction"]["direction"] == "up":
+            bullish += 1
 
     return {
         "total_value": round(total_value, 2),
@@ -65,8 +76,10 @@ def analyze_portfolio(req: PortfolioRequest):
         "summary": {
             "bullish_count": bullish,
             "bearish_count": len(results) - bullish,
-            "avg_volatility": round(avg_volatility, 4),
+            "portfolio_return_low": round((weighted_return - weighted_vol), 4),
+            "portfolio_return_high": round((weighted_return + weighted_vol), 4),
+            "weighted_volatility": round(weighted_vol, 4),
             "horizon": req.horizon,
         },
-        "disclaimer": "Portfolio analysis is probabilistic. Not financial advice.",
+        "disclaimer": "Portfolio analysis is probabilistic and for informational purposes only. Not financial advice.",
     }

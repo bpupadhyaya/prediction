@@ -6,7 +6,7 @@ struct StockPredictionApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            PredictionHomeView()
                 .environmentObject(store)
                 .preferredColorScheme(.dark)
                 .task { await store.initialise() }

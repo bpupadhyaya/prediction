@@ -31,11 +31,26 @@ targets:
     info:
       path: StockPrediction/App/Info.plist
       properties:
-        CFBundleDisplayName: StockPredict
+        CFBundleDisplayName: Prediction
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
           NSExceptionDomains:
-            github.com:
+            query1.finance.yahoo.com:
+              NSExceptionAllowsInsecureHTTPLoads: false
+              NSIncludesSubdomains: false
+            finance.yahoo.com:
+              NSExceptionAllowsInsecureHTTPLoads: false
+              NSIncludesSubdomains: true
+            stooq.com:
+              NSExceptionAllowsInsecureHTTPLoads: false
+              NSIncludesSubdomains: true
+            alphavantage.co:
+              NSExceptionAllowsInsecureHTTPLoads: false
+              NSIncludesSubdomains: true
+            twelvedata.com:
+              NSExceptionAllowsInsecureHTTPLoads: false
+              NSIncludesSubdomains: true
+            polygon.io:
               NSExceptionAllowsInsecureHTTPLoads: false
               NSIncludesSubdomains: true
 

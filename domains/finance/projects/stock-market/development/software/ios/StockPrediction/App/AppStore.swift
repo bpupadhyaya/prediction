@@ -73,8 +73,8 @@ final class AppStore: ObservableObject {
         syncState = .syncing
         Task {
             do {
-                let tag = try await SyncManager.shared.sync()
-                syncState = .done(tag)
+                let result = try await SyncManager.shared.sync { _, _, _ in }
+                syncState = .done(result)
                 loadLocal()
             } catch {
                 syncState = .failed(error.localizedDescription)

@@ -3,83 +3,175 @@ import SwiftUI
 struct SyncView: View {
     @EnvironmentObject var store: AppStore
 
+    @State private var selectedSource: MarketDataSourceType = MarketDataSettings.activeSource
+    @State private var apiKey: String = ""
+    @State private var isSyncing: Bool = false
+    @State private var syncProgress: String = ""
+    @State private var syncResult: String = ""
+    @State private var syncFailed: Bool = false
+    @State private var tickersDone: Int = 0
+    @State private var tickersTotal: Int = 0
+    @State private var lastSynced: Date? = UserDefaults.standard.object(forKey: "last_sync_date") as? Date
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                Spacer()
+            List {
+                // MARK: Data Source Section
+                Section {
+                    Picker("Data Source", selection: $selectedSource) {
+                        ForEach(MarketDataSourceType.allCases, id: \.self) { source in
+                            Text(source.rawValue).tag(source)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: selectedSource) { _, newValue in
+                        MarketDataSettings.activeSource = newValue
+                        apiKey = MarketDataSettings.apiKey(for: newValue)
+                        syncResult = ""
+                        syncFailed = false
+                    }
 
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 64))
-                    .foregroundStyle(.blue)
-
-                VStack(spacing: 8) {
-                    Text("Data Sync")
-                        .font(.title.bold())
-                    Text("Download the latest market data and predictions from GitHub Releases. Works over WiFi or cellular.")
-                        .multilineTextAlignment(.center)
+                    Text(selectedSource.description)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal)
+                } header: {
+                    Text("Market Data Source")
+                } footer: {
+                    Text("Yahoo Finance is the default — no setup required.")
                 }
 
-                statusView
+                // MARK: API Key Section (only when needed)
+                if selectedSource.requiresAPIKey {
+                    Section {
+                        SecureField("Paste API key here", text: $apiKey)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .onChange(of: apiKey) { _, newValue in
+                                MarketDataSettings.setAPIKey(newValue, for: selectedSource)
+                            }
+                    } header: {
+                        Text("API Key")
+                    } footer: {
+                        Text(selectedSource.keyHint)
+                    }
+                }
 
-                syncButton
+                // MARK: Sync Status Section
+                Section {
+                    if isSyncing {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                ProgressView()
+                                    .scaleEffect(0.85)
+                                Spacer().frame(width: 10)
+                                Text(syncProgress.isEmpty ? "Starting sync…" : syncProgress)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            if tickersTotal > 0 {
+                                ProgressView(value: Double(tickersDone), total: Double(tickersTotal))
+                                    .tint(.blue)
+                                Text("\(tickersDone) of \(tickersTotal) tickers")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    } else if syncFailed {
+                        Label(syncResult, systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.red)
+                            .font(.subheadline)
+                    } else if !syncResult.isEmpty {
+                        Label(syncResult, systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.subheadline)
+                    } else {
+                        Text("Tap Sync Now to fetch live market data directly from the selected source.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
 
-                Spacer()
+                    if let date = lastSynced {
+                        HStack {
+                            Image(systemName: "clock")
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                            Text("Last synced: \(date.formatted(date: .abbreviated, time: .shortened))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("Status")
+                }
 
-                Text("All data is stored locally on your device. No account required.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                // MARK: Sync Button Section
+                Section {
+                    Button(action: startSync) {
+                        HStack {
+                            Spacer()
+                            if isSyncing {
+                                ProgressView()
+                                    .scaleEffect(0.85)
+                                    .padding(.trailing, 6)
+                                Text("Syncing…")
+                                    .font(.headline)
+                            } else {
+                                Label("Sync Now", systemImage: "icloud.and.arrow.down")
+                                    .font(.headline)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .disabled(isSyncing)
+                } footer: {
+                    Text("Data is fetched for ~60 hot stocks + top 50 S&P 500 constituents and stored locally. No account required.")
+                        .multilineTextAlignment(.center)
+                }
             }
-            .padding()
             .navigationTitle("Sync")
-        }
-    }
-
-    @ViewBuilder
-    private var statusView: some View {
-        switch store.syncState {
-        case .idle:
-            Text("Tap Sync to fetch fresh data")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-        case .syncing:
-            VStack(spacing: 12) {
-                ProgressView()
-                    .scaleEffect(1.2)
-                Text("Syncing…")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-        case .done(let tag):
-            Label("Updated to \(tag)", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-
-        case .failed(let msg):
-            VStack(spacing: 4) {
-                Label("Sync failed", systemImage: "xmark.circle.fill")
-                    .foregroundStyle(.red)
-                Text(msg)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+            .onAppear {
+                apiKey = MarketDataSettings.apiKey(for: selectedSource)
             }
         }
     }
 
-    private var syncButton: some View {
-        Button(action: store.triggerSync) {
-            Label("Sync Now", systemImage: "icloud.and.arrow.down")
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding()
+    private func startSync() {
+        guard !isSyncing else { return }
+        isSyncing = true
+        syncResult = ""
+        syncFailed = false
+        tickersDone = 0
+        tickersTotal = 0
+
+        Task {
+            do {
+                let result = try await SyncManager.shared.sync { done, total, ticker in
+                    Task { @MainActor in
+                        tickersDone = done
+                        tickersTotal = total
+                        if ticker.isEmpty {
+                            syncProgress = "Finalizing…"
+                        } else {
+                            syncProgress = "Syncing \(ticker)… (\(done + 1)/\(total))"
+                        }
+                    }
+                }
+                await MainActor.run {
+                    isSyncing = false
+                    syncResult = result
+                    syncFailed = false
+                    lastSynced = Date()
+                    UserDefaults.standard.set(lastSynced, forKey: "last_sync_date")
+                    store.loadLocal()
+                }
+            } catch {
+                await MainActor.run {
+                    isSyncing = false
+                    syncResult = error.localizedDescription
+                    syncFailed = true
+                }
+            }
         }
-        .buttonStyle(.borderedProminent)
-        .disabled(store.syncState == .syncing)
-        .padding(.horizontal)
     }
 }

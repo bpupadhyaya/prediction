@@ -1,9 +1,13 @@
 package com.prediction.stockmarket.di
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.room.Room
 import com.google.gson.Gson
 import com.prediction.stockmarket.data.database.*
+import com.prediction.stockmarket.data.sync.MarketDataSourceManager
+import com.prediction.stockmarket.data.sync.StooqFetcher
+import com.prediction.stockmarket.data.sync.YahooFinanceFetcher
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -37,4 +41,20 @@ object AppModule {
 
     @Provides @Singleton
     fun provideGson(): Gson = Gson()
+
+    @Provides @Singleton
+    fun provideSharedPreferences(@ApplicationContext ctx: Context): SharedPreferences =
+        ctx.getSharedPreferences("prediction_prefs", Context.MODE_PRIVATE)
+
+    @Provides @Singleton
+    fun provideMarketDataSourceManager(prefs: SharedPreferences): MarketDataSourceManager =
+        MarketDataSourceManager(prefs)
+
+    @Provides @Singleton
+    fun provideYahooFinanceFetcher(client: OkHttpClient): YahooFinanceFetcher =
+        YahooFinanceFetcher(client)
+
+    @Provides @Singleton
+    fun provideStooqFetcher(client: OkHttpClient): StooqFetcher =
+        StooqFetcher(client)
 }

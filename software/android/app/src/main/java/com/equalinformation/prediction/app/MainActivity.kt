@@ -1,4 +1,4 @@
-package com.prediction.app
+package com.equalinformation.prediction.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

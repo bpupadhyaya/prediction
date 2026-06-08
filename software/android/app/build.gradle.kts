@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.prediction.app"
+    namespace = "com.equalinformation.prediction.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.prediction.app"
+        applicationId = "com.equalinformation.prediction.app"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

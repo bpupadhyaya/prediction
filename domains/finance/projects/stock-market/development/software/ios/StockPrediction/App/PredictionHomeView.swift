@@ -17,6 +17,8 @@ struct PredictionHomeView: View {
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
         .animation(.easeInOut(duration: 0.3), value: activeModule)
     }
 
@@ -67,7 +69,7 @@ struct PredictionHomeView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 60)
+            .padding(.top, 16)
             .padding(.bottom, 8)
 
             // "Powered by Zoe" tag

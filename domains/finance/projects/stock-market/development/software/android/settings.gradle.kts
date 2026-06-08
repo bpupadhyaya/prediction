@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "StockPrediction"
-include(":app")
+include(":app", ":core")

@@ -30,6 +30,8 @@ targets:
       - path: ../../domains/finance/projects/stock-market/development/software/ios/StockPrediction
         excludes:
           - "App/StockPredictionApp.swift"
+          - "App/Info.plist"
+          - "Resources/Assets.xcassets"
     resources:
       - path: Prediction/Resources
     dependencies:

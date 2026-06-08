@@ -25,6 +25,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.prediction.stockmarket
         INFOPLIST_FILE: StockPrediction/App/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - package: GRDB
       - package: OnnxRuntimeGenAI
@@ -32,6 +33,7 @@ targets:
       path: StockPrediction/App/Info.plist
       properties:
         CFBundleDisplayName: Prediction
+        CFBundleIconName: AppIcon
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: false
           NSExceptionDomains:

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		29F83FE0C203A5048D8605A5 /* OnnxRuntimeGenAI in Frameworks */ = {isa = PBXBuildFile; productRef = 3F3F348FB2A217F062A16A7B /* OnnxRuntimeGenAI */; };
 		544B0F9AD0ED419079029514 /* StockDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF6251698A97D66D40EBEC4 /* StockDetailView.swift */; };
+		5561AF6090A08B8EA83F5528 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 17C1089BD4292BBDDBADC7EC /* Assets.xcassets */; };
 		5BB79C7111B86A23B4C1EEDC /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB166F9E69099E663C8F107 /* AppStore.swift */; };
 		6D62A28C04A60561E4219CE1 /* PredictionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300D00CA90248086837B868D /* PredictionEngine.swift */; };
 		7370846ECF4DE09F277CDE29 /* ModelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 670935B84430972B857ABAB3 /* ModelsView.swift */; };
@@ -31,6 +32,7 @@
 
 /* Begin PBXFileReference section */
 		0B4174674EE679E28ED8D7D5 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
+		17C1089BD4292BBDDBADC7EC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		194CA138F340782C42E0E65D /* WatchlistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistView.swift; sourceTree = "<group>"; };
 		1B92E36DEB6E3E8AD8D124BD /* .gitignore */ = {isa = PBXFileReference; path = .gitignore; sourceTree = "<group>"; };
 		1C90870DF7B1CEA806353758 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -127,6 +129,7 @@
 			children = (
 				1B92E36DEB6E3E8AD8D124BD /* .gitignore */,
 				22BE3761EB7F2D21D09B8C42 /* .gitkeep */,
+				17C1089BD4292BBDDBADC7EC /* Assets.xcassets */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -175,6 +178,7 @@
 			buildConfigurationList = BFCB8C75A131227BE1D23FA2 /* Build configuration list for PBXNativeTarget "StockPrediction" */;
 			buildPhases = (
 				46CB454666A511500C44585F /* Sources */,
+				D027BE61B33638743A0179D7 /* Resources */,
 				4F931F3CE0CA18580A0E2DDF /* Frameworks */,
 			);
 			buildRules = (
@@ -223,6 +227,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D027BE61B33638743A0179D7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5561AF6090A08B8EA83F5528 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		46CB454666A511500C44585F /* Sources */ = {

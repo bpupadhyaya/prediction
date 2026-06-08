@@ -96,8 +96,8 @@ private fun PredictionHeroHeader() {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()                         // clears status bar — mirrors .ignoresSafeArea(edges:.top) + safe-area offset
-                .padding(top = 36.dp, bottom = 18.dp)       // exact iOS values
+                .statusBarsPadding()                         // clears status bar
+                .padding(top = 8.dp, bottom = 12.dp)        // tight fit: text immediately below status bar
                 .padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {

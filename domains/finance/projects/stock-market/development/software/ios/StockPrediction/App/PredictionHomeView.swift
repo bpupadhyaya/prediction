@@ -6,90 +6,74 @@ struct PredictionHomeView: View {
 
     var body: some View {
         ZStack {
-            PredictionTheme.homeBg.ignoresSafeArea()
-
             if activeModule == "stock_market" {
-                // Stock Market module — full screen with back nav
                 StockMarketModuleView(onBack: { activeModule = nil })
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             } else {
-                homeGrid
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+                // Exactly mirrors lifeos HomeView: HeroHeader above ScrollView in VStack(spacing:0)
+                VStack(spacing: 0) {
+                    heroHeader
+                    ScrollView {
+                        LazyVGrid(columns: columns, spacing: 14) {
+                            ForEach(predictionModules) { module in
+                                PredictionModuleCard(module: module) {
+                                    if module.isAvailable { activeModule = module.id }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 32)
+                    }
+                }
+                .background(PredictionTheme.homeBg)
+                .ignoresSafeArea(edges: .top)
+                .transition(.move(edge: .leading).combined(with: .opacity))
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
         .animation(.easeInOut(duration: 0.3), value: activeModule)
     }
 
-    private var homeGrid: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                heroHeader
-
-                LazyVGrid(columns: columns, spacing: 14) {
-                    ForEach(predictionModules) { module in
-                        PredictionModuleCard(module: module) {
-                            if module.isAvailable {
-                                activeModule = module.id
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 32)
-            }
-        }
-    }
-
+    // MARK: - Hero header — same structure as lifeos HeroHeader (isHomePage: true)
     private var heroHeader: some View {
-        VStack(spacing: 6) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Prediction")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(PredictionTheme.textPrimary)
-                    Text("AI-powered forecasts across every domain")
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundStyle(PredictionTheme.textSecondary)
-                }
-                Spacer()
-                // Zoe teaser orb
-                ZStack {
-                    Circle()
-                        .fill(PredictionTheme.accentPurple.opacity(0.25))
-                        .frame(width: 52, height: 52)
-                    Circle()
-                        .fill(PredictionTheme.accentPurple.opacity(0.15))
-                        .frame(width: 52, height: 52)
-                        .scaleEffect(1.3)
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 22, weight: .light))
-                        .foregroundStyle(PredictionTheme.accentPurple)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 8)
-
-            // "Powered by Zoe" tag
-            HStack {
+        ZStack {
+            VStack(spacing: 4) {
+                Text("Prediction")
+                    .font(.title.bold())
+                    .foregroundStyle(.white)
+                Text("AI-powered forecasts across every domain")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.8))
+                // Zoe badge — tucked into the banner
                 HStack(spacing: 5) {
-                    Image(systemName: "cpu")
+                    Image(systemName: "sparkles")
                         .font(.system(size: 10))
                     Text("Powered by Zoe AI · All predictions run on-device")
                         .font(.system(size: 11, weight: .medium))
                 }
-                .foregroundStyle(PredictionTheme.accent)
+                .foregroundStyle(.white.opacity(0.9))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(PredictionTheme.accent.opacity(0.12))
+                .background(.white.opacity(0.15))
                 .clipShape(Capsule())
-                Spacer()
+                .padding(.top, 6)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
+            .frame(maxWidth: .infinity)
         }
+        .padding(.top, 36)
+        .padding(.bottom, 18)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.086, green: 0.118, blue: 0.314),   // deep indigo
+                    Color(red: 0.153, green: 0.212, blue: 0.549),   // royal blue
+                    Color(red: 0.231, green: 0.510, blue: 0.965),   // electric blue (accent)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .ignoresSafeArea(edges: .top)
     }
 }
 

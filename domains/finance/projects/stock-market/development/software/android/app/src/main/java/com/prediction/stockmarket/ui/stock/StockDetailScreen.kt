@@ -75,6 +75,7 @@ fun StockDetailScreen(
 }
 
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 private fun PredictionCard(pred: PredictionEntity, onHorizonChange: (String) -> Unit) {
     val isUp = pred.direction == "UP"
     val dirColor = if (isUp) Color(0xFF4CAF50) else Color(0xFFFF5252)

@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface StockDao {
-    @Query("SELECT * FROM stocks WHERE ticker LIKE :q OR name LIKE :q ORDER BY marketCap DESC NULLS LAST LIMIT 20")
+    @Query("SELECT * FROM stocks WHERE ticker LIKE :q OR name LIKE :q ORDER BY CASE WHEN marketCap IS NULL THEN 1 ELSE 0 END, marketCap DESC LIMIT 20")
     suspend fun search(q: String): List<StockEntity>
 
     @Query("SELECT * FROM stocks WHERE ticker = :ticker LIMIT 1")

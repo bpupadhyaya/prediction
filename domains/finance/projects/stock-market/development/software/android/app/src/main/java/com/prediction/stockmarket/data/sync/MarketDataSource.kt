@@ -54,25 +54,27 @@ class YahooFinanceFetcher @Inject constructor(private val client: OkHttpClient) 
         return parseChartJson(body, ticker)
     }
 
-    fun fetchQuote(ticker: String): StockEntity? = try {
-        val url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=$ticker"
-        val req = Request.Builder().url(url)
-            .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-            .header("Accept", "application/json")
-            .build()
-        val body = client.newCall(req).execute().use { it.body?.string() ?: "" }
-        val json = JSONObject(body)
-        val result = json.getJSONObject("quoteResponse").getJSONArray("result")
-        if (result.length() == 0) return null
-        val q = result.getJSONObject(0)
-        StockEntity(
-            ticker = q.optString("symbol", ticker).uppercase(),
-            name = q.optString("longName").ifEmpty { q.optString("shortName", ticker.uppercase()) },
-            sector = q.optString("sector").ifEmpty { null },
-            industry = q.optString("industry").ifEmpty { null },
-            marketCap = if (q.has("marketCap")) q.getDouble("marketCap") else null
-        )
-    } catch (_: Exception) { null }
+    fun fetchQuote(ticker: String): StockEntity? {
+        return try {
+            val url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=$ticker"
+            val req = Request.Builder().url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                .header("Accept", "application/json")
+                .build()
+            val body = client.newCall(req).execute().use { it.body?.string() ?: "" }
+            val json = JSONObject(body)
+            val result = json.getJSONObject("quoteResponse").getJSONArray("result")
+            if (result.length() == 0) return null
+            val q = result.getJSONObject(0)
+            StockEntity(
+                ticker = q.optString("symbol", ticker).uppercase(),
+                name = q.optString("longName").ifEmpty { q.optString("shortName", ticker.uppercase()) },
+                sector = q.optString("sector").ifEmpty { null },
+                industry = q.optString("industry").ifEmpty { null },
+                marketCap = if (q.has("marketCap")) q.getDouble("marketCap") else null
+            )
+        } catch (_: Exception) { null }
+    }
 
     private fun parseChartJson(body: String, ticker: String): List<PriceBarEntity> {
         return try {

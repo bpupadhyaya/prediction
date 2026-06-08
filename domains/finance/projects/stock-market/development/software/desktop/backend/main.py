@@ -9,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.database.duckdb_client import init_db
 from backend.api import stocks, predict, portfolio, sync, models_api
 from backend.data.scheduler import start_scheduler
-from backend.models.trainer import HORIZON_MODEL_PATHS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -17,27 +16,53 @@ logger = logging.getLogger(__name__)
 
 def _background_retrain():
     try:
-        from backend.models.trainer import retrain_if_needed
-        retrain_if_needed()
+        from backend.models.trainer import train_all_models
+        train_all_models()
     except Exception as e:
         logger.warning(f"Background retrain failed: {e}")
+
+
+def _background_initial_load():
+    """Load macro + fundamentals data then retrain (first-run or feature upgrade)."""
+    try:
+        from backend.data.scheduler import run_initial_data_load
+        run_initial_data_load()
+    except Exception as e:
+        logger.warning(f"Initial data load failed: {e}")
+    _background_retrain()
+
+
+def _needs_initial_load() -> bool:
+    from backend.database.duckdb_client import get_conn
+    conn = get_conn()
+    macro_count = conn.execute("SELECT COUNT(*) FROM macro_indicators").fetchone()[0]
+    return macro_count < 100
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     start_scheduler()
-    # If new per-horizon model files are missing, retrain in background so server starts instantly
-    if any(not p.exists() for p in HORIZON_MODEL_PATHS.values()):
-        logger.info("Per-horizon models not found — retraining in background...")
+
+    from backend.models.trainer import models_need_retrain, HORIZON_MODEL_PATHS
+    models_missing = any(not p.exists() for p in HORIZON_MODEL_PATHS.values())
+
+    if _needs_initial_load():
+        # First run or missing macro/fundamentals — load data first then retrain
+        logger.info("Initial data load required — fetching macro + fundamentals then training models...")
+        threading.Thread(target=_background_initial_load, daemon=True).start()
+    elif models_missing or models_need_retrain():
+        # Models are stale (feature set changed) — retrain with existing data
+        logger.info("Models missing or feature set changed — retraining in background...")
         threading.Thread(target=_background_retrain, daemon=True).start()
+
     yield
 
 
 app = FastAPI(
     title="Stock Market Prediction",
     description="Local stock market prediction — offline capable",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -48,13 +73,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(stocks.router, prefix="/api/stocks", tags=["stocks"])
-app.include_router(predict.router, prefix="/api/predict", tags=["predict"])
-app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
-app.include_router(sync.router, prefix="/api/sync", tags=["sync"])
-app.include_router(models_api.router, prefix="/api/models", tags=["models"])
+app.include_router(stocks.router,     prefix="/api/stocks",    tags=["stocks"])
+app.include_router(predict.router,    prefix="/api/predict",   tags=["predict"])
+app.include_router(portfolio.router,  prefix="/api/portfolio", tags=["portfolio"])
+app.include_router(sync.router,       prefix="/api/sync",      tags=["sync"])
+app.include_router(models_api.router, prefix="/api/models",    tags=["models"])
 
-# Serve frontend — standalone index.html, no build step required
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if os.path.exists(frontend_dir):
     app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="static")

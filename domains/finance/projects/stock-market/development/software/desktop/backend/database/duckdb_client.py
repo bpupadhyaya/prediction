@@ -2,7 +2,6 @@ import duckdb
 import threading
 from backend.config import DB_PATH
 
-# Each thread gets its own connection — DuckDB 1.0+ supports multiple concurrent connections
 _local = threading.local()
 
 
@@ -26,13 +25,13 @@ def init_db() -> None:
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS prices (
-            ticker  VARCHAR,
-            date    DATE,
-            open    DOUBLE,
-            high    DOUBLE,
-            low     DOUBLE,
-            close   DOUBLE,
-            volume  BIGINT,
+            ticker    VARCHAR,
+            date      DATE,
+            open      DOUBLE,
+            high      DOUBLE,
+            low       DOUBLE,
+            close     DOUBLE,
+            volume    BIGINT,
             adj_close DOUBLE,
             PRIMARY KEY (ticker, date)
         )
@@ -46,7 +45,17 @@ def init_db() -> None:
             eps             DOUBLE,
             revenue         DOUBLE,
             earnings_surprise DOUBLE,
+            short_ratio     DOUBLE,
+            short_pct_float DOUBLE,
             PRIMARY KEY (ticker, report_date)
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS earnings_history (
+            ticker           VARCHAR,
+            earnings_date    DATE,
+            earnings_surprise DOUBLE,
+            PRIMARY KEY (ticker, earnings_date)
         )
     """)
     conn.execute("""
@@ -59,26 +68,37 @@ def init_db() -> None:
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS predictions (
-            ticker      VARCHAR,
-            horizon     VARCHAR,
-            predicted_at TIMESTAMP,
-            direction   VARCHAR,
-            probability DOUBLE,
+            ticker           VARCHAR,
+            horizon          VARCHAR,
+            predicted_at     TIMESTAMP,
+            direction        VARCHAR,
+            probability      DOUBLE,
             expected_return_low  DOUBLE,
             expected_return_high DOUBLE,
-            volatility  DOUBLE,
-            model_version VARCHAR,
+            volatility       DOUBLE,
+            model_version    VARCHAR,
             PRIMARY KEY (ticker, horizon, predicted_at)
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS accuracy_log (
-            ticker      VARCHAR,
-            horizon     VARCHAR,
-            period_end  DATE,
+            ticker               VARCHAR,
+            horizon              VARCHAR,
+            period_end           DATE,
             directional_accuracy DOUBLE,
-            sample_size INTEGER,
+            sample_size          INTEGER,
             PRIMARY KEY (ticker, horizon, period_end)
         )
     """)
+
+    # Migrate: add new columns to fundamentals if upgrading from older schema
+    try:
+        conn.execute("ALTER TABLE fundamentals ADD COLUMN short_ratio DOUBLE DEFAULT 0")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE fundamentals ADD COLUMN short_pct_float DOUBLE DEFAULT 0")
+    except Exception:
+        pass
+
     conn.commit()

@@ -1,4 +1,3 @@
-import argparse
 import logging
 from datetime import datetime
 
@@ -6,7 +5,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_daily_refresh() -> None:
-    from backend.data.price_feed import fetch_sp500_tickers, refresh_ticker
+    from backend.data.price_feed import fetch_sp500_tickers, refresh_ticker, refresh_ticker_fundamentals
     from backend.data.macro_feed import refresh_all_macro
     from backend.models.trainer import retrain_if_needed
 
@@ -15,9 +14,15 @@ def run_daily_refresh() -> None:
     from backend.database.duckdb_client import get_conn
     conn = get_conn()
     tickers = [r[0] for r in conn.execute("SELECT DISTINCT ticker FROM prices").fetchall()]
-    logger.info(f"Refreshing {len(tickers)} tickers from DB...")
+    logger.info(f"Refreshing prices for {len(tickers)} tickers...")
     for ticker in tickers:
         refresh_ticker(ticker, full=False)
+
+    logger.info("Refreshing fundamentals (earnings + short interest)...")
+    for i, ticker in enumerate(tickers):
+        if i % 50 == 0:
+            logger.info(f"  Fundamentals progress: {i}/{len(tickers)}")
+        refresh_ticker_fundamentals(ticker)
 
     refresh_all_macro()
     retrain_if_needed()
@@ -25,32 +30,29 @@ def run_daily_refresh() -> None:
     logger.info(f"Daily refresh complete at {datetime.now()}")
 
 
+def run_initial_data_load() -> None:
+    """Load macro + fundamentals data on first run (or when DB is sparse)."""
+    from backend.data.macro_feed import initial_macro_load
+    from backend.data.price_feed import refresh_ticker_fundamentals
+    from backend.database.duckdb_client import get_conn
+
+    logger.info("Initial macro load...")
+    initial_macro_load()
+
+    conn = get_conn()
+    tickers = [r[0] for r in conn.execute("SELECT DISTINCT ticker FROM prices").fetchall()]
+    logger.info(f"Initial fundamentals load for {len(tickers)} tickers...")
+    for i, ticker in enumerate(tickers):
+        if i % 50 == 0:
+            logger.info(f"  Fundamentals: {i}/{len(tickers)}")
+        refresh_ticker_fundamentals(ticker)
+
+    logger.info("Initial data load complete.")
+
+
 def start_scheduler() -> None:
     from apscheduler.schedulers.background import BackgroundScheduler
     scheduler = BackgroundScheduler()
-    # Run daily at 5pm ET (22:00 UTC) — after market close
     scheduler.add_job(run_daily_refresh, "cron", hour=22, minute=0)
     scheduler.start()
     logger.info("Scheduler started — daily refresh at 22:00 UTC")
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--once", action="store_true", help="Run one refresh and exit")
-    args = parser.parse_args()
-
-    logging.basicConfig(level=logging.INFO)
-
-    if args.once:
-        try:
-            run_daily_refresh()
-        except Exception as e:
-            logger.warning(f"Background refresh failed (offline?): {e}")
-    else:
-        import time
-        start_scheduler()
-        try:
-            while True:
-                time.sleep(60)
-        except KeyboardInterrupt:
-            pass

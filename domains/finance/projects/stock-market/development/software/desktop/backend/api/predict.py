@@ -59,6 +59,8 @@ def get_prediction(ticker: str, horizon: str = "1w"):
         "volatility": result.volatility,
         "model_accuracy": result.model_accuracy,
         "model_ready": result.model_ready,
+        "sector": result.sector,
+        "model_type": result.model_type,
         "disclaimer": "This is a probabilistic prediction, not financial advice.",
     }
 

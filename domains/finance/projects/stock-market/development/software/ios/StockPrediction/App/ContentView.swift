@@ -3,26 +3,28 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var store: AppStore
 
+    init() { applyPredictionTabBarAppearance() }
+
     var body: some View {
         TabView {
-            HomeView()
+            NavigationStack { HomeView() }
                 .tabItem { Label("Market", systemImage: "chart.line.uptrend.xyaxis") }
 
-            SearchView()
+            NavigationStack { SearchView() }
                 .tabItem { Label("Lookup", systemImage: "magnifyingglass") }
 
-            PortfolioView()
+            NavigationStack { PortfolioView() }
                 .tabItem { Label("Portfolio", systemImage: "briefcase") }
 
-            WatchlistView()
+            NavigationStack { WatchlistView() }
                 .tabItem { Label("Watchlist", systemImage: "star") }
 
-            SyncView()
+            NavigationStack { SyncView() }
                 .tabItem { Label("Sync", systemImage: "arrow.triangle.2.circlepath") }
 
-            ModelsView()
+            NavigationStack { ModelsView() }
                 .tabItem { Label("Models", systemImage: "wrench.and.screwdriver") }
         }
-        .accentColor(.blue)
+        .tint(.white)
     }
 }

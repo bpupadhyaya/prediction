@@ -1,9 +1,11 @@
 package com.prediction.stockmarket.ui
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
@@ -34,7 +36,10 @@ fun AppNavigation() {
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = Color(0xFF0D1F36),
+                windowInsets = WindowInsets(0)
+            ) {
                 tabs.forEach { tab ->
                     NavigationBarItem(
                         selected = currentRoute == tab.route,
@@ -46,7 +51,14 @@ fun AppNavigation() {
                             }
                         },
                         icon = { Icon(tab.icon, contentDescription = tab.label) },
-                        label = { Text(tab.label) }
+                        label = { Text(tab.label) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color.White,
+                            selectedTextColor = Color.White,
+                            indicatorColor = Color(0xFF142B47),
+                            unselectedIconColor = Color.White.copy(alpha = 0.45f),
+                            unselectedTextColor = Color.White.copy(alpha = 0.45f)
+                        )
                     )
                 }
             }

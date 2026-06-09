@@ -169,7 +169,7 @@ private fun PredictionModuleCard(module: PredictionModule, onClick: () -> Unit) 
             Icon(
                 imageVector = Icons.Default.Lock,
                 contentDescription = "Coming soon",
-                tint = Color.White.copy(alpha = 0.6f),
+                tint = Color.White.copy(alpha = 0.50f),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .size(16.dp)
@@ -182,32 +182,32 @@ private fun PredictionModuleCard(module: PredictionModule, onClick: () -> Unit) 
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(40.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.15f)),
+                    .background(Color.White.copy(alpha = 0.20f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = iconForModule(module.iconName),
                     contentDescription = module.title,
                     tint = module.iconColor,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
             Column {
                 Text(
                     text = module.title,
-                    fontSize = 15.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
                     text = module.subtitle,
-                    fontSize = 11.sp,
-                    color = Color.White.copy(alpha = 0.55f),
-                    lineHeight = 14.sp,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.50f),
+                    lineHeight = 15.sp,
                     maxLines = 2
                 )
             }

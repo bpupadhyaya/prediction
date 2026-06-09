@@ -33,34 +33,34 @@ data class PredictionModule(
 val predictionModules = listOf(
     PredictionModule(
         "stock_market", "Stock Market", "AI-powered price predictions", "trending_up",
-        listOf(Color(0xFF0C3B6E), Color(0xFF0369A1), Color(0xFF0EA5E9)), Color(0xFF7DD3FC), true
+        listOf(Color(0xFF0C3B6E), Color(0xFF1A69A2), Color(0xFF0EA5E9)), Color(0xFF7DD3F8), true
     ),
     PredictionModule(
         "sports", "Sports", "Game outcomes & player stats", "sports_soccer",
-        listOf(Color(0xFF14532D), Color(0xFF15803D), Color(0xFF22C55E)), Color(0xFF86EFAC), false
+        listOf(Color(0xFF143E26), Color(0xFF1B7A3D), Color(0xFF22C55E)), Color(0xFF86EFAC), true
     ),
     PredictionModule(
         "weather", "Weather", "Extended forecasts with AI", "wb_cloudy",
-        listOf(Color(0xFF7C1D12), Color(0xFFC2410C), Color(0xFFF97316)), Color(0xFFFED7AA), false
+        listOf(Color(0xFF7C1D12), Color(0xFFC2410C), Color(0xFFF97316)), Color(0xFFFED7AA), true
     ),
     PredictionModule(
         "elections", "Elections", "Political outcome forecasts", "how_to_vote",
-        listOf(Color(0xFF2E1065), Color(0xFF6D28D9), Color(0xFFA855F7)), Color(0xFFD8B4FE), false
+        listOf(Color(0xFF280D5A), Color(0xFF4F1B9E), Color(0xFF9B4DE7)), Color(0xFFCDA8FF), true
     ),
     PredictionModule(
         "crypto", "Crypto", "Cryptocurrency price signals", "currency_bitcoin",
-        listOf(Color(0xFF0A3F54), Color(0xFF0B6677), Color(0xFF0E8E8E)), Color(0xFF66DDDD), false
+        listOf(Color(0xFF063C4B), Color(0xFF0A6A83), Color(0xFF10ACC9)), Color(0xFF67DFF0), true
     ),
     PredictionModule(
         "real_estate", "Real Estate", "Property value trends", "home",
-        listOf(Color(0xFF0F473E), Color(0xFF156B3D), Color(0xFF1E9B5D)), Color(0xFF86E3AC), false
+        listOf(Color(0xFF0F4738), Color(0xFF15795E), Color(0xFF10B981)), Color(0xFF6EE7B7), true
     ),
     PredictionModule(
         "health", "Health Trends", "Disease & outbreak forecasts", "favorite",
-        listOf(Color(0xFF662B42), Color(0xFF9E2D56), Color(0xFFD14F7D)), Color(0xFFF5B2CC), false
+        listOf(Color(0xFF550A30), Color(0xFF9B1B56), Color(0xFFEC4899)), Color(0xFFF9A8D4), true
     ),
     PredictionModule(
         "economy", "Economy", "Macro indicators & forecasts", "bar_chart",
-        listOf(Color(0xFF29105E), Color(0xFF4F289F), Color(0xFF7A4FD0)), Color(0xFFBFB8F6), false
+        listOf(Color(0xFF0E2040), Color(0xFF1A3D73), Color(0xFF2868BE)), Color(0xFF93C3F0), true
     ),
 )

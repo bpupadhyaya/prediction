@@ -1,34 +1,44 @@
 import SwiftUI
 
 struct PredictionHomeView: View {
+    var onModuleTap: ((String) -> Void)? = nil
     @State private var activeModule: String? = nil
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
     var body: some View {
-        ZStack {
-            if activeModule == "stock_market" {
-                StockMarketModuleView(onBack: { activeModule = nil })
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            } else {
-                // Exactly mirrors lifeos HomeView: HeroHeader above ScrollView in VStack(spacing:0)
-                VStack(spacing: 0) {
-                    heroHeader
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 14) {
-                            ForEach(predictionModules) { module in
-                                PredictionModuleCard(module: module) {
-                                    if module.isAvailable { activeModule = module.id }
+        VStack(spacing: 0) {
+            heroHeader
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 14) {
+                    ForEach(predictionModules) { module in
+                        PredictionModuleCard(module: module) {
+                            if module.isAvailable {
+                                if let onModuleTap {
+                                    onModuleTap(module.id)
+                                } else {
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        activeModule = module.id
+                                    }
                                 }
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, 32)
                     }
                 }
-                .background(PredictionTheme.homeBg)
-                .ignoresSafeArea(edges: .top)
-                .transition(.move(edge: .leading).combined(with: .opacity))
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 32)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(PredictionTheme.homeBg.ignoresSafeArea())
+        .ignoresSafeArea(edges: .top)
+        .toolbar(.hidden, for: .navigationBar)
+        .overlay {
+            if onModuleTap == nil, activeModule == "stock_market" {
+                StockMarketModuleView(onBack: {
+                    withAnimation(.easeInOut(duration: 0.3)) { activeModule = nil }
+                })
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.3), value: activeModule)
@@ -38,7 +48,7 @@ struct PredictionHomeView: View {
     private var heroHeader: some View {
         ZStack {
             VStack(spacing: 4) {
-                Text("Prediction")
+                Text(Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String ?? "Prediction")
                     .font(.title.bold())
                     .foregroundStyle(.white)
                 Text("AI-powered forecasts across every domain")
@@ -85,12 +95,12 @@ struct PredictionModuleCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10)
                             .fill(Color.white.opacity(0.20))
-                            .frame(width: 42, height: 42)
+                            .frame(width: 40, height: 40)
                         Image(systemName: module.icon)
                             .font(.system(size: 20))
                             .foregroundStyle(module.iconColor)
@@ -99,18 +109,18 @@ struct PredictionModuleCard: View {
                     if !module.isAvailable {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 13))
-                            .foregroundStyle(Color.white.opacity(0.35))
+                            .foregroundStyle(Color.white.opacity(0.50))
                     }
                 }
 
                 Text(module.title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.headline)
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
                 Text(module.subtitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.55))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.50))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }

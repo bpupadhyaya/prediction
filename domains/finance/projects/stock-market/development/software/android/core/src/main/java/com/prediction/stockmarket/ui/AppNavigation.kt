@@ -35,6 +35,7 @@ fun AppNavigation() {
     val currentRoute = backstackEntry?.destination?.route
 
     Scaffold(
+        containerColor = Color(0xFF0B1526),
         bottomBar = {
             NavigationBar(
                 containerColor = Color(0xFF0D1F36),

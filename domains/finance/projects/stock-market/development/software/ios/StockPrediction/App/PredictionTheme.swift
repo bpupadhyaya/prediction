@@ -32,7 +32,8 @@ struct PredictionTheme {
 // MARK: - Tab bar appearance (shared by all Prediction app tab views)
 func applyPredictionTabBarAppearance() {
     let appearance = UITabBarAppearance()
-    appearance.configureWithDefaultBackground()
+    appearance.configureWithOpaqueBackground()
+    appearance.backgroundColor = UIColor(red: 0.051, green: 0.122, blue: 0.212, alpha: 1.0) // #0D1F36
     let unsel = UIColor.white.withAlphaComponent(0.45)
     appearance.stackedLayoutAppearance.normal.iconColor = unsel
     appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: unsel]

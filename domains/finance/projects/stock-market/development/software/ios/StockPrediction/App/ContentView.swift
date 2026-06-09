@@ -26,5 +26,7 @@ struct ContentView: View {
                 .tabItem { Label("Models", systemImage: "wrench.and.screwdriver") }
         }
         .tint(.white)
+        .toolbarBackground(Color(red: 0.051, green: 0.122, blue: 0.212), for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
     }
 }

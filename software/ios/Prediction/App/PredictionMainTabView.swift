@@ -30,6 +30,8 @@ struct PredictionMainTabView: View {
                 .tag(2)
             }
             .tint(.white)
+            .toolbarBackground(Color(red: 0.051, green: 0.122, blue: 0.212), for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
 
             if activeModule == "stock_market" {
                 StockMarketModuleView(onBack: {

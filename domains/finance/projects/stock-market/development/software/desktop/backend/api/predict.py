@@ -65,6 +65,7 @@ def get_prediction_explain(ticker: str, horizon: str = "1w"):
         "regime_label":         result.regime_label,
         "regime":               result.regime,
         "explanation":          result.explanation,
+        "calc_chain":           result.calc_chain,
         "user_signals_active":  result.user_signals_active,
         "recent_accuracy":      result.recent_accuracy,
         "disclaimer": "This is a probabilistic prediction, not financial advice.",

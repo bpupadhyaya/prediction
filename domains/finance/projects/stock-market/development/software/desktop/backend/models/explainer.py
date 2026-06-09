@@ -105,6 +105,7 @@ def explain(
     feature_cols: list[str],
     feature_values_raw: dict[str, float],
     prob_up: float,
+    all_feature_cols: list[str] | None = None,
 ) -> dict:
     """
     Generate a full prediction explanation.
@@ -168,10 +169,52 @@ def explain(
             "top_factors":        top_factors,
         }
 
+    # All factors sorted by absolute contribution — model features first
+    in_model_factors = sorted(
+        [
+            {
+                "name":         col,
+                "domain":       FEATURE_DOMAINS.get(col, "other"),
+                "domain_label": DOMAIN_LABELS.get(FEATURE_DOMAINS.get(col, "other"), "Other"),
+                "value":        round(feature_values_raw.get(col, 0.0), 6),
+                "shap":         round(factor_contribs.get(col, 0.0), 6),
+                "direction":    "up" if factor_contribs.get(col, 0.0) >= 0 else "down",
+                "explanation":  _explain_factor(col, feature_values_raw.get(col, 0.0), factor_contribs.get(col, 0.0)),
+                "in_model":     True,
+            }
+            for col in feature_cols
+        ],
+        key=lambda x: abs(x["shap"]),
+        reverse=True,
+    )
+
+    # Supplement with features defined in all_feature_cols but not in this model's training set
+    extra_factors = []
+    if all_feature_cols:
+        already_covered = {f["name"] for f in in_model_factors}
+        for col in all_feature_cols:
+            if col in already_covered:
+                continue
+            raw_val = feature_values_raw.get(col, 0.0)
+            extra_factors.append({
+                "name":         col,
+                "domain":       FEATURE_DOMAINS.get(col, "other"),
+                "domain_label": DOMAIN_LABELS.get(FEATURE_DOMAINS.get(col, "other"), "Other"),
+                "value":        round(raw_val, 6),
+                "shap":         None,   # not in current model version — no SHAP
+                "direction":    "neutral",
+                "explanation":  _explain_factor(col, raw_val, 0.0),
+                "in_model":     False,
+            })
+        extra_factors.sort(key=lambda x: (x["domain"], x["name"]))
+
+    all_factors = in_model_factors + extra_factors
+
     method = "shap" if _shap_available() else "importance"
     return {
         "base_probability": round(prob_up, 4),
         "domains":          domain_data,
+        "all_factors":      all_factors,
         "method":           method,
     }
 
@@ -208,7 +251,7 @@ def _compute_shap(model, scaler, X_scaled: np.ndarray, feature_cols: list[str], 
 
 def _explain_factor(name: str, value: float, contribution: float) -> str:
     """Generate a short plain-English explanation for a factor contribution."""
-    direction = "bullish" if contribution > 0 else "bearish"
+    direction = "bullish" if contribution > 0 else ("bearish" if contribution < 0 else "not in model")
     explanations = {
         "yield_curve":        f"Yield curve at {value:.2f}% — {'normal/positive slope' if value > 0.5 else ('flat' if value > 0 else 'inverted (recession signal)')} → {direction}",
         "hy_spread":          f"HY credit spread {value:.0f}bp — {'tight (risk appetite high)' if value < 350 else ('stressed' if value < 600 else 'crisis-level')} → {direction}",

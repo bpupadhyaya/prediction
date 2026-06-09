@@ -280,6 +280,45 @@
     .acc-cell { text-align: center; }
     .acc-cell .acc-num { font-size: 1.5rem; font-weight: 700; color: var(--accent2); }
     .acc-cell .acc-lbl { font-size: 0.75rem; color: var(--muted); margin-top: 0.1rem; }
+
+    /* ── "How?" button on horizon badges ────────────────────────────────────── */
+    .how-btn {
+      background: rgba(79,142,247,0.1); border: 1px solid rgba(79,142,247,0.3);
+      color: var(--accent); font-size: 0.6rem; font-weight: 700;
+      width: 16px; height: 16px; border-radius: 50%; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0; line-height: 1; flex-shrink: 0;
+    }
+    .how-btn:hover { background: rgba(79,142,247,0.25); }
+
+    /* ── Explain Modal content ───────────────────────────────────────────────── */
+    .calc-step {
+      display: flex; gap: 0.85rem; align-items: flex-start;
+      padding: 0.8rem 0.9rem; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.4rem;
+    }
+    .calc-step-num {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: rgba(79,142,247,0.15); color: var(--accent);
+      font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .calc-step-body { flex: 1; min-width: 0; }
+    .calc-step-label { font-size: 0.88rem; font-weight: 600; color: var(--text); margin-bottom: 0.15rem; }
+    .calc-step-desc  { font-size: 0.76rem; color: var(--muted); line-height: 1.45; margin-bottom: 0.3rem; }
+    .calc-step-value { font-size: 0.82rem; font-weight: 700; }
+    .calc-arrow { text-align: center; color: var(--muted); font-size: 0.9rem; margin: 0.1rem 0; }
+    .factor-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+    .factor-table th {
+      text-align: left; color: var(--muted); font-weight: 600;
+      padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--surface); z-index: 5;
+    }
+    .factor-table td { padding: 0.32rem 0.5rem; border-bottom: 1px solid rgba(42,45,58,0.5); vertical-align: middle; }
+    .factor-table tr:last-child td { border-bottom: none; }
+    .factor-table tr:hover td { background: rgba(79,142,247,0.03); }
+    .shap-bar-wrap { width: 56px; height: 5px; background: var(--border); border-radius: 3px; display: inline-block; vertical-align: middle; }
+    .shap-bar-fill { height: 100%; border-radius: 3px; }
   </style>
 </head>
 <body>
@@ -593,6 +632,34 @@
     </div>
   </div>
 
+  <!-- ── How was this calculated? Modal ───────────────────────────────────────── -->
+  <div class="modal-overlay" id="explain-modal" onclick="if(event.target===this)closeExplainModal()">
+    <div class="modal-lg" style="max-height:92vh;display:flex;flex-direction:column">
+      <div style="padding-bottom:0.75rem;border-bottom:1px solid var(--border);margin-bottom:1rem;flex-shrink:0">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.6rem">
+          <div>
+            <h3 style="font-size:1rem;font-weight:700;margin-bottom:0.15rem">
+              How was this calculated?
+              <span id="explain-ticker-label" style="color:var(--accent);font-weight:400"></span>
+            </h3>
+            <p style="font-size:0.75rem;color:var(--muted)">Step-by-step probability chain and all feature contributions, sorted by influence.</p>
+          </div>
+          <button onclick="closeExplainModal()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.3rem 0.6rem;border-radius:6px;cursor:pointer;font-size:0.8rem;flex-shrink:0">✕ Close</button>
+        </div>
+        <!-- Horizon switcher -->
+        <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap">
+          <span style="font-size:0.78rem;color:var(--muted)">Horizon:</span>
+          <span class="horizon-pill active" id="epill-1d" onclick="switchExplainHorizon('1d')">1d — Next day</span>
+          <span class="horizon-pill" id="epill-1w" onclick="switchExplainHorizon('1w')">1w — Next week</span>
+          <span class="horizon-pill" id="epill-1m" onclick="switchExplainHorizon('1m')">1m — Next month</span>
+        </div>
+      </div>
+      <div id="explain-content" style="overflow-y:auto;flex:1">
+        <p style="color:var(--muted)">Loading...</p>
+      </div>
+    </div>
+  </div>
+
   <script>
     const BASE = "/api";
     let _guidanceModalTicker = null;
@@ -875,6 +942,7 @@
               <div style="margin-top:0.9rem;display:flex;gap:0.5rem;flex-wrap:wrap">
                 <button class="add-ctx-btn" onclick="openGuidanceModal('${ticker}')">+ Add your knowledge</button>
                 <button class="add-ctx-btn" style="border-color:rgba(100,116,139,0.3);color:var(--muted)" onclick="openHistoryModal('${ticker}','1w')">📈 View History</button>
+                <button class="add-ctx-btn" style="border-color:rgba(79,142,247,0.4);color:var(--accent)" onclick="openExplainModal('${ticker}','1w')">🔍 How was this calculated?</button>
               </div>
             </div>
             <div class="card">
@@ -1001,11 +1069,25 @@
           const m    = hMeta[h];
           const acc  = p.model_accuracy ? Math.round(p.model_accuracy * 100) : "?";
           const tip  = `${m.label} prediction: ${pct}% confidence ${p.direction.toUpperCase()} over the ${m.days}.\n\n${opp}% chance it goes the other way.\n\n${m.note}\n\nModel accuracy: ${acc}%`;
+
+          const wrapper = document.createElement("span");
+          wrapper.style.cssText = "display:inline-flex;align-items:center;gap:0.3rem;";
+
           const span = document.createElement("span");
           span.className = `tip badge ${p.direction === "up" ? "up" : "down"}`;
           span.setAttribute("data-tip", tip);
           span.textContent = `${h}: ${pct}% ${p.direction}`;
-          container.appendChild(span);
+
+          const howBtn = document.createElement("button");
+          howBtn.className = "how-btn";
+          howBtn.title = `How was the ${h} prediction calculated?`;
+          howBtn.textContent = "?";
+          const capturedH = h;
+          howBtn.addEventListener("click", (e) => { e.stopPropagation(); openExplainModal(ticker, capturedH); });
+
+          wrapper.appendChild(span);
+          wrapper.appendChild(howBtn);
+          container.appendChild(wrapper);
         } catch { /* skip */ }
       }
     }
@@ -1603,6 +1685,199 @@
       if (!confirm("Remove this model from disk? You can re-download it later.")) return;
       try { await apiFetch(`/models/${modelId}`, { method:"DELETE" }); loadModelCatalog(); }
       catch (e) { alert(`Delete failed: ${e.message}`); }
+    }
+
+    // ── Explain Modal (How was this calculated?) ───────────────────────────────
+    const _explainCache = {};
+    let _explainTicker  = null;
+    let _explainHorizon = "1w";
+
+    async function openExplainModal(ticker, horizon = "1w") {
+      _explainTicker  = ticker;
+      _explainHorizon = horizon;
+      document.getElementById("explain-ticker-label").textContent = ` — ${ticker}`;
+      _setExplainPills(horizon);
+      document.getElementById("explain-modal").classList.add("open");
+      await _loadExplainContent(ticker, horizon);
+    }
+
+    async function switchExplainHorizon(horizon) {
+      _explainHorizon = horizon;
+      _setExplainPills(horizon);
+      if (_explainTicker) await _loadExplainContent(_explainTicker, horizon);
+    }
+
+    function _setExplainPills(horizon) {
+      ["1d","1w","1m"].forEach(h => {
+        document.getElementById(`epill-${h}`).classList.toggle("active", h === horizon);
+      });
+    }
+
+    async function _loadExplainContent(ticker, horizon) {
+      document.getElementById("explain-content").innerHTML = "<p style='color:var(--muted)'>Loading...</p>";
+      const cacheKey = `${ticker}:${horizon}`;
+      let data;
+      if (_explainCache[cacheKey]) {
+        data = _explainCache[cacheKey];
+      } else {
+        try {
+          data = await api.predictExplain(ticker, horizon);
+          _explainCache[cacheKey] = data;
+        } catch (e) {
+          document.getElementById("explain-content").innerHTML = `<p style='color:var(--danger)'>Error: ${e.message}</p>`;
+          return;
+        }
+      }
+      document.getElementById("explain-content").innerHTML = _buildExplainContent(data);
+    }
+
+    function closeExplainModal() {
+      document.getElementById("explain-modal").classList.remove("open");
+    }
+
+    function _buildExplainContent(data) {
+      const chain      = data.calc_chain    || {};
+      const steps      = chain.steps        || [];
+      const expl       = data.explanation   || {};
+      const allFactors = expl.all_factors   || [];
+      const method     = expl.method        || "importance";
+
+      // ── Calculation chain ─────────────────────────────────────────────────
+      const finalDir   = chain.final_direction  || data.direction;
+      const finalConf  = chain.final_confidence_pct
+                          ?? Math.round((data.probability >= 0.5 ? data.probability : 1 - data.probability) * 100);
+      const finalColor = finalDir === "up" ? "var(--accent2)" : "var(--danger)";
+
+      const stepsHtml = steps.map((s, i) => {
+        const isLast = i === steps.length - 1;
+        let extraHtml = "";
+        if (s.blend_formula) {
+          extraHtml = `<div style="font-family:monospace;font-size:0.72rem;color:var(--accent);background:rgba(79,142,247,0.08);padding:0.2rem 0.45rem;border-radius:4px;margin-top:0.25rem;word-break:break-all">${s.blend_formula}</div>`;
+        }
+        const valColor    = s.value >= 0.5 ? "var(--accent2)" : "var(--danger)";
+        const nudgeDelta  = s.nudge_delta;
+        const nudgeHtml   = nudgeDelta !== undefined && nudgeDelta !== null
+          ? ` <span style="font-size:0.72rem;color:${nudgeDelta > 0 ? "var(--accent2)" : nudgeDelta < 0 ? "var(--danger)" : "var(--muted)"}">(${nudgeDelta >= 0 ? "+" : ""}${(nudgeDelta * 100).toFixed(2)}pp)</span>`
+          : "";
+        return `
+          <div class="calc-step">
+            <div class="calc-step-num">${s.step}</div>
+            <div class="calc-step-body">
+              <div class="calc-step-label">${s.label}</div>
+              <div class="calc-step-desc">${s.description}</div>
+              ${extraHtml}
+              <div class="calc-step-value" style="color:${valColor}">→ Prob(UP): ${s.value_pct.toFixed(1)}%${nudgeHtml}</div>
+            </div>
+          </div>
+          ${!isLast ? '<div class="calc-arrow">▼</div>' : ""}`;
+      }).join("");
+
+      const finalProbUp = chain.final_prob_up ?? data.probability;
+      const finalBox = `
+        <div style="background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.3);border-radius:8px;padding:0.8rem 1rem;margin-top:0.65rem;text-align:center">
+          <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.2rem">Final Prediction</div>
+          <div style="font-size:1.25rem;font-weight:700;color:${finalColor}">
+            ${finalDir === "up" ? "▲" : "▼"} ${finalConf.toFixed(1)}% ${finalDir.toUpperCase()}
+          </div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:0.2rem">
+            Prob(UP) = ${(finalProbUp * 100).toFixed(1)}%
+            ${chain.regime_label ? " · " + chain.regime_label : ""}
+          </div>
+        </div>`;
+
+      // ── All parameters table ──────────────────────────────────────────────
+      if (!allFactors.length) {
+        return `
+          <div style="margin-bottom:1.5rem">
+            <h4 style="margin-bottom:0.65rem;font-size:0.9rem;font-weight:700">📊 Calculation Chain</h4>
+            ${stepsHtml}${finalBox}
+          </div>
+          <p style="color:var(--muted);font-size:0.82rem">Feature breakdown not available — model not yet trained or first prediction.</p>`;
+      }
+
+      const maxShap        = Math.max(...allFactors.map(f => Math.abs(f.shap)), 0.001);
+      const methodBadgeHtml = `<span style="background:rgba(79,142,247,0.12);color:var(--accent);font-size:0.7rem;padding:0.15rem 0.4rem;border-radius:3px;margin-left:0.5rem">${method === "shap" ? "SHAP (TreeExplainer)" : "Feature Importance (approx.)"}</span>`;
+
+      const inModelFactors  = allFactors.filter(f => f.in_model !== false);
+      const extraFactors    = allFactors.filter(f => f.in_model === false);
+      const extraNote       = extraFactors.length
+        ? `<tr><td colspan="7" style="padding:0.5rem;font-size:0.72rem;color:var(--muted);font-style:italic;border-top:2px solid var(--border)">
+             ↓ ${extraFactors.length} features defined in current pipeline but absent from the model on disk — retrain to include them
+           </td></tr>`
+        : "";
+
+      function _fmtVal(v) {
+        const av = Math.abs(v);
+        return av >= 100000 ? (v / 1e6).toFixed(2) + "M"
+             : av >= 1000   ? v.toFixed(0)
+             : av >= 0.01   ? v.toFixed(4)
+             : v.toExponential(2);
+      }
+
+      function _rowHtml(f, i, dimmed) {
+        const hasShap  = f.shap !== null && f.shap !== undefined;
+        const shapAbs  = hasShap ? Math.abs(f.shap) : 0;
+        const barPct   = Math.round((shapAbs / maxShap) * 100);
+        const barColor = !hasShap ? "var(--border)" : f.direction === "up" ? "#34d399" : "#f87171";
+        const arrow    = f.direction === "up" ? "▲" : f.direction === "down" ? "▼" : "—";
+        const arrowCol = f.direction === "up" ? "var(--accent2)" : f.direction === "down" ? "var(--danger)" : "var(--muted)";
+        const shapTxt  = hasShap
+          ? `${f.shap >= 0 ? "+" : ""}${f.shap.toFixed(4)}`
+          : `<span style="color:var(--border)">n/a</span>`;
+        const rowOpacity = dimmed ? "opacity:0.45;" : "";
+        return `<tr style="${rowOpacity}">
+          <td style="color:var(--muted);font-size:0.7rem;text-align:right;min-width:22px">${i + 1}</td>
+          <td style="font-family:monospace;color:${dimmed ? "var(--muted)" : "var(--text)"};font-size:0.75rem;white-space:nowrap">${f.name}</td>
+          <td style="color:var(--muted);font-size:0.72rem;white-space:nowrap">${f.domain_label}</td>
+          <td style="font-family:monospace;font-size:0.72rem;color:var(--muted);white-space:nowrap">${_fmtVal(f.value)}</td>
+          <td style="white-space:nowrap">
+            <div style="display:flex;align-items:center;gap:0.35rem">
+              <div class="shap-bar-wrap"><div class="shap-bar-fill" style="width:${barPct}%;background:${barColor}"></div></div>
+              <span style="font-size:0.7rem;font-family:monospace;color:${barColor};min-width:52px">${shapTxt}</span>
+            </div>
+          </td>
+          <td style="color:${arrowCol};font-size:0.75rem;white-space:nowrap">${arrow}${hasShap ? " " + f.direction.toUpperCase() : ""}</td>
+          <td style="color:var(--muted);font-size:0.71rem;line-height:1.35;max-width:240px">${f.explanation}</td>
+        </tr>`;
+      }
+
+      const rowsHtml = [
+        ...inModelFactors.map((f, i) => _rowHtml(f, i + 1, false)),
+        extraNote,
+        ...extraFactors.map((f, i) => _rowHtml(f, inModelFactors.length + i + 1, true)),
+      ].join("");
+
+      return `
+        <div style="margin-bottom:1.75rem">
+          <h4 style="margin-bottom:0.65rem;font-size:0.9rem;font-weight:700">📊 Step-by-Step Calculation</h4>
+          ${stepsHtml}
+          ${finalBox}
+        </div>
+        <div>
+          <h4 style="margin-bottom:0.4rem;font-size:0.9rem;font-weight:700">
+            🔍 All Parameters — ${inModelFactors.length} with SHAP${extraFactors.length ? ` + ${extraFactors.length} defined (not in model on disk)` : ""}${methodBadgeHtml}
+          </h4>
+          <p style="font-size:0.75rem;color:var(--muted);margin-bottom:0.75rem">
+            Sorted by absolute SHAP influence. Positive = pushes probability toward UP. Negative = toward DOWN.
+            Dimmed rows are defined in the pipeline but absent from the model file — retrain to include them.
+          </p>
+          <div style="overflow-x:auto">
+            <table class="factor-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Parameter</th>
+                  <th>Domain</th>
+                  <th>Current Value</th>
+                  <th>Influence (SHAP)</th>
+                  <th>Direction</th>
+                  <th>Why this matters</th>
+                </tr>
+              </thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+          </div>
+        </div>`;
     }
 
     // ── Init ────────────────────────────────────────────────────────────────────

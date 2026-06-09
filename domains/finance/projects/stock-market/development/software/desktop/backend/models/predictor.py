@@ -64,6 +64,7 @@ class Prediction:
     regime_label:         str = ""
     regime:               dict = field(default_factory=dict)
     explanation:          dict = field(default_factory=dict)
+    calc_chain:           dict = field(default_factory=dict)
     user_signals_active:  list = field(default_factory=list)
     recent_accuracy:      dict = field(default_factory=dict)
 
@@ -228,6 +229,9 @@ def _build_feature_vector(
         for k, v in regime_codes.items():
             values[k] = float(v)
 
+    # Sanitize all values — NaN/Inf in the dict would break JSON serialization of explanations
+    values = {k: (v if np.isfinite(v) else 0.0) for k, v in values.items()}
+
     vec = np.array([values.get(col, 0.0) for col in feature_cols], dtype=float)
     vec = np.nan_to_num(vec, nan=0.0)
     return vec.reshape(1, -1), values
@@ -359,6 +363,7 @@ def predict_ticker(ticker: str, horizon: str = "1w") -> Prediction:
         )
 
     # ── 4. Regime-aware probability blending ─────────────────────────────────
+    prob_regime: float | None = None
     try:
         prob_global = 0.5
         if global_model is not None:
@@ -390,19 +395,78 @@ def predict_ticker(ticker: str, horizon: str = "1w") -> Prediction:
     user_signals = _get_active_user_signals(ticker)
     prob_up_nudged = _apply_user_signals(prob_up, user_signals)
 
+    # ── 5b. Calculation chain (for transparency UI) ───────────────────────────
+    _nudge_delta = round(prob_up_nudged - prob_up, 4)
+    calc_chain: dict = {
+        "steps": [
+            {
+                "step": 1,
+                "label": "Global Model",
+                "description": f"GradientBoosting trained on all tickers (200 estimators, max_depth=4, lr=0.05)",
+                "value": round(prob_global, 4),
+                "value_pct": round(prob_global * 100, 1),
+            },
+            {
+                "step": 2,
+                "label": "Regime Model Blend",
+                "description": (
+                    f"Regime-specific model (vol_regime={vol_code}) blended: "
+                    f"{int(_REGIME_BLEND*100)}% regime + {int(_GLOBAL_BLEND*100)}% global"
+                    if prob_regime is not None else
+                    "No regime model available — using global only"
+                ),
+                "value": round(prob_up, 4),
+                "value_pct": round(prob_up * 100, 1),
+                "regime_model_prob": round(prob_regime, 4) if prob_regime is not None else None,
+                "global_model_prob": round(prob_global, 4),
+                "blend_formula": (
+                    f"{int(_REGIME_BLEND*100)}% × {round(prob_regime,4)} + {int(_GLOBAL_BLEND*100)}% × {round(prob_global,4)} = {round(prob_up,4)}"
+                    if prob_regime is not None else
+                    f"global only = {round(prob_global,4)}"
+                ),
+            },
+            {
+                "step": 3,
+                "label": "User Signal Nudge",
+                "description": (
+                    f"{len(user_signals)} active user signal(s) applied, total nudge = {_nudge_delta:+.4f}"
+                    if user_signals else
+                    "No active user signals"
+                ),
+                "value": round(prob_up_nudged, 4),
+                "value_pct": round(prob_up_nudged * 100, 1),
+                "nudge_delta": _nudge_delta,
+                "signals_count": len(user_signals),
+            },
+        ],
+        "final_prob_up": round(prob_up_nudged, 4),
+        "final_direction": "up" if prob_up_nudged >= 0.5 else "down",
+        "final_confidence_pct": round(
+            (prob_up_nudged if prob_up_nudged >= 0.5 else 1 - prob_up_nudged) * 100, 1
+        ),
+        "regime_label": regime_label,
+        "model_type": model_type if prob_regime is not None else "global",
+    }
+
     # ── 6. SHAP explanation ───────────────────────────────────────────────────
     explanation: dict = {}
     try:
         from backend.models.explainer import explain
+        from backend.models.trainer import FEATURE_COLS as ALL_FEATURE_COLS
         # Use global model for explanation (more stable than regime-specific)
         if global_model is not None and global_scaler is not None:
             X_explain_raw, _ = _build_feature_vector(ticker, global_feat_cols, regime_codes)
             if X_explain_raw is not None:
                 X_explain_s = global_scaler.transform(X_explain_raw)
+                # Build comprehensive raw values for ALL defined features (not just model subset)
+                _, all_feature_values_raw = _build_feature_vector(ticker, ALL_FEATURE_COLS, regime_codes)
+                # Merge: all_feature_values_raw base + original values for any extras not in FEATURE_COLS
+                merged_raw = {**all_feature_values_raw, **feature_values_raw}
                 explanation = explain(
                     global_model, global_scaler,
                     X_explain_s, global_feat_cols,
-                    feature_values_raw, prob_up_nudged,
+                    merged_raw, prob_up_nudged,
+                    all_feature_cols=ALL_FEATURE_COLS,
                 )
     except Exception as e:
         logger.debug(f"Explanation failed for {ticker}: {e}")
@@ -477,6 +541,7 @@ def predict_ticker(ticker: str, horizon: str = "1w") -> Prediction:
         regime_label         = regime_label,
         regime               = regime_dict,
         explanation          = explanation,
+        calc_chain           = calc_chain,
         user_signals_active  = signals_summary,
         recent_accuracy      = recent_accuracy_dict,
     )

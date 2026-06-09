@@ -67,6 +67,33 @@
     .badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
     .badge.up   { background: rgba(52,211,153,0.15); color: var(--accent2); }
     .badge.down { background: rgba(248,113,113,0.15); color: var(--danger); }
+
+    /* ── Tooltip ──────────────────────────────────────────────────────────────── */
+    .tip { position: relative; display: inline-block; cursor: help; }
+    .tip::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e2232;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.75rem;
+      font-weight: 400;
+      line-height: 1.55;
+      padding: 0.6rem 0.8rem;
+      border-radius: 8px;
+      width: 260px;
+      white-space: normal;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 200;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+      text-align: left;
+    }
+    .tip:hover::after { opacity: 1; }
     .stat { display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.85rem; }
     .stat span:last-child { color: var(--muted); }
     .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
@@ -194,6 +221,21 @@
       background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
       padding: 1.5rem; width: 480px; max-width: 95vw; max-height: 85vh; overflow-y: auto;
     }
+    .modal-lg {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 1.5rem; width: 900px; max-width: 96vw; max-height: 90vh; overflow-y: auto;
+    }
+    .hist-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 1rem; }
+    .hist-table th { text-align: left; color: var(--muted); font-weight: 600; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+    .hist-table td { padding: 0.45rem 0.6rem; border-bottom: 1px solid rgba(42,45,58,0.6); vertical-align: middle; }
+    .hist-table tr:last-child td { border-bottom: none; }
+    .hist-table tr:hover td { background: rgba(79,142,247,0.04); }
+    .horizon-pill {
+      display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px;
+      font-size: 0.78rem; font-weight: 600; cursor: pointer; border: 1px solid transparent;
+    }
+    .horizon-pill.active { border-color: var(--accent); color: var(--accent); background: rgba(79,142,247,0.1); }
+    .horizon-pill:not(.active) { color: var(--muted); border-color: var(--border); }
     .modal h3 { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
     .modal-tabs { display: flex; gap: 0.4rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
     .modal-tab {
@@ -506,6 +548,51 @@
     </div>
   </div>
 
+  <!-- ── Prediction History Modal ───────────────────────────────────────────── -->
+  <div class="modal-overlay" id="history-modal" onclick="if(event.target===this)closeHistoryModal()">
+    <div class="modal-lg">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem">
+        <div>
+          <h3 style="font-size:1rem;font-weight:700;margin-bottom:0.2rem">
+            Prediction History — <span id="hist-ticker-label" style="color:var(--accent)"></span>
+          </h3>
+          <p style="font-size:0.78rem;color:var(--muted)">One snapshot per day (last prediction of each day). Hover rows for details.</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+          <span style="font-size:0.78rem;color:var(--muted)">Horizon:</span>
+          <span class="horizon-pill active" id="hpill-1d" onclick="switchHistHorizon('1d')">1d</span>
+          <span class="horizon-pill" id="hpill-1w" onclick="switchHistHorizon('1w')">1w</span>
+          <span class="horizon-pill" id="hpill-1m" onclick="switchHistHorizon('1m')">1m</span>
+          <span style="font-size:0.78rem;color:var(--muted);margin-left:0.5rem">Days:</span>
+          <select id="hist-days" onchange="reloadHistory()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.2rem 0.4rem;border-radius:4px;font-size:0.78rem">
+            <option value="30">30</option>
+            <option value="60" selected>60</option>
+            <option value="90">90</option>
+            <option value="180">180</option>
+          </select>
+          <button onclick="closeHistoryModal()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.3rem 0.6rem;border-radius:6px;cursor:pointer;font-size:0.8rem">✕ Close</button>
+        </div>
+      </div>
+
+      <!-- Trend chart -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1rem">
+        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:0.5rem;flex-wrap:wrap">
+          <span style="font-size:0.78rem;color:var(--muted)">
+            <span style="display:inline-block;width:10px;height:3px;background:#4f8ef7;border-radius:2px;vertical-align:middle;margin-right:3px"></span>Prob(UP) %
+          </span>
+          <span style="font-size:0.78rem;color:var(--muted)">
+            <span style="display:inline-block;width:10px;height:3px;background:#64748b;border-radius:2px;border-top:1px dashed #64748b;vertical-align:middle;margin-right:3px"></span>50% (random)
+          </span>
+          <span style="font-size:0.75rem;color:var(--muted);margin-left:auto">Area above 50% = bullish signal · below 50% = bearish</span>
+        </div>
+        <canvas id="hist-chart" height="120"></canvas>
+      </div>
+
+      <!-- Table -->
+      <div id="hist-table-wrap" style="color:var(--muted);font-size:0.85rem">Loading...</div>
+    </div>
+  </div>
+
   <script>
     const BASE = "/api";
     let _guidanceModalTicker = null;
@@ -533,6 +620,7 @@
       getDomainWeights:() => apiFetch("/guidance/domain-weights"),
       getAllSignals:    () => apiFetch("/guidance/signals"),
       getSignals:      (ticker) => apiFetch(`/guidance/signals/${ticker}`),
+      getHistory:      (ticker, horizon = "1w", days = 60) => apiFetch(`/guidance/history/${ticker}?horizon=${horizon}&days=${days}`),
       addSignal:       (data) => apiFetch("/guidance/signal", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) }),
       deleteSignal:    (id) => apiFetch(`/guidance/signal/${id}`, { method:"DELETE" }),
     };
@@ -548,11 +636,16 @@
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
-    function dirBadge(pred) {
-      const pct = Math.round(pred.probability * 100);
-      const cls = pred.direction === "up" ? "up" : "down";
+    function dirBadge(pred, horizon = "1w") {
+      const conf = pred.direction === "up" ? pred.probability : (1 - pred.probability);
+      const pct  = Math.round(conf * 100);
+      const opposite = 100 - pct;
+      const cls  = pred.direction === "up" ? "up" : "down";
       const arrow = pred.direction === "up" ? "&#9650;" : "&#9660;";
-      return `<span class="badge ${cls}">${arrow} ${pct}% ${pred.direction.toUpperCase()}</span>`;
+      const hLabel = {"1d":"next trading day","1w":"next 5 trading days","1m":"next ~21 trading days"}[horizon] || "forecast period";
+      const acc  = pred.model_accuracy ? Math.round(pred.model_accuracy * 100) : "?";
+      const tip  = `${pct}% confidence the stock goes ${pred.direction.toUpperCase()} over the ${hLabel}.\n\n${opposite}% chance it goes the other way instead.\n\nModel accuracy: ${acc}% — how often the model picked the correct direction historically. Below 55% means treat signals with caution.`;
+      return `<span class="tip badge ${cls}" data-tip="${tip}">${arrow} ${pct}% ${pred.direction.toUpperCase()}</span>`;
     }
     function accuracyBadge(acc) {
       return `<span class="accuracy-badge">Model accuracy: ${Math.round(acc * 100)}%</span>`;
@@ -763,15 +856,25 @@
           <div class="two-col">
             <div class="card">
               <div class="ticker">${pred.ticker}</div>
-              <div style="margin-bottom:0.6rem">${dirBadge(pred)}</div>
-              <div class="stat"><span>1-week expected return</span><span>${returnRange(pred)}</span></div>
-              <div class="stat"><span>Volatility (ann.)</span><span>${(pred.volatility*100).toFixed(1)}%</span></div>
-              <div class="stat"><span>Model accuracy</span><span>${Math.round(pred.model_accuracy*100)}%</span></div>
+              <div style="margin-bottom:0.6rem">${dirBadge(pred, "1w")}</div>
+              <div class="stat">
+                <span class="tip" data-tip="Probabilistic range for the 1-week return, based on model confidence and historical volatility. Not a guarantee — the actual return could fall anywhere in this range or outside it.">1-week expected return</span>
+                <span>${returnRange(pred)}</span>
+              </div>
+              <div class="stat">
+                <span class="tip" data-tip="Annualized price volatility (how much this stock typically moves per year). Higher = wider swings. INTC at 39% means ±~2.4% typical daily move.">Volatility (ann.)</span>
+                <span>${(pred.volatility*100).toFixed(1)}%</span>
+              </div>
+              <div class="stat">
+                <span class="tip" data-tip="Historical directional accuracy: how often the model correctly predicted UP vs DOWN over past predictions. 50% = random. 55%+ = useful signal. Below 55% = treat with caution.">Model accuracy</span>
+                <span>${Math.round(pred.model_accuracy*100)}%</span>
+              </div>
               ${accHtml}
               ${regHtml}
               ${sigChipsHtml}
-              <div style="margin-top:0.9rem">
+              <div style="margin-top:0.9rem;display:flex;gap:0.5rem;flex-wrap:wrap">
                 <button class="add-ctx-btn" onclick="openGuidanceModal('${ticker}')">+ Add your knowledge</button>
+                <button class="add-ctx-btn" style="border-color:rgba(100,116,139,0.3);color:var(--muted)" onclick="openHistoryModal('${ticker}','1w')">📈 View History</button>
               </div>
             </div>
             <div class="card">
@@ -859,8 +962,8 @@
           </div>
           <div class="explain-body" style="display:none">
             <p style="font-size:0.78rem;color:var(--muted);margin-bottom:0.85rem">
-              Contribution of each domain to the ${Math.round(pred.probability*100)}%
-              ${pred.direction.toUpperCase()} prediction (base probability: ${Math.round((expl.base_probability||pred.probability)*100)}%).
+              Contribution of each domain to the ${Math.round((pred.direction==="up"?pred.probability:(1-pred.probability))*100)}%
+              ${pred.direction.toUpperCase()} prediction (model base prob_up: ${Math.round((expl.base_probability||pred.probability)*100)}%).
             </p>
             ${domainBlocks}
           </div>
@@ -884,12 +987,24 @@
     async function loadHorizons(ticker) {
       const container = document.getElementById("horizon-badges");
       if (!container) return;
+      const hMeta = {
+        "1d": { label: "1-Day",   days: "next trading day",         note: "Very short-term — high noise, model edge is minimal." },
+        "1w": { label: "1-Week",  days: "next 5 trading days",      note: "Primary model horizon — most reliable signal." },
+        "1m": { label: "1-Month", days: "next ~21 trading days",    note: "Longer-term trend signal — less sensitive to daily noise." },
+      };
       for (const h of ["1d", "1w", "1m"]) {
         try {
           const p = await api.predict(ticker, h);
+          const conf = p.direction === "up" ? p.probability : (1 - p.probability);
+          const pct  = Math.round(conf * 100);
+          const opp  = 100 - pct;
+          const m    = hMeta[h];
+          const acc  = p.model_accuracy ? Math.round(p.model_accuracy * 100) : "?";
+          const tip  = `${m.label} prediction: ${pct}% confidence ${p.direction.toUpperCase()} over the ${m.days}.\n\n${opp}% chance it goes the other way.\n\n${m.note}\n\nModel accuracy: ${acc}%`;
           const span = document.createElement("span");
-          span.className = `badge ${p.direction === "up" ? "up" : "down"}`;
-          span.textContent = `${h}: ${Math.round(p.probability * 100)}% ${p.direction}`;
+          span.className = `tip badge ${p.direction === "up" ? "up" : "down"}`;
+          span.setAttribute("data-tip", tip);
+          span.textContent = `${h}: ${pct}% ${p.direction}`;
           container.appendChild(span);
         } catch { /* skip */ }
       }
@@ -1158,6 +1273,188 @@
       } catch (e) {
         alert("Could not save signal: " + e.message);
       }
+    }
+
+    // ── Prediction History Modal ───────────────────────────────────────────────
+    let _histTicker  = null;
+    let _histHorizon = "1w";
+    let _histChart   = null;
+
+    async function openHistoryModal(ticker, horizon = "1w") {
+      _histTicker  = ticker;
+      _histHorizon = horizon;
+      document.getElementById("hist-ticker-label").textContent = ticker;
+      // Reset horizon pills
+      ["1d","1w","1m"].forEach(h => {
+        document.getElementById(`hpill-${h}`).classList.toggle("active", h === horizon);
+      });
+      document.getElementById("history-modal").classList.add("open");
+      await _fetchAndRenderHistory();
+    }
+
+    function closeHistoryModal() {
+      document.getElementById("history-modal").classList.remove("open");
+    }
+
+    function switchHistHorizon(h) {
+      _histHorizon = h;
+      ["1d","1w","1m"].forEach(x => document.getElementById(`hpill-${x}`).classList.toggle("active", x === h));
+      _fetchAndRenderHistory();
+    }
+
+    function reloadHistory() { _fetchAndRenderHistory(); }
+
+    async function _fetchAndRenderHistory() {
+      const tableWrap = document.getElementById("hist-table-wrap");
+      tableWrap.innerHTML = "<p style='color:var(--muted)'>Loading...</p>";
+      const days = parseInt(document.getElementById("hist-days").value) || 60;
+
+      try {
+        const data = await api.getHistory(_histTicker, _histHorizon, days);
+
+        if (!data.history || data.history.length === 0) {
+          tableWrap.innerHTML = `<p style='color:var(--muted)'>No prediction history yet for ${_histTicker} (${_histHorizon}).<br>
+            Predictions are recorded each time you click Predict. Come back after a few days to see the trend.</p>`;
+          _clearHistChart();
+          return;
+        }
+
+        const rows = data.history;  // oldest → newest
+
+        // ── Chart ────────────────────────────────────────────────────────────
+        const labels  = rows.map(r => r.date);
+        const probUp  = rows.map(r => Math.round(r.probability * 100));
+
+        // Segment colors: green points when direction=up, red when down
+        const pointColors = rows.map(r => r.direction === "up" ? "#34d399" : "#f87171");
+
+        const canvas = document.getElementById("hist-chart");
+        if (_histChart) { _histChart.destroy(); _histChart = null; }
+        _histChart = new Chart(canvas.getContext("2d"), {
+          type: "line",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "Prob(UP) %",
+                data: probUp,
+                borderColor: "#4f8ef7",
+                borderWidth: 2,
+                pointBackgroundColor: pointColors,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                fill: {
+                  target: { value: 50 },
+                  above: "rgba(52,211,153,0.08)",   // bullish zone — green tint above 50
+                  below: "rgba(248,113,113,0.08)",   // bearish zone — red tint below 50
+                },
+                tension: 0.3,
+              },
+              {
+                label: "50% (random)",
+                data: Array(rows.length).fill(50),
+                borderColor: "#64748b",
+                borderWidth: 1,
+                borderDash: [4, 4],
+                pointRadius: 0,
+                fill: false,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  title: (items) => `Date: ${items[0].label}`,
+                  label: (item) => {
+                    if (item.datasetIndex === 1) return null;
+                    const row = rows[item.dataIndex];
+                    const conf = row.direction === "down" ? (100 - item.parsed.y) : item.parsed.y;
+                    return [
+                      `Prob(UP): ${item.parsed.y}%`,
+                      `Direction: ${row.direction.toUpperCase()} (${conf}% confidence)`,
+                      `Exp. return: ${(row.expected_return_low*100).toFixed(1)}% to ${(row.expected_return_high*100).toFixed(1)}%`,
+                      row.regime_label ? `Regime: ${row.regime_label}` : null,
+                    ].filter(Boolean);
+                  },
+                },
+                backgroundColor: "#1e2232",
+                borderColor: "#2a2d3a",
+                borderWidth: 1,
+                titleColor: "#e2e8f0",
+                bodyColor: "#94a3b8",
+                padding: 10,
+              },
+            },
+            scales: {
+              x: { ticks: { maxTicksLimit: 12, color: "#64748b", maxRotation: 45 }, grid: { color: "#2a2d3a" } },
+              y: {
+                min: 0, max: 100,
+                ticks: { color: "#64748b", callback: v => v + "%" },
+                grid: { color: "#2a2d3a" },
+              },
+            },
+          },
+        });
+
+        // ── Table (newest first) ──────────────────────────────────────────────
+        const sorted = [...rows].reverse();
+        const hLabel = {"1d":"1-Day","1w":"1-Week","1m":"1-Month"}[_histHorizon] || _histHorizon;
+
+        tableWrap.innerHTML = `
+          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:0.5rem">
+            ${rows.length} daily snapshots · ${hLabel} horizon · green dot = bullish day · red dot = bearish day
+          </div>
+          <table class="hist-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Signal</th>
+                <th>Confidence</th>
+                <th>Prob(UP)</th>
+                <th>Exp. Return Range</th>
+                <th>Regime</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sorted.map((r, i) => {
+                const conf = r.direction === "down" ? (1 - r.probability) : r.probability;
+                const confPct = Math.round(conf * 100);
+                const probUpPct = Math.round(r.probability * 100);
+                const badgeCls = r.direction === "up" ? "up" : "down";
+                const arrow = r.direction === "up" ? "▲" : "▼";
+                const retLow  = (r.expected_return_low  * 100).toFixed(1);
+                const retHigh = (r.expected_return_high * 100).toFixed(1);
+                const retColor = parseFloat(retLow) < 0 && parseFloat(retHigh) < 0 ? "var(--danger)"
+                               : parseFloat(retLow) > 0 ? "var(--accent2)" : "var(--text)";
+                const isLatest = i === 0;
+                return `<tr style="${isLatest ? "background:rgba(79,142,247,0.06)" : ""}">
+                  <td style="font-family:monospace;color:var(--muted);font-size:0.78rem">
+                    ${r.date}${isLatest ? ' <span style="color:var(--accent);font-size:0.7rem">(latest)</span>' : ""}
+                  </td>
+                  <td><span class="badge ${badgeCls}" style="font-size:0.75rem">${arrow} ${r.direction.toUpperCase()}</span></td>
+                  <td style="font-weight:600;color:${confPct >= 65 ? "var(--accent2)" : confPct >= 55 ? "var(--text)" : "var(--muted)"}">${confPct}%</td>
+                  <td style="color:var(--muted)">${probUpPct}%</td>
+                  <td style="font-family:monospace;color:${retColor};font-size:0.78rem">${retLow}% to ${retHigh}%</td>
+                  <td style="color:var(--muted);font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.regime_label}">${r.regime_label || "—"}</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>`;
+
+      } catch (e) {
+        tableWrap.innerHTML = `<p style='color:var(--danger)'>Error loading history: ${e.message}</p>`;
+        _clearHistChart();
+      }
+    }
+
+    function _clearHistChart() {
+      if (_histChart) { _histChart.destroy(); _histChart = null; }
+      const canvas = document.getElementById("hist-chart");
+      if (canvas) { const ctx = canvas.getContext("2d"); ctx.clearRect(0, 0, canvas.width, canvas.height); }
     }
 
     // ── LLM Predict ────────────────────────────────────────────────────────────

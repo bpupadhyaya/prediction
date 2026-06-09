@@ -382,6 +382,60 @@ When outcome known: Layer 5 Online Learning records
 - **Desktop:** Full 656-feature pipeline, online learning, regime classifier, LLM pipeline, live data ingestion (FRED, Yahoo Finance, CBOE, CFTC, SEC EDGAR)
 - **Mobile:** ONNX snapshot of ~40 Tier 1 features, static inference, synced from desktop via GitHub Releases; LLM optional if user downloads model
 
+---
+
+### Data Persistence Requirements (all platforms)
+
+#### Core Rule
+**Prediction history and user guidance signals must survive indefinitely as long as the app is installed.**
+Only a full app uninstall may erase this data. App upgrades must never touch existing data.
+
+#### Desktop
+- **DB:** DuckDB file at `~/.prediction/stock-market/market.duckdb`
+- **Upgrade safety:** `init_db()` uses `CREATE TABLE IF NOT EXISTS` — never drops or truncates tables
+- **Migration pattern:** `_safe_alter()` wraps every `ALTER TABLE` in try/except, so adding columns to existing DBs is safe
+- **User-initiated clear:** not yet implemented — add a "Clear prediction history" option in Settings (future)
+
+#### iOS (feature sync — implement when porting desktop features to mobile)
+- **DB:** SQLite via GRDB, stored in `Application Support/<bundle-id>/` (NOT `Documents/`)
+  - `Application Support` is not user-visible and is excluded from iCloud backup by default — set `isExcludedFromBackup = false` on the DB file so iCloud DOES back it up (user's prediction history is valuable)
+  - Using `Documents/` would expose it in Files app — avoid
+- **Upgrade safety:** use GRDB migrations (`migrator.registerMigration("v1") { db in ... }`) — each migration runs exactly once and is recorded in `grdb_migrations` table; never use destructive migrations
+- **Schema evolution:** only additive changes (new tables, new nullable columns with defaults) — never `DROP TABLE`, never remove columns
+- **Uninstall warning:** iOS cannot intercept uninstall. Instead:
+  - Settings screen must show: "⚠️ Uninstalling this app will permanently delete all prediction history and guidance signals stored on this device."
+  - Offer iCloud backup toggle in Settings so user can protect data
+- **Prediction history:** store one row per prediction call in a `predictions` table (same schema as desktop). The `/predict` screen "View History" button opens a sheet showing the same chart + table as desktop.
+- **User signals:** stored in `user_signals` table, same schema as desktop, persist across upgrades
+- **Data clear in-app:** provide "Clear all prediction history" in Settings → destructive action alert with two-step confirmation ("Are you sure? This cannot be undone.")
+
+#### Android (feature sync — implement when porting desktop features to mobile)
+- **DB:** Room database in app's private data directory (`/data/data/<package>/databases/`)
+  - This directory is wiped on uninstall but survives upgrades, sideloads, and OS updates
+  - Enable Auto Backup (`android:allowBackup="true"`, `android:fullBackupContent`) so Google One Backup includes the DB
+- **Upgrade safety:** Room `Migration` objects — define `Migration(oldVersion, newVersion)` for every schema change; never use `fallbackToDestructiveMigration()` in production
+- **Schema evolution:** same rule as iOS — additive only; never drop tables or columns
+- **Uninstall warning:**
+  - Android cannot intercept uninstall natively. Instead:
+    - Settings screen must show: "⚠️ Uninstalling this app or clearing app data in Android Settings will permanently delete all prediction history and guidance signals."
+    - Offer "Export history to CSV" in Settings as a manual backup option
+  - **Clearing app data** (Settings → Apps → Clear Data) also wipes the DB — this is a platform constraint; the warning in-app is the only protection
+- **Prediction history:** same `predictions` table via Room entity; "View History" opens a BottomSheet with the same chart (MPAndroidChart or Vico) + LazyColumn table
+- **User signals:** `user_signals` Room entity, same lifecycle as predictions
+
+#### Feature Parity Checklist (desktop → mobile sync)
+When implementing mobile prediction history, ensure:
+- [ ] `predictions` table created in first DB migration (v1)
+- [ ] Every `predict()` call writes a row (ticker, horizon, timestamp, direction, probability, expected_return_low/high, volatility, regime_label)
+- [ ] "View History" button on prediction card opens sheet/modal
+- [ ] History chart: Prob(UP) % over time, green/red tint zones, one point per day (last of day)
+- [ ] History table: date, direction badge, confidence %, expected return range, regime label
+- [ ] Horizon picker (1d / 1w / 1m) and days filter (30 / 60 / 90 / 180) in history view
+- [ ] Settings screen: uninstall warning text, data clear option with confirmation
+- [ ] App upgrade tested: existing DB rows survive, new columns added cleanly via migration
+
+---
+
 ### Signal Decay
 
 Different factors maintain predictive power for different durations — intraday (order flow, USDJPY) through 1-5 days (earnings surprise, FOMC), 1-4 weeks (ISM, VIX regime), 1-3 months (yield curve, NFCI), up to 3-12 months (momentum, presidential cycle). Staleness scores in the Feature Store down-weight signals past their effective window.

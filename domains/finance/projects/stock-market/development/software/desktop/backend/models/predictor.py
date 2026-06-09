@@ -407,29 +407,7 @@ def predict_ticker(ticker: str, horizon: str = "1w") -> Prediction:
     except Exception as e:
         logger.debug(f"Explanation failed for {ticker}: {e}")
 
-    # ── 7. Record prediction for online learning ──────────────────────────────
-    try:
-        from backend.models.online_learner import record_prediction
-        record_prediction(
-            ticker      = ticker,
-            horizon     = horizon,
-            predicted_at = datetime.now(),
-            direction   = "up" if prob_up_nudged >= 0.5 else "down",
-            probability = round(prob_up_nudged, 4),
-            regime_label = regime_label,
-        )
-    except Exception as e:
-        logger.debug(f"Could not record prediction for online learning: {e}")
-
-    # ── 8. Recent accuracy from online learner ────────────────────────────────
-    recent_accuracy_dict: dict = {}
-    try:
-        from backend.models.online_learner import get_recent_accuracy
-        recent_accuracy_dict = get_recent_accuracy(horizon=horizon, days=90)
-    except Exception:
-        pass
-
-    # ── 9. Build final result ─────────────────────────────────────────────────
+    # ── 7. Compute return range (needed before recording) ────────────────────
     direction = "up" if prob_up_nudged >= 0.5 else "down"
 
     cs = _cache.get("cs")
@@ -439,6 +417,36 @@ def predict_ticker(ticker: str, horizon: str = "1w") -> Prediction:
     horizon_days = HORIZON_DAYS.get(horizon, 5)
     vol_horizon  = vol_ref * np.sqrt(horizon_days)
     expected     = (prob_up_nudged - 0.5) * 2 * vol_horizon
+    ret_low      = round(float(expected - vol_horizon), 4)
+    ret_high     = round(float(expected + vol_horizon), 4)
+    ann_vol      = round(float(vol_ref * np.sqrt(252 / max(1, horizon_days))), 4)
+
+    # ── 8. Record prediction for online learning (persistent to DuckDB) ───────
+    try:
+        from backend.models.online_learner import record_prediction
+        record_prediction(
+            ticker               = ticker,
+            horizon              = horizon,
+            predicted_at         = datetime.now(),
+            direction            = direction,
+            probability          = round(prob_up_nudged, 4),
+            regime_label         = regime_label,
+            expected_return_low  = ret_low,
+            expected_return_high = ret_high,
+            volatility           = ann_vol,
+        )
+    except Exception as e:
+        logger.debug(f"Could not record prediction for online learning: {e}")
+
+    # ── 9. Recent accuracy from online learner ────────────────────────────────
+    recent_accuracy_dict: dict = {}
+    try:
+        from backend.models.online_learner import get_recent_accuracy
+        recent_accuracy_dict = get_recent_accuracy(horizon=horizon, days=90)
+    except Exception:
+        pass
+
+    # ── 10. Build final result ────────────────────────────────────────────────
 
     acc = reg_acc if (reg_model is not None and reg_acc is not None) else global_acc
 
@@ -459,9 +467,9 @@ def predict_ticker(ticker: str, horizon: str = "1w") -> Prediction:
         horizon              = horizon,
         direction            = direction,
         probability          = round(prob_up_nudged, 4),
-        expected_return_low  = round(float(expected - vol_horizon), 4),
-        expected_return_high = round(float(expected + vol_horizon), 4),
-        volatility           = round(float(vol_ref * np.sqrt(252 / max(1, horizon_days))), 4),
+        expected_return_low  = ret_low,
+        expected_return_high = ret_high,
+        volatility           = ann_vol,
         model_accuracy       = round(acc, 4),
         model_ready          = True,
         sector               = sector,

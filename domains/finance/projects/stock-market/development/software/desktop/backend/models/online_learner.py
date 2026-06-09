@@ -35,10 +35,14 @@ def record_prediction(
     direction: str,
     probability: float,
     regime_label: str,
+    expected_return_low: float = 0.0,
+    expected_return_high: float = 0.0,
+    volatility: float = 0.0,
 ) -> None:
     """
     Store a prediction for later outcome resolution.
-    Called every time predict_ticker() runs.
+    Called every time predict_ticker() runs. Persists to DuckDB on disk —
+    survives server restarts and new sessions indefinitely.
     """
     conn = get_conn()
     try:
@@ -47,8 +51,9 @@ def record_prediction(
                 (ticker, horizon, predicted_at, direction, probability,
                  expected_return_low, expected_return_high, volatility,
                  model_version, regime_label)
-            VALUES (?, ?, ?, ?, ?, 0, 0, 0, '3.0', ?)
-        """, [ticker, horizon, predicted_at, direction, probability, regime_label])
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, '3.0', ?)
+        """, [ticker, horizon, predicted_at, direction, probability,
+              expected_return_low, expected_return_high, volatility, regime_label])
         conn.commit()
     except Exception as e:
         logger.debug(f"Could not record prediction: {e}")

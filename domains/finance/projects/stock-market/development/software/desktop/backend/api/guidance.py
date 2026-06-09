@@ -8,7 +8,7 @@ into the prediction system, reviewing active signals, and recording outcomes.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -189,6 +189,57 @@ def get_accuracy(horizon: str = "1w", days: int = 90):
         "accuracy": result.get("accuracy"),
         "message":  "Insufficient data" if result.get("total", 0) < 10 else None,
     }
+
+
+@router.get("/history/{ticker}")
+def get_prediction_history(ticker: str, horizon: str = "1w", days: int = 90):
+    """
+    Return one prediction snapshot per calendar day for the ticker/horizon.
+    Uses the last prediction recorded each day so intra-day changes collapse
+    to a single daily value — good for trend review.
+    """
+    conn = get_conn()
+    try:
+        cutoff = datetime.now() - timedelta(days=days)
+        df = conn.execute("""
+            SELECT date, direction, probability, expected_return_low,
+                   expected_return_high, volatility, regime_label
+            FROM (
+                SELECT
+                    CAST(DATE(predicted_at) AS VARCHAR) AS date,
+                    direction, probability,
+                    expected_return_low, expected_return_high,
+                    volatility, regime_label,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY DATE(predicted_at)
+                        ORDER BY predicted_at DESC
+                    ) AS rn
+                FROM predictions
+                WHERE ticker  = ?
+                  AND horizon = ?
+                  AND predicted_at >= ?
+            ) sub
+            WHERE rn = 1
+            ORDER BY date ASC
+        """, [ticker.upper(), horizon, cutoff]).df()
+
+        records = []
+        for _, row in df.iterrows():
+            prob = float(row["probability"])
+            direction = str(row["direction"])
+            records.append({
+                "date":                str(row["date"]),
+                "direction":           direction,
+                "probability":         prob,
+                "confidence":          round((1 - prob) if direction == "down" else prob, 4),
+                "expected_return_low": round(float(row.get("expected_return_low") or 0), 4),
+                "expected_return_high":round(float(row.get("expected_return_high") or 0), 4),
+                "regime_label":        str(row.get("regime_label") or ""),
+            })
+
+        return {"ticker": ticker.upper(), "horizon": horizon, "history": records, "count": len(records)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/domain-weights")

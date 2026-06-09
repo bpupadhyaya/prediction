@@ -10,6 +10,7 @@
 		0275CF3EF86F9FE8F436107A /* WatchlistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4161F11434AAAECEAAE2731E /* WatchlistView.swift */; };
 		0BE104EA15638B19E0D3B819 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A4209A27E6E7A2F1F0B7C71 /* DatabaseManager.swift */; };
 		0FBAA1B6D447617573E954E4 /* PredictionHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89C633D870AB3F611F59946 /* PredictionHomeView.swift */; };
+		11D8861932C4840AB19B874D /* StockModuleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC75D4FEFD5CDDC3059BF7A5 /* StockModuleData.swift */; };
 		1231D496B4B56E3F206203A6 /* SyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CAEB26BF50145555BD4BECD /* SyncManager.swift */; };
 		41FB3FB079D600B543C4A4DE /* StockDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 941D8800D94FE71DD712F425 /* StockDetailView.swift */; };
 		4224909D76A56BD065811743 /* PredictionMainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41134A19AA3B0A89162FA416 /* PredictionMainTabView.swift */; };
@@ -21,6 +22,7 @@
 		732E967C208A655EEE627CC2 /* Stock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B36431260EEA4BB118C228 /* Stock.swift */; };
 		75A50140D2B61AEC9C10DDE7 /* SyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 817BF6A86EA5259DC3BEA643 /* SyncView.swift */; };
 		8165967C90CA4422C6E9DEC1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D98363131CB8366ED72C9B9 /* ContentView.swift */; };
+		9634F71EF13DC7BFAAE6BC91 /* StockPredictionHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D825CFDA696E0095D5401F6B /* StockPredictionHomeView.swift */; };
 		9B6BF8EBF7EAE3E866596EC5 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 7674C433CF04EEA051D22620 /* GRDB */; };
 		A35606B566D88A716F5E6F40 /* PredictionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3B93898D23FD234525260E /* PredictionEngine.swift */; };
 		C6396311732F11E795E14317 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42671E9FFC7481FEBAE6EBB7 /* AppStore.swift */; };
@@ -52,7 +54,9 @@
 		A257FF92E335F338FA58A1CE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A5AC3E50C82D382316174690 /* PredictionTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredictionTheme.swift; sourceTree = "<group>"; };
 		AB3B93898D23FD234525260E /* PredictionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredictionEngine.swift; sourceTree = "<group>"; };
+		AC75D4FEFD5CDDC3059BF7A5 /* StockModuleData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockModuleData.swift; sourceTree = "<group>"; };
 		CE01E3C3BA2DA141134569CD /* MarketDataSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketDataSource.swift; sourceTree = "<group>"; };
+		D825CFDA696E0095D5401F6B /* StockPredictionHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockPredictionHomeView.swift; sourceTree = "<group>"; };
 		D89C633D870AB3F611F59946 /* PredictionHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredictionHomeView.swift; sourceTree = "<group>"; };
 		E2107CF391A6B3EF705C8DDE /* PredictionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredictionApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -136,6 +140,7 @@
 				0D98363131CB8366ED72C9B9 /* ContentView.swift */,
 				D89C633D870AB3F611F59946 /* PredictionHomeView.swift */,
 				A5AC3E50C82D382316174690 /* PredictionTheme.swift */,
+				AC75D4FEFD5CDDC3059BF7A5 /* StockModuleData.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -148,6 +153,7 @@
 				7E423F425B6DE6AFBC6BADD6 /* PortfolioView.swift */,
 				610AE9FA3B5BD66CEEAE4546 /* SearchView.swift */,
 				941D8800D94FE71DD712F425 /* StockDetailView.swift */,
+				D825CFDA696E0095D5401F6B /* StockPredictionHomeView.swift */,
 				817BF6A86EA5259DC3BEA643 /* SyncView.swift */,
 				4161F11434AAAECEAAE2731E /* WatchlistView.swift */,
 			);
@@ -352,6 +358,8 @@
 				67E9D1AE6E32792774AC2900 /* SearchView.swift in Sources */,
 				732E967C208A655EEE627CC2 /* Stock.swift in Sources */,
 				41FB3FB079D600B543C4A4DE /* StockDetailView.swift in Sources */,
+				11D8861932C4840AB19B874D /* StockModuleData.swift in Sources */,
+				9634F71EF13DC7BFAAE6BC91 /* StockPredictionHomeView.swift in Sources */,
 				1231D496B4B56E3F206203A6 /* SyncManager.swift in Sources */,
 				75A50140D2B61AEC9C10DDE7 /* SyncView.swift in Sources */,
 				0275CF3EF86F9FE8F436107A /* WatchlistView.swift in Sources */,

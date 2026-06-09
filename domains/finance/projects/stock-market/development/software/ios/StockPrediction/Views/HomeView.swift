@@ -40,30 +40,28 @@ struct HomeView: View {
     private let horizons = ["1d", "1w", "1m"]
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Top-level sub-tab picker
-                Picker("Section", selection: $selectedTab) {
-                    Text("Top Signals").tag(0)
-                    Text("Hot Stocks").tag(1)
-                    Text("Pre-IPO").tag(2)
-                }
-                .pickerStyle(.segmented)
-                .padding()
-
-                switch selectedTab {
-                case 0: topSignalsSection
-                case 1: hotStocksSection
-                default: preIPOSection
-                }
+        VStack(spacing: 0) {
+            // Top-level sub-tab picker
+            Picker("Section", selection: $selectedTab) {
+                Text("Top Signals").tag(0)
+                Text("Hot Stocks").tag(1)
+                Text("Pre-IPO").tag(2)
             }
-            .navigationTitle("Market")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: store.loadLocal) {
-                        Image(systemName: "arrow.clockwise")
-                    }
+            .pickerStyle(.segmented)
+            .padding()
+
+            switch selectedTab {
+            case 0: topSignalsSection
+            case 1: hotStocksSection
+            default: preIPOSection
+            }
+        }
+        .navigationTitle("Market")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: store.loadLocal) {
+                    Image(systemName: "arrow.clockwise")
                 }
             }
         }

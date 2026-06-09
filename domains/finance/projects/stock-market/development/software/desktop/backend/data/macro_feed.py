@@ -1,47 +1,106 @@
-import pandas as pd
-import yfinance as yf
-from datetime import datetime, timedelta
-from backend.database.duckdb_client import get_conn
+"""
+Tier 1 macro + cross-asset data feeds.
+
+Sources (all free, no API key required for basic access):
+  FRED CSV downloads  — yields, spreads, money supply, conditions indices
+  Yahoo Finance       — VIX, cross-asset (DXY, gold, copper, oil, USDJPY, BTC)
+"""
+
+import io
 import logging
+from datetime import datetime, timedelta
+
+import numpy as np
+import pandas as pd
+import requests
+import yfinance as yf
+
+from backend.database.duckdb_client import get_conn
 
 logger = logging.getLogger(__name__)
 
-# All macro series fetched from Yahoo Finance — no API key required.
-# ^TNX = 10-Year Treasury Yield
-# ^IRX = 13-Week Treasury Bill Yield (proxy for short rates / fed funds)
-# ^VIX = CBOE VIX
-# Yield curve slope = ^TNX - ^IRX  (≈ 10Y-2Y spread)
-_YF_SERIES = {
-    "DGS10":  "^TNX",   # 10-Year Treasury Yield
-    "DGS3M":  "^IRX",   # 3-Month T-Bill (short-rate proxy)
-    "VIXCLS": "^VIX",   # VIX
+# ── FRED series (direct CSV download — no API key needed) ─────────────────────
+# Format: series_id → FRED series ID (same string used as primary key in DB)
+_FRED_SERIES: dict[str, str] = {
+    "DGS10":        "DGS10",         # 10-Year Treasury Yield
+    "DGS2":         "DGS2",          # 2-Year Treasury Yield
+    "DGS3M":        "DTB3",          # 3-Month T-Bill (DTB3 on FRED)
+    "BAMLH0A0HYM2": "BAMLH0A0HYM2", # HY OAS credit spread (basis points)
+    "BAMLC0A0CM":   "BAMLC0A0CM",   # IG OAS credit spread (basis points)
+    "DFII10":       "DFII10",        # 10-Year TIPS real yield
+    "M2SL":         "M2SL",          # M2 money supply (billions)
+    "ICSA":         "ICSA",          # Initial jobless claims
+    "NFCI":         "NFCI",          # Chicago Fed National Financial Conditions Index
+    "PCEPILFE":     "PCEPILFE",      # PCE Core Price Index (level — compute YoY)
+    "WALCL":        "WALCL",         # Fed balance sheet (millions)
 }
 
+# ── Yahoo Finance series ──────────────────────────────────────────────────────
+_YF_SERIES: dict[str, str] = {
+    "VIXCLS":  "^VIX",      # CBOE VIX
+    "VVIX":    "^VVIX",     # Volatility of VIX
+    "DXY":     "DX-Y.NYB",  # US Dollar Index
+    "GOLD":    "GC=F",      # Gold futures
+    "COPPER":  "HG=F",      # Copper futures
+    "OIL":     "CL=F",      # Crude oil futures
+    "USDJPY":  "USDJPY=X",  # USD/JPY exchange rate
+    "BTC":     "BTC-USD",   # Bitcoin
+    "SPX":     "^GSPC",     # S&P 500 (for BTC correlation)
+    "SPY":     "SPY",       # S&P 500 ETF (for gold/equity ratio)
+}
 
-def _fetch_yf_series(series_id: str, yf_ticker: str, days: int) -> pd.DataFrame:
-    """Fetch a single series from Yahoo Finance and store it under series_id."""
+_FRED_BASE = "https://fred.stlouisfed.org/graph/fredgraph.csv"
+
+
+# ── FRED fetcher ──────────────────────────────────────────────────────────────
+
+def _fetch_fred(series_id: str, fred_id: str, days: int) -> pd.DataFrame:
+    """Fetch a FRED series via direct CSV download (no API key required)."""
     try:
         start = (datetime.today() - timedelta(days=days)).strftime("%Y-%m-%d")
-        raw = yf.download(yf_ticker, start=start, auto_adjust=True, progress=False)
+        url = f"{_FRED_BASE}?id={fred_id}&vintage_date=&observation_start={start}"
+        resp = requests.get(url, timeout=15)
+        resp.raise_for_status()
+        df = pd.read_csv(io.StringIO(resp.text))
+        df.columns = ["date", "value"]
+        df["date"]  = pd.to_datetime(df["date"]).dt.tz_localize(None)
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+        df = df.dropna(subset=["value"])
+        df["series_id"] = series_id
+        return df[["series_id", "date", "value"]]
+    except Exception as e:
+        logger.warning(f"FRED fetch failed for {series_id} ({fred_id}): {e}")
+        return pd.DataFrame()
+
+
+# ── Yahoo Finance fetcher ─────────────────────────────────────────────────────
+
+def _fetch_yf(series_id: str, ticker: str, days: int) -> pd.DataFrame:
+    try:
+        start = (datetime.today() - timedelta(days=days)).strftime("%Y-%m-%d")
+        raw = yf.download(ticker, start=start, auto_adjust=True, progress=False)
         if raw.empty:
             return pd.DataFrame()
         raw = raw.reset_index()
         if isinstance(raw.columns, pd.MultiIndex):
-            raw.columns = ["_".join(c).strip("_") for c in raw.columns]
+            raw.columns = ["_".join(str(c) for c in col).strip("_") for col in raw.columns]
         date_col  = next((c for c in raw.columns if c.lower() in ("date", "datetime")), None)
         close_col = next((c for c in raw.columns if "close" in c.lower()), None)
         if not date_col or not close_col:
             return pd.DataFrame()
         df = raw[[date_col, close_col]].copy()
         df.columns = ["date", "value"]
-        df["series_id"] = series_id
-        df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
+        df["date"]  = pd.to_datetime(df["date"]).dt.tz_localize(None)
+        df["value"] = pd.to_numeric(df["value"], errors="coerce")
         df = df.dropna(subset=["value"])
+        df["series_id"] = series_id
         return df[["series_id", "date", "value"]]
     except Exception as e:
-        logger.warning(f"YF fetch failed for {series_id} ({yf_ticker}): {e}")
+        logger.warning(f"YF fetch failed for {series_id} ({ticker}): {e}")
         return pd.DataFrame()
 
+
+# ── DB upsert ─────────────────────────────────────────────────────────────────
 
 def upsert_macro(df: pd.DataFrame) -> None:
     if df.empty:
@@ -51,127 +110,296 @@ def upsert_macro(df: pd.DataFrame) -> None:
     conn.commit()
 
 
-def _compute_yield_curve_and_store(days: int) -> None:
-    """
-    Compute T10Y2Y proxy = DGS10 - DGS3M and store as series 'T10Y2Y'.
-    Also store FEDFUNDS approximation = DGS3M.
-    """
-    conn = get_conn()
-    ten = conn.execute("""
-        SELECT CAST(date AS DATE) as date, value FROM macro_indicators
-        WHERE series_id = 'DGS10' ORDER BY date
-    """).df()
-    three = conn.execute("""
-        SELECT CAST(date AS DATE) as date, value as v3m FROM macro_indicators
-        WHERE series_id = 'DGS3M' ORDER BY date
-    """).df()
+# ── Derived series ────────────────────────────────────────────────────────────
 
-    if ten.empty or three.empty:
-        return
+def _compute_derived(conn) -> None:
+    """Compute T10Y2Y, FEDFUNDS, M2_YOY, PCE_CORE_YOY, GOLD_EQUITY_RATIO, BTC_SPX_CORR."""
 
-    ten["date"] = pd.to_datetime(ten["date"])
-    three["date"] = pd.to_datetime(three["date"])
+    def load_series(sid: str) -> pd.DataFrame:
+        df = conn.execute("""
+            SELECT CAST(date AS DATE) as date, value
+            FROM macro_indicators WHERE series_id = ? ORDER BY date
+        """, [sid]).df()
+        if not df.empty:
+            df["date"] = pd.to_datetime(df["date"])
+        return df
 
-    merged = pd.merge_asof(ten.sort_values("date"), three.sort_values("date"), on="date", direction="nearest")
-    merged = merged.dropna(subset=["value", "v3m"])
-    merged["spread"] = merged["value"] - merged["v3m"]
+    # T10Y2Y = 10-Year minus 2-Year (better than 3M proxy)
+    ten = load_series("DGS10")
+    two = load_series("DGS2")
+    if not ten.empty and not two.empty:
+        merged = pd.merge_asof(ten.sort_values("date"),
+                               two.rename(columns={"value": "v2"}).sort_values("date"),
+                               on="date", direction="nearest")
+        merged = merged.dropna(subset=["value", "v2"])
+        merged["spread"] = merged["value"] - merged["v2"]
+        upsert_macro(pd.DataFrame({"series_id": "T10Y2Y", "date": merged["date"], "value": merged["spread"]}))
+        upsert_macro(pd.DataFrame({"series_id": "FEDFUNDS", "date": merged["date"], "value": merged["v2"]}))
+        logger.info(f"Computed T10Y2Y ({len(merged)} rows)")
 
-    spread_df = pd.DataFrame({
-        "series_id": "T10Y2Y",
-        "date": merged["date"],
-        "value": merged["spread"],
-    })
-    fed_df = pd.DataFrame({
-        "series_id": "FEDFUNDS",
-        "date": merged["date"],
-        "value": merged["v3m"],
-    })
-    upsert_macro(spread_df)
-    upsert_macro(fed_df)
-    logger.info(f"Computed T10Y2Y ({len(spread_df)} rows) and FEDFUNDS ({len(fed_df)} rows)")
+    # M2 YoY growth (%)
+    m2 = load_series("M2SL")
+    if not m2.empty and len(m2) > 252:
+        m2 = m2.set_index("date").sort_index()
+        m2["yoy"] = m2["value"].pct_change(periods=52) * 100   # M2SL is weekly
+        m2_yoy = m2["yoy"].dropna().reset_index()
+        m2_yoy.columns = ["date", "value"]
+        m2_yoy["series_id"] = "M2_GROWTH_YOY"
+        upsert_macro(m2_yoy[["series_id", "date", "value"]])
+        logger.info(f"Computed M2_GROWTH_YOY ({len(m2_yoy)} rows)")
+
+    # PCE Core YoY (%)
+    pce = load_series("PCEPILFE")
+    if not pce.empty and len(pce) > 12:
+        pce = pce.set_index("date").sort_index()
+        pce["yoy"] = pce["value"].pct_change(periods=12) * 100   # monthly
+        pce_yoy = pce["yoy"].dropna().reset_index()
+        pce_yoy.columns = ["date", "value"]
+        pce_yoy["series_id"] = "PCE_CORE_YOY"
+        upsert_macro(pce_yoy[["series_id", "date", "value"]])
+        logger.info(f"Computed PCE_CORE_YOY ({len(pce_yoy)} rows)")
+
+    # Gold / Equity ratio
+    gold = load_series("GOLD")
+    spy  = load_series("SPY")
+    if not gold.empty and not spy.empty:
+        merged = pd.merge_asof(gold.sort_values("date"),
+                               spy.rename(columns={"value": "spy"}).sort_values("date"),
+                               on="date", direction="nearest")
+        merged = merged.dropna(subset=["value", "spy"])
+        merged["ratio"] = merged["value"] / merged["spy"].replace(0, np.nan)
+        ratio_df = merged[["date", "ratio"]].dropna()
+        ratio_df.columns = ["date", "value"]
+        ratio_df["series_id"] = "GOLD_EQUITY_RATIO"
+        upsert_macro(ratio_df[["series_id", "date", "value"]])
+        logger.info(f"Computed GOLD_EQUITY_RATIO ({len(ratio_df)} rows)")
+
+    # BTC / SPX 30-day rolling correlation
+    btc = load_series("BTC")
+    spx = load_series("SPX")
+    if not btc.empty and not spx.empty:
+        merged = pd.merge_asof(btc.sort_values("date"),
+                               spx.rename(columns={"value": "spx"}).sort_values("date"),
+                               on="date", direction="nearest")
+        merged = merged.dropna(subset=["value", "spx"])
+        btc_ret = merged["value"].pct_change()
+        spx_ret = merged["spx"].pct_change()
+        corr = btc_ret.rolling(30).corr(spx_ret)
+        corr_df = pd.DataFrame({"date": merged["date"], "value": corr}).dropna()
+        corr_df["series_id"] = "BTC_SPX_CORR_30D"
+        upsert_macro(corr_df[["series_id", "date", "value"]])
+        logger.info(f"Computed BTC_SPX_CORR_30D ({len(corr_df)} rows)")
+
+    # Copper 20-day momentum
+    copper = load_series("COPPER")
+    if not copper.empty:
+        copper = copper.set_index("date").sort_index()
+        copper["ret20"] = copper["value"].pct_change(20)
+        c_df = copper["ret20"].dropna().reset_index()
+        c_df.columns = ["date", "value"]
+        c_df["series_id"] = "COPPER_RET20"
+        upsert_macro(c_df[["series_id", "date", "value"]])
+
+    # Oil 20-day momentum
+    oil = load_series("OIL")
+    if not oil.empty:
+        oil = oil.set_index("date").sort_index()
+        oil["ret20"] = oil["value"].pct_change(20)
+        o_df = oil["ret20"].dropna().reset_index()
+        o_df.columns = ["date", "value"]
+        o_df["series_id"] = "OIL_RET20"
+        upsert_macro(o_df[["series_id", "date", "value"]])
+
+    # USDJPY 5-day return
+    usdjpy = load_series("USDJPY")
+    if not usdjpy.empty:
+        usdjpy = usdjpy.set_index("date").sort_index()
+        usdjpy["ret5"] = usdjpy["value"].pct_change(5)
+        u_df = usdjpy["ret5"].dropna().reset_index()
+        u_df.columns = ["date", "value"]
+        u_df["series_id"] = "USDJPY_RET5"
+        upsert_macro(u_df[["series_id", "date", "value"]])
+
+    # DXY 20-day momentum
+    dxy = load_series("DXY")
+    if not dxy.empty:
+        dxy = dxy.set_index("date").sort_index()
+        dxy["ret20"] = dxy["value"].pct_change(20)
+        d_df = dxy["ret20"].dropna().reset_index()
+        d_df.columns = ["date", "value"]
+        d_df["series_id"] = "DXY_RET20"
+        upsert_macro(d_df[["series_id", "date", "value"]])
+
+
+# ── Public load functions ─────────────────────────────────────────────────────
+
+def initial_macro_load() -> None:
+    days = 365 * 7
+    logger.info("Starting initial macro load (Tier 1 factors)...")
+    for series_id, fred_id in _FRED_SERIES.items():
+        df = _fetch_fred(series_id, fred_id, days)
+        upsert_macro(df)
+        logger.info(f"  FRED {series_id}: {len(df)} rows")
+    for series_id, yf_ticker in _YF_SERIES.items():
+        df = _fetch_yf(series_id, yf_ticker, days)
+        upsert_macro(df)
+        logger.info(f"  YF {series_id}: {len(df)} rows")
+    _compute_derived(get_conn())
 
 
 def refresh_all_macro() -> None:
-    for series_id, yf_ticker in _YF_SERIES.items():
-        df = _fetch_yf_series(series_id, yf_ticker, days=90)
+    days = 120
+    for series_id, fred_id in _FRED_SERIES.items():
+        df = _fetch_fred(series_id, fred_id, days)
         upsert_macro(df)
-        logger.info(f"Refreshed macro: {series_id} ({len(df)} rows)")
-    _compute_yield_curve_and_store(days=90)
-
-
-def initial_macro_load() -> None:
     for series_id, yf_ticker in _YF_SERIES.items():
-        df = _fetch_yf_series(series_id, yf_ticker, days=365 * 7)
+        df = _fetch_yf(series_id, yf_ticker, days)
         upsert_macro(df)
-        logger.info(f"Loaded macro: {series_id} ({len(df)} rows)")
-    _compute_yield_curve_and_store(days=365 * 7)
+    _compute_derived(get_conn())
+    logger.info("Macro refresh complete")
 
+
+# ── Training data loader ──────────────────────────────────────────────────────
 
 def load_macro_timeseries() -> pd.DataFrame:
     """
-    Load all macro indicators from DB as a daily-forward-filled wide DataFrame.
-    Used by the trainer to join macro features to training data by date.
-    Returns columns: date, vix, vix_regime, yield_curve, yield_curve_inverted, fed_rate
+    Wide daily-forward-filled DataFrame of all macro series.
+    Used by trainer for as-of date joins.
+    Returns columns: date + all macro factor columns.
     """
     conn = get_conn()
-    raw = conn.execute("""
+    wanted = [
+        "VIXCLS", "T10Y2Y", "FEDFUNDS",
+        "BAMLH0A0HYM2", "BAMLC0A0CM", "DFII10",
+        "M2_GROWTH_YOY", "ICSA", "NFCI", "PCE_CORE_YOY", "WALCL",
+        "DXY", "DXY_RET20", "GOLD_EQUITY_RATIO",
+        "COPPER_RET20", "USDJPY_RET5", "OIL_RET20",
+        "BTC_SPX_CORR_30D", "VVIX",
+    ]
+    placeholders = ",".join("?" * len(wanted))
+    raw = conn.execute(f"""
         SELECT series_id, CAST(date AS DATE) as date, value
         FROM macro_indicators
-        WHERE series_id IN ('VIXCLS', 'T10Y2Y', 'FEDFUNDS')
+        WHERE series_id IN ({placeholders})
         ORDER BY date
-    """).df()
+    """, wanted).df()
 
     if raw.empty:
         return pd.DataFrame()
 
-    raw["date"] = pd.to_datetime(raw["date"]).dt.as_unit("ns")
+    raw["date"] = pd.to_datetime(raw["date"])
     wide = raw.pivot_table(index="date", columns="series_id", values="value", aggfunc="last")
     wide = wide.reset_index().sort_values("date")
 
-    # Forward-fill to daily (FEDFUNDS is monthly, FRED data has gaps on weekends)
     date_range = pd.date_range(wide["date"].min(), wide["date"].max(), freq="D")
     wide = wide.set_index("date").reindex(date_range).ffill().reset_index()
     wide = wide.rename(columns={"index": "date"})
 
-    vix = wide.get("VIXCLS", pd.Series(dtype=float))
-    yc = wide.get("T10Y2Y", pd.Series(dtype=float))
-    fed = wide.get("FEDFUNDS", pd.Series(dtype=float))
+    def col(name):
+        return wide[name] if name in wide.columns else pd.Series(np.nan, index=wide.index)
+
+    vix  = col("VIXCLS").fillna(20.0)
+    yc   = col("T10Y2Y").fillna(0.0)
+    fed  = col("FEDFUNDS").fillna(3.0)
+    hy   = col("BAMLH0A0HYM2").fillna(300.0)
+    ig   = col("BAMLC0A0CM").fillna(100.0)
+    tips = col("DFII10").fillna(0.0)
+    m2   = col("M2_GROWTH_YOY").fillna(0.0)
+    icsa = col("ICSA").fillna(220.0)
+    nfci = col("NFCI").fillna(0.0)
+    pce  = col("PCE_CORE_YOY").fillna(2.0)
+    walcl = col("WALCL").fillna(8e6)
+    dxy  = col("DXY").fillna(100.0)
+    dxy_ret = col("DXY_RET20").fillna(0.0)
+    gold_eq = col("GOLD_EQUITY_RATIO").fillna(5.0)
+    cu_ret  = col("COPPER_RET20").fillna(0.0)
+    jpy_ret = col("USDJPY_RET5").fillna(0.0)
+    oil_ret = col("OIL_RET20").fillna(0.0)
+    btc_corr = col("BTC_SPX_CORR_30D").fillna(0.0)
+    vvix = col("VVIX").fillna(90.0)
 
     result = pd.DataFrame({
         "date": wide["date"],
-        "vix": vix.values if hasattr(vix, "values") else vix,
-        "yield_curve": yc.values if hasattr(yc, "values") else yc,
-        "fed_rate": fed.values if hasattr(fed, "values") else fed,
+        # Core macro
+        "vix":             vix.values,
+        "vix_regime":      vix.apply(lambda v: 0. if v < 15 else (1. if v < 25 else (2. if v < 35 else 3.))).values,
+        "yield_curve":     yc.values,
+        "yield_curve_inverted": (yc < 0).astype(float).values,
+        "fed_rate":        fed.values,
+        "hy_spread":       hy.values,
+        "ig_spread":       ig.values,
+        "tips_real_yield": tips.values,
+        "m2_growth_yoy":   m2.values,
+        "initial_claims":  icsa.values,
+        "nfci":            nfci.values,
+        "pce_core_yoy":    pce.values,
+        "fed_balance_sheet": walcl.values,
+        # Cross-asset
+        "dxy":             dxy.values,
+        "dxy_ret20":       dxy_ret.values,
+        "gold_equity_ratio": gold_eq.values,
+        "copper_ret20":    cu_ret.values,
+        "usdjpy_ret5":     jpy_ret.values,
+        "oil_ret20":       oil_ret.values,
+        "btc_spx_corr":    btc_corr.values,
+        "vvix":            vvix.values,
     })
-    result["vix"] = result["vix"].fillna(0.0)
-    result["yield_curve"] = result["yield_curve"].fillna(0.0)
-    result["fed_rate"] = result["fed_rate"].fillna(0.0)
-    result["vix_regime"] = result["vix"].apply(lambda v: 0.0 if v < 15 else (1.0 if v < 25 else 2.0))
-    result["yield_curve_inverted"] = (result["yield_curve"] < 0).astype(float)
 
-    return result[["date", "vix", "vix_regime", "yield_curve", "yield_curve_inverted", "fed_rate"]]
+    return result
 
 
 def get_macro_context() -> dict:
-    """Most recent macro values for use at inference time."""
+    """Most recent macro values for inference."""
     conn = get_conn()
 
-    def latest(sid: str) -> float:
+    def latest(sid: str, default: float = 0.0) -> float:
         row = conn.execute("""
             SELECT value FROM macro_indicators
             WHERE series_id = ? AND value IS NOT NULL
             ORDER BY date DESC LIMIT 1
         """, [sid]).fetchone()
-        return float(row[0]) if row else 0.0
+        return float(row[0]) if row else default
 
-    vix = latest("VIXCLS")
-    yc = latest("T10Y2Y")
-    fed = latest("FEDFUNDS")
+    vix  = latest("VIXCLS", 20.0)
+    yc   = latest("T10Y2Y", 0.5)
+    fed  = latest("FEDFUNDS", 3.0)
+    hy   = latest("BAMLH0A0HYM2", 300.0)
+    ig   = latest("BAMLC0A0CM", 100.0)
+    tips = latest("DFII10", 0.0)
+    m2   = latest("M2_GROWTH_YOY", 0.0)
+    icsa = latest("ICSA", 220.0)
+    nfci = latest("NFCI", 0.0)
+    pce  = latest("PCE_CORE_YOY", 2.0)
+    walcl = latest("WALCL", 8e6)
+    dxy   = latest("DXY", 100.0)
+    dxy_ret = latest("DXY_RET20", 0.0)
+    gold_eq = latest("GOLD_EQUITY_RATIO", 5.0)
+    cu_ret  = latest("COPPER_RET20", 0.0)
+    jpy_ret = latest("USDJPY_RET5", 0.0)
+    oil_ret = latest("OIL_RET20", 0.0)
+    btc_corr = latest("BTC_SPX_CORR_30D", 0.0)
+    vvix = latest("VVIX", 90.0)
 
     return {
-        "vix": vix,
-        "vix_regime": 0.0 if vix < 15 else (1.0 if vix < 25 else 2.0),
-        "yield_curve": yc,
-        "yield_curve_inverted": 1.0 if yc < 0 else 0.0,
-        "fed_rate": fed,
+        "vix":             vix,
+        "vix_regime":      0. if vix < 15 else (1. if vix < 25 else (2. if vix < 35 else 3.)),
+        "yield_curve":     yc,
+        "yield_curve_inverted": 1. if yc < 0 else 0.,
+        "fed_rate":        fed,
+        "hy_spread":       hy,
+        "ig_spread":       ig,
+        "tips_real_yield": tips,
+        "m2_growth_yoy":   m2,
+        "initial_claims":  icsa,
+        "nfci":            nfci,
+        "pce_core_yoy":    pce,
+        "fed_balance_sheet": walcl,
+        "dxy":             dxy,
+        "dxy_ret20":       dxy_ret,
+        "gold_equity_ratio": gold_eq,
+        "copper_ret20":    cu_ret,
+        "usdjpy_ret5":     jpy_ret,
+        "oil_ret20":       oil_ret,
+        "btc_spx_corr":    btc_corr,
+        "vvix":            vvix,
     }

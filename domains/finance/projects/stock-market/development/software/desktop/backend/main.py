@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database.duckdb_client import init_db
-from backend.api import stocks, predict, portfolio, sync, models_api
+from backend.api import stocks, predict, portfolio, sync, models_api, guidance
 from backend.data.scheduler import start_scheduler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -48,21 +48,33 @@ async def lifespan(app: FastAPI):
     models_missing = any(not p.exists() for p in HORIZON_MODEL_PATHS.values())
 
     if _needs_initial_load():
-        # First run or missing macro/fundamentals — load data first then retrain
         logger.info("Initial data load required — fetching macro + fundamentals then training models...")
         threading.Thread(target=_background_initial_load, daemon=True).start()
     elif models_missing or models_need_retrain():
-        # Models are stale (feature set changed) — retrain with existing data
         logger.info("Models missing or feature set changed — retraining in background...")
         threading.Thread(target=_background_retrain, daemon=True).start()
 
+    # Resolve any outstanding prediction outcomes and update domain weights
+    threading.Thread(target=_background_online_learning, daemon=True).start()
+
     yield
+
+
+def _background_online_learning():
+    """Resolve prediction outcomes and update domain weights in background."""
+    try:
+        from backend.models.online_learner import resolve_outcomes, update_domain_weights
+        n = resolve_outcomes()
+        if n > 0:
+            update_domain_weights()
+    except Exception as e:
+        logger.debug(f"Online learning update failed (non-fatal): {e}")
 
 
 app = FastAPI(
     title="Stock Market Prediction",
     description="Local stock market prediction — offline capable",
-    version="0.2.0",
+    version="3.0.0",
     lifespan=lifespan,
 )
 
@@ -78,6 +90,7 @@ app.include_router(predict.router,    prefix="/api/predict",   tags=["predict"])
 app.include_router(portfolio.router,  prefix="/api/portfolio", tags=["portfolio"])
 app.include_router(sync.router,       prefix="/api/sync",      tags=["sync"])
 app.include_router(models_api.router, prefix="/api/models",    tags=["models"])
+app.include_router(guidance.router,   prefix="/api/guidance",  tags=["guidance"])
 
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if os.path.exists(frontend_dir):

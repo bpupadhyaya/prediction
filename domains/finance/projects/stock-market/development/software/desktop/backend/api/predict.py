@@ -44,23 +44,54 @@ def get_llm_prediction(ticker: str, horizon: str = "1w"):
     return {"ticker": ticker.upper(), "horizon": horizon, "model_id": model_id, **result}
 
 
+@router.get("/{ticker}/explain")
+def get_prediction_explain(ticker: str, horizon: str = "1w"):
+    """Full prediction with SHAP domain breakdown, regime, and user signal info."""
+    if horizon not in PREDICTION_HORIZONS:
+        raise HTTPException(status_code=400, detail=f"horizon must be one of {PREDICTION_HORIZONS}")
+    result = predict_ticker(ticker.upper(), horizon)
+    return {
+        "ticker":               result.ticker,
+        "horizon":              result.horizon,
+        "direction":            result.direction,
+        "probability":          result.probability,
+        "expected_return_low":  result.expected_return_low,
+        "expected_return_high": result.expected_return_high,
+        "volatility":           result.volatility,
+        "model_accuracy":       result.model_accuracy,
+        "model_ready":          result.model_ready,
+        "sector":               result.sector,
+        "model_type":           result.model_type,
+        "regime_label":         result.regime_label,
+        "regime":               result.regime,
+        "explanation":          result.explanation,
+        "user_signals_active":  result.user_signals_active,
+        "recent_accuracy":      result.recent_accuracy,
+        "disclaimer": "This is a probabilistic prediction, not financial advice.",
+    }
+
+
 @router.get("/{ticker}")
 def get_prediction(ticker: str, horizon: str = "1w"):
     if horizon not in PREDICTION_HORIZONS:
         raise HTTPException(status_code=400, detail=f"horizon must be one of {PREDICTION_HORIZONS}")
     result = predict_ticker(ticker.upper(), horizon)
     return {
-        "ticker": result.ticker,
-        "horizon": result.horizon,
-        "direction": result.direction,
-        "probability": result.probability,
-        "expected_return_low": result.expected_return_low,
+        "ticker":               result.ticker,
+        "horizon":              result.horizon,
+        "direction":            result.direction,
+        "probability":          result.probability,
+        "expected_return_low":  result.expected_return_low,
         "expected_return_high": result.expected_return_high,
-        "volatility": result.volatility,
-        "model_accuracy": result.model_accuracy,
-        "model_ready": result.model_ready,
-        "sector": result.sector,
-        "model_type": result.model_type,
+        "volatility":           result.volatility,
+        "model_accuracy":       result.model_accuracy,
+        "model_ready":          result.model_ready,
+        "sector":               result.sector,
+        "model_type":           result.model_type,
+        "regime_label":         result.regime_label,
+        "regime":               result.regime,
+        "user_signals_active":  result.user_signals_active,
+        "recent_accuracy":      result.recent_accuracy,
         "disclaimer": "This is a probabilistic prediction, not financial advice.",
     }
 

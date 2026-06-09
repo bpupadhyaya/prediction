@@ -9,7 +9,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a;
-      --accent: #4f8ef7; --accent2: #34d399; --danger: #f87171;
+      --accent: #4f8ef7; --accent2: #34d399; --danger: #f87171; --warn: #fbbf24;
       --text: #e2e8f0; --muted: #64748b;
       --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
@@ -25,8 +25,10 @@
       padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
     }
     nav button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* Compatibility / model card utilities */
     .compat-ok   { color: var(--accent2); font-weight: 600; }
-    .compat-warn { color: #fbbf24; font-weight: 600; }
+    .compat-warn { color: var(--warn); font-weight: 600; }
     .compat-bad  { color: var(--danger); }
     .model-card  { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
     .model-card.active-model { border-color: var(--accent); }
@@ -35,16 +37,17 @@
     .model-meta { font-size: 0.8rem; color: var(--muted); margin: 0.3rem 0 0.6rem; }
     .model-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
     .model-actions button { padding: 0.35rem 0.85rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; border: 1px solid var(--border); }
-    .btn-download { background: var(--accent); color: #fff; border-color: var(--accent) !important; }
-    .btn-activate { background: var(--accent2); color: #000; border-color: var(--accent2) !important; }
-    .btn-deactivate { background: var(--surface); color: var(--muted); }
-    .btn-delete  { background: none; color: var(--danger); border-color: var(--danger) !important; }
-    .btn-gbm     { background: var(--accent2); color: #000; border-color: var(--accent2) !important; }
+    .btn-download  { background: var(--accent); color: #fff; border-color: var(--accent) !important; }
+    .btn-activate  { background: var(--accent2); color: #000; border-color: var(--accent2) !important; }
+    .btn-deactivate{ background: var(--surface); color: var(--muted); }
+    .btn-delete    { background: none; color: var(--danger); border-color: var(--danger) !important; }
     .progress-wrap { margin-top: 0.5rem; background: var(--border); border-radius: 4px; height: 6px; }
     .progress-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.3s; }
     .hw-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; font-size: 0.85rem; color: var(--muted); display: flex; gap: 2rem; flex-wrap: wrap; }
     .hw-bar span { color: var(--text); font-weight: 600; }
     .tag { display: inline-block; background: rgba(79,142,247,0.12); color: var(--accent); font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; margin-left: 0.3rem; }
+
+    /* Layout */
     main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
     .search-bar { display: flex; gap: 0.5rem; margin-bottom: 2rem; }
     .search-bar input {
@@ -61,10 +64,7 @@
       border-radius: 12px; padding: 1.25rem; cursor: pointer;
     }
     .card .ticker { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.75rem; }
-    .badge {
-      display: inline-block; padding: 0.25rem 0.6rem; border-radius: 4px;
-      font-size: 0.8rem; font-weight: 600;
-    }
+    .badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
     .badge.up   { background: rgba(52,211,153,0.15); color: var(--accent2); }
     .badge.down { background: rgba(248,113,113,0.15); color: var(--danger); }
     .stat { display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.85rem; }
@@ -73,8 +73,8 @@
     canvas { width: 100% !important; }
     .disclaimer { color: var(--muted); font-size: 0.75rem; margin-top: 2rem; text-align: center; }
     .accuracy-badge { background: rgba(79,142,247,0.15); color: var(--accent); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
-    #view-home, #view-stock, #view-portfolio, #view-models { display: none; }
-    #view-home.active, #view-stock.active, #view-portfolio.active, #view-models.active { display: block; }
+    #view-home, #view-stock, #view-portfolio, #view-models, #view-guidance { display: none; }
+    #view-home.active, #view-stock.active, #view-portfolio.active, #view-models.active, #view-guidance.active { display: block; }
     .portfolio-form textarea {
       width: 100%; background: var(--surface); border: 1px solid var(--border);
       color: var(--text); padding: 0.75rem; border-radius: 8px; font-family: monospace;
@@ -90,10 +90,7 @@
       padding: 0.35rem 0.85rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
     }
     .horizon-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .summary-card {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-      padding: 1.25rem; margin-bottom: 1.25rem;
-    }
+    .summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; }
     .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; margin-top: 0.75rem; }
     .summary-item { font-size: 0.85rem; color: var(--muted); }
     .summary-item span { display: block; font-size: 1.1rem; font-weight: 600; color: var(--text); margin-top: 0.2rem; }
@@ -101,12 +98,146 @@
     .weight-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
     .sync-bar {
       background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-      padding: 0.75rem 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;
+      padding: 0.75rem 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
     }
     .sync-bar button { background: var(--accent); border: none; color: #fff; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
     .sync-bar span { color: var(--muted); font-size: 0.85rem; }
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
     .horizon-badges { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+
+    /* ── Regime display ─────────────────────────────────────────────────────── */
+    .regime-strip {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 0.75rem 1rem; margin-bottom: 1.25rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+    }
+    .regime-strip .regime-label { font-size: 0.75rem; color: var(--muted); margin-right: 0.25rem; }
+    .regime-badge {
+      font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.6rem; border-radius: 4px;
+      display: inline-flex; align-items: center; gap: 0.3rem;
+    }
+    .regime-badge.monetary  { background: rgba(79,142,247,0.15); color: var(--accent); }
+    .regime-badge.credit    { background: rgba(52,211,153,0.15); color: var(--accent2); }
+    .regime-badge.credit-stress  { background: rgba(251,191,36,0.15); color: var(--warn); }
+    .regime-badge.credit-crisis  { background: rgba(248,113,113,0.15); color: var(--danger); }
+    .regime-badge.vol-low   { background: rgba(52,211,153,0.15); color: var(--accent2); }
+    .regime-badge.vol-norm  { background: rgba(79,142,247,0.12); color: var(--accent); }
+    .regime-badge.vol-elev  { background: rgba(251,191,36,0.15); color: var(--warn); }
+    .regime-badge.vol-cris  { background: rgba(248,113,113,0.15); color: var(--danger); }
+    .regime-badge.yc-normal { background: rgba(52,211,153,0.12); color: var(--accent2); }
+    .regime-badge.yc-flat   { background: rgba(251,191,36,0.12); color: var(--warn); }
+    .regime-badge.yc-inv    { background: rgba(248,113,113,0.15); color: var(--danger); }
+    .regime-badge.yc-re     { background: rgba(79,142,247,0.12); color: var(--accent); }
+
+    /* ── SHAP explanation panel ──────────────────────────────────────────────── */
+    .explain-panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.25rem; margin-bottom: 1rem;
+    }
+    .explain-toggle {
+      display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+      user-select: none;
+    }
+    .explain-toggle h3 { font-size: 0.95rem; font-weight: 600; }
+    .explain-toggle .chevron { transition: transform 0.2s; font-size: 0.8rem; color: var(--muted); }
+    .explain-toggle.open .chevron { transform: rotate(180deg); }
+    .explain-body { margin-top: 1rem; }
+    .method-badge { font-size: 0.7rem; background: rgba(79,142,247,0.12); color: var(--accent); padding: 0.15rem 0.4rem; border-radius: 3px; margin-left: 0.5rem; }
+
+    .domain-block { margin-bottom: 1.1rem; }
+    .domain-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.35rem; }
+    .domain-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+    .domain-dir { font-size: 0.75rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 3px; }
+    .domain-dir.positive { background: rgba(52,211,153,0.12); color: var(--accent2); }
+    .domain-dir.negative { background: rgba(248,113,113,0.12); color: var(--danger); }
+    .domain-dir.neutral  { background: rgba(100,116,139,0.15); color: var(--muted); }
+    .domain-bar-track { height: 6px; background: var(--border); border-radius: 3px; margin-bottom: 0.3rem; }
+    .domain-bar-fill  { height: 100%; border-radius: 3px; transition: width 0.4s; }
+    .domain-bar-fill.positive { background: var(--accent2); }
+    .domain-bar-fill.negative { background: var(--danger); }
+    .domain-bar-fill.neutral  { background: var(--muted); }
+    .factor-list { list-style: none; padding: 0; margin-top: 0.25rem; }
+    .factor-list li {
+      font-size: 0.78rem; color: var(--muted); padding: 0.25rem 0;
+      border-bottom: 1px solid rgba(42,45,58,0.5); line-height: 1.4;
+    }
+    .factor-list li:last-child { border-bottom: none; }
+    .factor-list .f-arrow { font-size: 0.65rem; margin-right: 0.3rem; }
+    .factor-list .f-up   { color: var(--accent2); }
+    .factor-list .f-down { color: var(--danger); }
+
+    /* ── User signal chips ───────────────────────────────────────────────────── */
+    .signal-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
+    .signal-chip {
+      font-size: 0.72rem; padding: 0.2rem 0.5rem; border-radius: 4px;
+      background: rgba(251,191,36,0.12); color: var(--warn); border: 1px solid rgba(251,191,36,0.25);
+      display: flex; align-items: center; gap: 0.3rem;
+    }
+    .signal-chip .del-chip {
+      cursor: pointer; color: var(--muted); font-size: 0.65rem; margin-left: 0.2rem;
+    }
+    .signal-chip .del-chip:hover { color: var(--danger); }
+
+    /* ── Add-context button & modal ──────────────────────────────────────────── */
+    .add-ctx-btn {
+      background: rgba(79,142,247,0.1); border: 1px solid rgba(79,142,247,0.3);
+      color: var(--accent); padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer;
+      font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.3rem;
+    }
+    .add-ctx-btn:hover { background: rgba(79,142,247,0.2); }
+
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      z-index: 1000; justify-content: center; align-items: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 1.5rem; width: 480px; max-width: 95vw; max-height: 85vh; overflow-y: auto;
+    }
+    .modal h3 { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+    .modal-tabs { display: flex; gap: 0.4rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+    .modal-tab {
+      background: none; border: none; color: var(--muted); padding: 0.35rem 0.75rem;
+      border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+    }
+    .modal-tab.active { background: rgba(79,142,247,0.12); color: var(--accent); font-weight: 600; }
+    .modal-tab-panel { display: none; }
+    .modal-tab-panel.active { display: block; }
+    .form-group { margin-bottom: 0.9rem; }
+    .form-group label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.3rem; }
+    .form-group input, .form-group textarea, .form-group select {
+      width: 100%; background: var(--bg); border: 1px solid var(--border);
+      color: var(--text); padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem;
+    }
+    .form-group textarea { height: 80px; resize: vertical; font-family: inherit; }
+    .form-group input[type=range] { padding: 0; }
+    .signal-slider-labels { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--muted); }
+    .modal-footer { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem; }
+    .btn-primary { background: var(--accent); border: none; color: #fff; padding: 0.5rem 1.2rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    .btn-secondary { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+
+    /* ── Guidance view ───────────────────────────────────────────────────────── */
+    .guidance-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; }
+    .guidance-section h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.85rem; }
+    .weight-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.6rem; }
+    .weight-row .domain-lbl { font-size: 0.85rem; color: var(--text); min-width: 150px; }
+    .weight-row input[type=range] { flex: 1; }
+    .weight-row .mult-val { font-size: 0.82rem; color: var(--accent); min-width: 36px; text-align: right; }
+    .signal-row {
+      display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0;
+      border-bottom: 1px solid var(--border); font-size: 0.82rem;
+    }
+    .signal-row:last-child { border-bottom: none; }
+    .signal-row .sig-domain { color: var(--accent); min-width: 90px; }
+    .signal-row .sig-ticker { color: var(--muted); min-width: 60px; }
+    .signal-row .sig-content { color: var(--text); flex: 1; line-height: 1.3; }
+    .signal-row .sig-val { color: var(--warn); min-width: 36px; text-align: right; }
+    .signal-row .sig-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.75rem; padding: 0.15rem 0.4rem; }
+    .signal-row .sig-del:hover { color: var(--danger); }
+    .accuracy-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-top: 0.5rem; }
+    .acc-cell { text-align: center; }
+    .acc-cell .acc-num { font-size: 1.5rem; font-weight: 700; color: var(--accent2); }
+    .acc-cell .acc-lbl { font-size: 0.75rem; color: var(--muted); margin-top: 0.1rem; }
   </style>
 </head>
 <body>
@@ -116,6 +247,7 @@
       <button class="active" onclick="showView('home')">Market</button>
       <button onclick="showView('stock')">Lookup</button>
       <button onclick="showView('portfolio')">Portfolio</button>
+      <button onclick="showView('guidance')">Guidance</button>
       <button onclick="showView('models')">Models</button>
     </nav>
   </header>
@@ -126,8 +258,14 @@
       <span id="sync-status">Checking...</span>
     </div>
 
+    <!-- ── Home ─────────────────────────────────────────────────────────────── -->
     <div id="view-home" class="active">
-      <!-- Market sub-tabs -->
+      <div id="regime-strip-home" class="regime-strip" style="display:none">
+        <span class="regime-label">Market Regime:</span>
+        <span id="regime-badges-home"></span>
+        <span id="regime-interp-home" style="font-size:0.75rem;color:var(--muted);margin-left:0.5rem;flex-basis:100%"></span>
+      </div>
+
       <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;border-bottom:1px solid var(--border);padding-bottom:0.75rem">
         <button id="mtab-sp500" class="active" onclick="switchMarketTab('sp500')"
           style="background:var(--accent);border:none;color:#fff;padding:0.4rem 1rem;border-radius:6px;cursor:pointer;font-size:0.9rem">
@@ -139,7 +277,6 @@
         </button>
       </div>
 
-      <!-- S&P 500 panel -->
       <div id="market-sp500">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem">
           <h2>Top Signals &mdash; S&amp;P 500</h2>
@@ -147,31 +284,27 @@
         </div>
         <div class="cards" id="top-cards"><p style="color:var(--muted)">Loading predictions...</p></div>
         <div id="sp500-more-bar" style="text-align:center;margin-top:1.5rem;display:none">
-          <button onclick="showMoreSP500()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:0.6rem 1.5rem;border-radius:8px;cursor:pointer">
-            Load More
-          </button>
-          <button onclick="showAllSP500()" style="background:none;border:none;color:var(--muted);padding:0.6rem 1rem;cursor:pointer;font-size:0.85rem">
-            Show All
-          </button>
+          <button onclick="showMoreSP500()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:0.6rem 1.5rem;border-radius:8px;cursor:pointer">Load More</button>
+          <button onclick="showAllSP500()" style="background:none;border:none;color:var(--muted);padding:0.6rem 1rem;cursor:pointer;font-size:0.85rem">Show All</button>
         </div>
       </div>
 
-      <!-- Hot Stocks panel -->
       <div id="market-hot" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;flex-wrap:wrap;gap:0.5rem">
           <h2>Hot Stocks</h2>
           <span id="hot-count" style="color:var(--muted);font-size:0.85rem"></span>
         </div>
-        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1rem">High-profile and trending publicly traded companies. Click "Download &amp; Predict" on any stock not yet in your database.</p>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1rem">High-profile and trending publicly traded companies.</p>
         <div class="cards" id="hot-cards"><p style="color:var(--muted)">Loading...</p></div>
         <div style="margin-top:2rem;margin-bottom:0.75rem">
           <h2>Upcoming IPOs &amp; Pre-IPO Companies</h2>
-          <p style="color:var(--muted);font-size:0.85rem;margin-top:0.25rem">Privately held or pre-IPO — no ticker or price prediction yet. Listed for awareness.</p>
+          <p style="color:var(--muted);font-size:0.85rem;margin-top:0.25rem">Privately held or pre-IPO — no ticker or price prediction yet.</p>
         </div>
         <div class="cards" id="pre-ipo-cards"></div>
       </div>
     </div>
 
+    <!-- ── Stock Lookup ──────────────────────────────────────────────────────── -->
     <div id="view-stock">
       <div class="search-bar">
         <input id="ticker-input" type="text" placeholder="Enter ticker (e.g. AAPL)" onkeydown="if(event.key==='Enter') lookupStock()" />
@@ -180,12 +313,11 @@
       <div id="stock-result"></div>
     </div>
 
+    <!-- ── Portfolio ─────────────────────────────────────────────────────────── -->
     <div id="view-portfolio">
       <h2 style="margin-bottom:1rem;">Portfolio Analysis</h2>
       <div class="portfolio-form">
-        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.5rem;">
-          Enter holdings as TICKER:QUANTITY (one per line). Optionally add :PURCHASE_PRICE.
-        </p>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.5rem;">Enter holdings as TICKER:QUANTITY (one per line). Optionally add :PURCHASE_PRICE.</p>
         <textarea id="portfolio-input" placeholder="AAPL:50:150.00&#10;MSFT:30:280.00&#10;GOOGL:20"></textarea>
         <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
           <button onclick="analyzePortfolio()">Analyze Portfolio</button>
@@ -199,6 +331,46 @@
       <div id="portfolio-result" style="margin-top:1.5rem;"></div>
     </div>
 
+    <!-- ── Guidance ──────────────────────────────────────────────────────────── -->
+    <div id="view-guidance">
+      <h2 style="margin-bottom:0.4rem">Model Guidance</h2>
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem">
+        Inject your knowledge to improve predictions. Your signals are stored locally and applied as
+        probability nudges on the next prediction call.
+      </p>
+
+      <!-- Current regime -->
+      <div class="guidance-section">
+        <h3>Current Market Regime</h3>
+        <div id="guidance-regime-content" style="color:var(--muted);font-size:0.85rem">Loading...</div>
+        <div id="guidance-regime-interp" style="color:var(--muted);font-size:0.8rem;margin-top:0.6rem;font-style:italic"></div>
+      </div>
+
+      <!-- Model accuracy -->
+      <div class="guidance-section">
+        <h3>Recent Prediction Accuracy (90-day)</h3>
+        <div id="guidance-accuracy" style="color:var(--muted);font-size:0.85rem">Loading...</div>
+      </div>
+
+      <!-- Domain weights -->
+      <div class="guidance-section">
+        <h3>Domain Weight Multipliers
+          <span style="font-size:0.75rem;font-weight:400;color:var(--muted);margin-left:0.5rem">(adjusted automatically by online learning)</span>
+        </h3>
+        <div id="guidance-weights" style="color:var(--muted);font-size:0.85rem">Loading...</div>
+      </div>
+
+      <!-- Active signals -->
+      <div class="guidance-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+          <h3 style="margin:0">Active Signals</h3>
+          <button class="add-ctx-btn" onclick="openGuidanceModal(null)">+ Add Signal</button>
+        </div>
+        <div id="guidance-signals" style="color:var(--muted);font-size:0.85rem">Loading...</div>
+      </div>
+    </div>
+
+    <!-- ── Models ─────────────────────────────────────────────────────────────── -->
     <div id="view-models">
       <h2 style="margin-bottom:0.5rem;">LLM Models</h2>
       <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.25rem;">
@@ -217,39 +389,165 @@
     </p>
   </main>
 
+  <!-- ── Add Context Modal ──────────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="guidance-modal" onclick="if(event.target===this)closeGuidanceModal()">
+    <div class="modal">
+      <h3>Add Your Knowledge <span id="modal-ticker-label" style="color:var(--accent);font-weight:400"></span></h3>
+      <div class="modal-tabs">
+        <button class="modal-tab active" onclick="switchModalTab('note',this)">📝 Note / Insight</button>
+        <button class="modal-tab" onclick="switchModalTab('url',this)">🔗 News URL</button>
+        <button class="modal-tab" onclick="switchModalTab('weight',this)">⚖️ Domain Weight</button>
+      </div>
+
+      <!-- Note tab -->
+      <div class="modal-tab-panel active" id="modal-tab-note">
+        <div class="form-group">
+          <label>What do you know about this stock / the market?</label>
+          <textarea id="note-content" placeholder="e.g. Management announced a major contract win yesterday not yet reflected in price..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>Domain (which factor category does this affect?)</label>
+          <select id="note-domain">
+            <option value="fundamental">Fundamental</option>
+            <option value="momentum">Momentum & Technical</option>
+            <option value="macro">Macro & Monetary</option>
+            <option value="volatility">Volatility</option>
+            <option value="cross_asset">Cross-Asset</option>
+            <option value="sentiment">Sentiment</option>
+            <option value="geopolitical">Geopolitical</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Signal direction & strength: <span id="note-signal-lbl" style="color:var(--accent)">Neutral (0.0)</span></label>
+          <input type="range" id="note-signal" min="-100" max="100" value="0" oninput="updateSignalLabel('note')" style="margin-bottom:0.3rem">
+          <div class="signal-slider-labels"><span>Strongly Bearish</span><span>Neutral</span><span>Strongly Bullish</span></div>
+        </div>
+        <div class="form-group">
+          <label>Expires in (days)</label>
+          <input type="number" id="note-expires" value="7" min="1" max="365" style="width:100px">
+        </div>
+      </div>
+
+      <!-- URL tab -->
+      <div class="modal-tab-panel" id="modal-tab-url">
+        <div class="form-group">
+          <label>News article or source URL</label>
+          <input type="url" id="url-content" placeholder="https://...">
+        </div>
+        <div class="form-group">
+          <label>What does this article indicate?</label>
+          <textarea id="url-note" placeholder="Brief description of the signal (e.g. 'Article about supply chain disruption affecting earnings')"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Domain</label>
+          <select id="url-domain">
+            <option value="fundamental">Fundamental</option>
+            <option value="macro">Macro & Monetary</option>
+            <option value="momentum">Momentum & Technical</option>
+            <option value="volatility">Volatility</option>
+            <option value="cross_asset">Cross-Asset</option>
+            <option value="sentiment">Sentiment</option>
+            <option value="geopolitical">Geopolitical</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Signal: <span id="url-signal-lbl" style="color:var(--accent)">Neutral (0.0)</span></label>
+          <input type="range" id="url-signal" min="-100" max="100" value="0" oninput="updateSignalLabel('url')" style="margin-bottom:0.3rem">
+          <div class="signal-slider-labels"><span>Strongly Bearish</span><span>Neutral</span><span>Strongly Bullish</span></div>
+        </div>
+        <div class="form-group">
+          <label>Expires in (days)</label>
+          <input type="number" id="url-expires" value="3" min="1" max="90">
+        </div>
+      </div>
+
+      <!-- Weight tab -->
+      <div class="modal-tab-panel" id="modal-tab-weight">
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.9rem">
+          Temporarily boost or reduce how much the model weights a domain.
+          1.0 = default. 2.0 = double weight. 0.5 = half weight.
+        </p>
+        <div class="form-group">
+          <label>Domain to override</label>
+          <select id="wt-domain">
+            <option value="macro">Macro & Monetary</option>
+            <option value="momentum">Momentum & Technical</option>
+            <option value="fundamental">Fundamental</option>
+            <option value="volatility">Volatility</option>
+            <option value="cross_asset">Cross-Asset</option>
+            <option value="sentiment">Sentiment</option>
+            <option value="geopolitical">Geopolitical</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Weight multiplier: <span id="wt-val" style="color:var(--accent)">1.0×</span></label>
+          <input type="range" id="wt-multiplier" min="50" max="200" value="100" oninput="document.getElementById('wt-val').textContent=(this.value/100).toFixed(2)+'×'" style="margin-bottom:0.3rem">
+          <div class="signal-slider-labels"><span>0.5× (half)</span><span>1.0× (normal)</span><span>2.0× (double)</span></div>
+        </div>
+        <div class="form-group">
+          <label>Signal direction: <span id="wt-signal-lbl" style="color:var(--accent)">Neutral (0.0)</span></label>
+          <input type="range" id="wt-signal" min="-100" max="100" value="0" oninput="updateSignalLabel('wt')" style="margin-bottom:0.3rem">
+          <div class="signal-slider-labels"><span>Bearish</span><span>Neutral</span><span>Bullish</span></div>
+        </div>
+        <div class="form-group">
+          <label>Reason (optional)</label>
+          <input type="text" id="wt-reason" placeholder="e.g. macro deteriorating fast this week">
+        </div>
+        <div class="form-group">
+          <label>Expires in (days)</label>
+          <input type="number" id="wt-expires" value="7" min="1" max="90">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeGuidanceModal()">Cancel</button>
+        <button class="btn-primary" onclick="submitGuidanceSignal()">Save Signal</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const BASE = "/api";
+    let _guidanceModalTicker = null;
+    let _activeModalTab = "note";
 
     async function apiFetch(path, options) {
       const res = await fetch(BASE + path, options);
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     }
+
     const api = {
-      predict:        (ticker, horizon = "1w") => apiFetch(`/predict/${ticker}?horizon=${horizon}`),
-      topPredictions: (limit = 500)             => apiFetch(`/predict/batch/top?limit=${limit}`),
-      prices:         (ticker, days = 365)     => apiFetch(`/stocks/${ticker}/prices?days=${days}`),
-      analyzePortfolio: (holdings, horizon = "1w") =>
-        apiFetch("/portfolio/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ holdings, horizon }) }),
-      triggerSync: () =>
-        apiFetch("/sync/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }),
-      syncStatus: () => apiFetch("/sync/status"),
-      modelCatalog: () => apiFetch("/models/catalog"),
-      modelConfig:  () => apiFetch("/models/config"),
+      predict:         (ticker, horizon = "1w") => apiFetch(`/predict/${ticker}?horizon=${horizon}`),
+      predictExplain:  (ticker, horizon = "1w") => apiFetch(`/predict/${ticker}/explain?horizon=${horizon}`),
+      topPredictions:  (limit = 500)             => apiFetch(`/predict/batch/top?limit=${limit}`),
+      prices:          (ticker, days = 365)      => apiFetch(`/stocks/${ticker}/prices?days=${days}`),
+      analyzePortfolio:(holdings, horizon = "1w") =>
+        apiFetch("/portfolio/analyze", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({holdings, horizon}) }),
+      triggerSync:     () => apiFetch("/sync/refresh", { method:"POST", headers:{"Content-Type":"application/json"}, body:"{}" }),
+      syncStatus:      () => apiFetch("/sync/status"),
+      modelCatalog:    () => apiFetch("/models/catalog"),
+      modelConfig:     () => apiFetch("/models/config"),
+      getRegime:       () => apiFetch("/guidance/regime"),
+      getAccuracy:     (horizon = "1w") => apiFetch(`/guidance/accuracy?horizon=${horizon}`),
+      getDomainWeights:() => apiFetch("/guidance/domain-weights"),
+      getAllSignals:    () => apiFetch("/guidance/signals"),
+      getSignals:      (ticker) => apiFetch(`/guidance/signals/${ticker}`),
+      addSignal:       (data) => apiFetch("/guidance/signal", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) }),
+      deleteSignal:    (id) => apiFetch(`/guidance/signal/${id}`, { method:"DELETE" }),
     };
 
-    // ── Navigation ────────────────────────────────────────────────────────────
-    const _VIEWS = ["home", "stock", "portfolio", "models"];
+    // ── Navigation ─────────────────────────────────────────────────────────────
+    const _VIEWS = ["home", "stock", "portfolio", "guidance", "models"];
     function showView(view) {
       document.querySelectorAll("[id^=view-]").forEach(el => el.classList.remove("active"));
-      document.querySelectorAll("nav button").forEach((b, i) => {
-        b.classList.toggle("active", _VIEWS[i] === view);
-      });
+      document.querySelectorAll("nav button").forEach((b, i) => b.classList.toggle("active", _VIEWS[i] === view));
       document.getElementById("view-" + view).classList.add("active");
-      if (view === "models") loadModelCatalog();
+      if (view === "models")    loadModelCatalog();
+      if (view === "guidance")  loadGuidanceView();
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────────────────────
     function dirBadge(pred) {
       const pct = Math.round(pred.probability * 100);
       const cls = pred.direction === "up" ? "up" : "down";
@@ -263,35 +561,60 @@
       return `${(pred.expected_return_low * 100).toFixed(1)}% to ${(pred.expected_return_high * 100).toFixed(1)}%`;
     }
 
-    // ── Market: sub-tab switching ─────────────────────────────────────────────
+    function _regimeBadgeHtml(regime) {
+      if (!regime || !regime.monetary && regime.monetary !== 0) return "";
+      const mon  = ["🔽 Cutting", "⏸ Pausing",  "🔼 Hiking"][regime.monetary]  || "?";
+      const cred = ["✅ Expansion","⚠️ Stress",  "🚨 Crisis"][regime.credit]    || "?";
+      const credCls = ["credit", "credit-stress", "credit-crisis"][regime.credit] || "credit";
+      const vol  = ["🟢 Low Vol", "🔵 Normal", "🟡 Elevated", "🔴 Vol Crisis"][regime.volatility] || "?";
+      const volCls = ["vol-low","vol-norm","vol-elev","vol-cris"][regime.volatility] || "vol-norm";
+      const yc   = ["📈 Normal YC", "➡ Flat YC", "🔃 Inverted YC", "↗ Re-steepening"][regime.yield_curve] || "?";
+      const ycCls = ["yc-normal","yc-flat","yc-inv","yc-re"][regime.yield_curve] || "yc-normal";
+      return `
+        <span class="regime-badge monetary">${mon}</span>
+        <span class="regime-badge ${credCls}">${cred}</span>
+        <span class="regime-badge ${volCls}">${vol}</span>
+        <span class="regime-badge ${ycCls}">${yc}</span>`;
+    }
+
+    // ── Regime strip on home page ──────────────────────────────────────────────
+    async function loadHomeRegime() {
+      try {
+        const data = await api.getRegime();
+        if (!data.regime) return;
+        const strip = document.getElementById("regime-strip-home");
+        document.getElementById("regime-badges-home").innerHTML = _regimeBadgeHtml(data.regime);
+        document.getElementById("regime-interp-home").textContent = data.interpretation || "";
+        strip.style.display = "flex";
+      } catch { /* non-fatal */ }
+    }
+
+    // ── Market sub-tabs ────────────────────────────────────────────────────────
     let _marketTab = "sp500";
     function switchMarketTab(tab) {
       _marketTab = tab;
       document.getElementById("market-sp500").style.display = tab === "sp500" ? "" : "none";
-      document.getElementById("market-hot").style.display  = tab === "hot"   ? "" : "none";
-      const sp = document.getElementById("mtab-sp500");
-      const ht = document.getElementById("mtab-hot");
+      document.getElementById("market-hot").style.display   = tab === "hot"   ? "" : "none";
+      const sp = document.getElementById("mtab-sp500"), ht = document.getElementById("mtab-hot");
       if (tab === "sp500") {
-        sp.style.background = "var(--accent)"; sp.style.color = "#fff"; sp.style.border = "none";
-        ht.style.background = "none"; ht.style.color = "var(--muted)"; ht.style.border = "1px solid var(--border)";
+        sp.style.cssText = "background:var(--accent);border:none;color:#fff;padding:0.4rem 1rem;border-radius:6px;cursor:pointer;font-size:0.9rem";
+        ht.style.cssText = "background:none;border:1px solid var(--border);color:var(--muted);padding:0.4rem 1rem;border-radius:6px;cursor:pointer;font-size:0.9rem";
       } else {
-        ht.style.background = "var(--accent)"; ht.style.color = "#fff"; ht.style.border = "none";
-        sp.style.background = "none"; sp.style.color = "var(--muted)"; sp.style.border = "1px solid var(--border)";
+        ht.style.cssText = "background:var(--accent);border:none;color:#fff;padding:0.4rem 1rem;border-radius:6px;cursor:pointer;font-size:0.9rem";
+        sp.style.cssText = "background:none;border:1px solid var(--border);color:var(--muted);padding:0.4rem 1rem;border-radius:6px;cursor:pointer;font-size:0.9rem";
         if (!_hotLoaded) loadHotStocks();
       }
     }
 
-    // ── S&P 500 signals ───────────────────────────────────────────────────────
-    let _sp500All = [];
-    let _sp500Shown = 50;
-
+    // ── S&P 500 signals ────────────────────────────────────────────────────────
+    let _sp500All = [], _sp500Shown = 50;
     function _renderSP500() {
       const container = document.getElementById("top-cards");
       const moreBar   = document.getElementById("sp500-more-bar");
       const countEl   = document.getElementById("sp500-count");
       const slice = _sp500All.slice(0, _sp500Shown);
       container.innerHTML = slice.map(p => `
-        <div class="card" onclick="showView('stock'); document.getElementById('ticker-input').value='${p.ticker}'; lookupStock()">
+        <div class="card" onclick="showView('stock');document.getElementById('ticker-input').value='${p.ticker}';lookupStock()">
           <div class="ticker">${p.ticker}</div>
           ${dirBadge(p)}
           <div class="stat"><span>Expected return</span><span>${returnRange(p)}</span></div>
@@ -300,55 +623,42 @@
       countEl.textContent = `Showing ${slice.length} of ${_sp500All.length} stocks`;
       moreBar.style.display = _sp500Shown < _sp500All.length ? "" : "none";
     }
-
-    function showMoreSP500()  { _sp500Shown += 50; _renderSP500(); }
-    function showAllSP500()   { _sp500Shown = _sp500All.length; _renderSP500(); }
-
+    function showMoreSP500() { _sp500Shown += 50; _renderSP500(); }
+    function showAllSP500()  { _sp500Shown = _sp500All.length; _renderSP500(); }
     async function loadTopPredictions() {
       const container = document.getElementById("top-cards");
       try {
         _sp500All = await api.topPredictions(500);
-        if (!_sp500All.length) {
-          container.innerHTML = "<p style='color:var(--muted)'>No predictions yet — run setup first or wait for model training to complete.</p>";
-          return;
-        }
-        _sp500Shown = 50;
-        _renderSP500();
-      } catch (e) {
-        container.innerHTML = "<p style='color:var(--muted)'>Could not load predictions. Is the server running?</p>";
-      }
+        if (!_sp500All.length) { container.innerHTML = "<p style='color:var(--muted)'>No predictions yet — wait for model training.</p>"; return; }
+        _sp500Shown = 50; _renderSP500();
+      } catch { container.innerHTML = "<p style='color:var(--muted)'>Could not load predictions.</p>"; }
     }
 
     // ── Hot Stocks ─────────────────────────────────────────────────────────────
     let _hotLoaded = false;
-
     function _predCard(p) {
-      if (!p.model_ready) {
-        return `
-          <div class="card" style="opacity:0.7">
-            <div class="ticker">${p.ticker}</div>
-            <div style="color:var(--muted);font-size:0.8rem;margin:0.4rem 0 0.6rem">Not in local database yet</div>
-            <button onclick="showView('stock'); document.getElementById('ticker-input').value='${p.ticker}'; fetchAndLookup('${p.ticker}')"
-              style="background:var(--accent);border:none;color:#fff;padding:0.35rem 0.85rem;border-radius:6px;cursor:pointer;font-size:0.82rem">
-              Download &amp; Predict
-            </button>
-          </div>`;
-      }
+      if (!p.model_ready) return `
+        <div class="card" style="opacity:0.7">
+          <div class="ticker">${p.ticker}</div>
+          <div style="color:var(--muted);font-size:0.8rem;margin:0.4rem 0 0.6rem">Not in local database yet</div>
+          <button onclick="showView('stock');document.getElementById('ticker-input').value='${p.ticker}';fetchAndLookup('${p.ticker}')"
+            style="background:var(--accent);border:none;color:#fff;padding:0.35rem 0.85rem;border-radius:6px;cursor:pointer;font-size:0.82rem">
+            Download &amp; Predict
+          </button>
+        </div>`;
       return `
-        <div class="card" onclick="showView('stock'); document.getElementById('ticker-input').value='${p.ticker}'; lookupStock()">
+        <div class="card" onclick="showView('stock');document.getElementById('ticker-input').value='${p.ticker}';lookupStock()">
           <div class="ticker">${p.ticker}</div>
           ${dirBadge(p)}
           <div class="stat"><span>Expected return</span><span>${returnRange(p)}</span></div>
           <div class="stat"><span>${accuracyBadge(p.model_accuracy)}</span><span>1-week</span></div>
         </div>`;
     }
-
     const _STATUS_COLORS = {
-      "Pre-IPO":  { bg: "rgba(251,191,36,0.12)", color: "#fbbf24" },
-      "Filed IPO":{ bg: "rgba(79,142,247,0.12)",  color: "var(--accent)" },
-      "Private":  { bg: "rgba(100,116,139,0.15)", color: "var(--muted)" },
+      "Pre-IPO":  {bg:"rgba(251,191,36,0.12)",  color:"#fbbf24"},
+      "Filed IPO":{bg:"rgba(79,142,247,0.12)",   color:"var(--accent)"},
+      "Private":  {bg:"rgba(100,116,139,0.15)",  color:"var(--muted)"},
     };
-
     function _preIpoCard(c) {
       const sc = _STATUS_COLORS[c.status] || _STATUS_COLORS["Private"];
       return `
@@ -363,16 +673,13 @@
           <div style="font-size:0.72rem;color:var(--muted);margin-top:0.4rem;font-style:italic">No ticker / prediction available yet</div>
         </div>`;
     }
-
     async function loadHotStocks() {
       _hotLoaded = true;
       document.getElementById("hot-cards").innerHTML = "<p style='color:var(--muted)'>Loading...</p>";
       try {
         const data = await apiFetch("/predict/batch/hot");
-        const withData    = data.traded.filter(p => p.model_ready).length;
-        const withoutData = data.traded.length - withData;
-        document.getElementById("hot-count").textContent =
-          `${withData} with predictions · ${withoutData} not yet downloaded · ${data.pre_ipo.length} pre-IPO`;
+        const withData = data.traded.filter(p => p.model_ready).length;
+        document.getElementById("hot-count").textContent = `${withData} with predictions · ${data.traded.length - withData} not yet downloaded`;
         document.getElementById("hot-cards").innerHTML = data.traded.map(_predCard).join("");
         document.getElementById("pre-ipo-cards").innerHTML = data.pre_ipo.map(_preIpoCard).join("");
       } catch (e) {
@@ -380,14 +687,15 @@
       }
     }
 
-    // ── Stock lookup ──────────────────────────────────────────────────────────
+    // ── Stock Lookup ───────────────────────────────────────────────────────────
     let priceChart = null;
+    let _currentLookupTicker = null;
 
     async function fetchAndLookup(ticker) {
       const container = document.getElementById("stock-result");
-      container.innerHTML = `<p style='color:var(--muted)'>Downloading price history for ${ticker} — this may take a few seconds...</p>`;
+      container.innerHTML = `<p style='color:var(--muted)'>Downloading price history for ${ticker}...</p>`;
       try {
-        await apiFetch(`/stocks/${ticker}/fetch`, { method: "POST" });
+        await apiFetch(`/stocks/${ticker}/fetch`, { method:"POST" });
         document.getElementById("ticker-input").value = ticker;
         await lookupStock();
       } catch (e) {
@@ -398,58 +706,184 @@
     async function lookupStock() {
       const ticker = document.getElementById("ticker-input").value.trim().toUpperCase();
       if (!ticker) return;
+      _currentLookupTicker = ticker;
       const container = document.getElementById("stock-result");
       container.innerHTML = "<p style='color:var(--muted)'>Loading...</p>";
-      try {
-        const [pred, prices] = await Promise.all([api.predict(ticker, "1w"), api.prices(ticker, 252)]);
 
-        // Ticker not in DB — offer to download on demand
+      try {
+        const [pred, prices] = await Promise.all([
+          api.predictExplain(ticker, "1w"),
+          api.prices(ticker, 252),
+        ]);
+
         if (!prices.length) {
           container.innerHTML = `
             <div class="card" style="max-width:480px">
               <div class="ticker">${ticker}</div>
-              <p style="color:var(--muted);font-size:0.9rem;margin:0.75rem 0">
-                No local price data for <strong>${ticker}</strong>.<br>
-                This ticker is not in your database yet.
-              </p>
+              <p style="color:var(--muted);font-size:0.9rem;margin:0.75rem 0">No local price data for <strong>${ticker}</strong>.</p>
               <button onclick="fetchAndLookup('${ticker}')"
                 style="background:var(--accent);border:none;color:#fff;padding:0.6rem 1.2rem;border-radius:8px;cursor:pointer;font-size:0.9rem">
                 Download &amp; Predict
               </button>
-              <p style="color:var(--muted);font-size:0.75rem;margin-top:0.5rem">
-                Downloads 5 years of price history from Yahoo Finance (~5 seconds).
-              </p>
+              <p style="color:var(--muted);font-size:0.75rem;margin-top:0.5rem">Downloads 5 years of price history from Yahoo Finance.</p>
             </div>`;
           return;
         }
+
+        // Signals chips HTML
+        const sigs = (pred.user_signals_active || []);
+        const sigChipsHtml = sigs.length ? `
+          <div style="margin-top:0.6rem">
+            <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.3rem">Active guidance signals:</div>
+            <div class="signal-chips">
+              ${sigs.map(s => `
+                <span class="signal-chip">
+                  ${s.domain}
+                  <span title="${(s.extracted_signal||0) > 0 ? 'Bullish' : 'Bearish'}" style="color:${(s.extracted_signal||0)>=0?'var(--accent2)':'var(--danger)'}">
+                    ${(s.extracted_signal||0) >= 0 ? "▲" : "▼"}${Math.abs(s.extracted_signal||0).toFixed(2)}
+                  </span>
+                  <span class="del-chip" onclick="deleteSignalFromChip('${s.id}','${ticker}')">✕</span>
+                </span>`).join("")}
+            </div>
+          </div>` : "";
+
+        // Regime strip
+        const regHtml = pred.regime && (pred.regime.monetary !== undefined) ? `
+          <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.75rem;align-items:center">
+            <span style="font-size:0.72rem;color:var(--muted)">Regime:</span>
+            ${_regimeBadgeHtml(pred.regime)}
+          </div>` : "";
+
+        // Recent accuracy
+        const ra = pred.recent_accuracy || {};
+        const accHtml = ra.total > 0 ? `
+          <div class="stat"><span>Recent directional acc. (90d)</span><span style="color:var(--accent2)">${Math.round((ra.accuracy||0)*100)}% (${ra.correct}/${ra.total})</span></div>` : "";
 
         container.innerHTML = `
           <div class="two-col">
             <div class="card">
               <div class="ticker">${pred.ticker}</div>
-              <div style="margin-bottom:0.75rem">${dirBadge(pred)}</div>
+              <div style="margin-bottom:0.6rem">${dirBadge(pred)}</div>
               <div class="stat"><span>1-week expected return</span><span>${returnRange(pred)}</span></div>
-              <div class="stat"><span>Volatility (ann.)</span><span>${(pred.volatility * 100).toFixed(1)}%</span></div>
-              <div class="stat"><span>Model accuracy</span><span>${Math.round(pred.model_accuracy * 100)}%</span></div>
+              <div class="stat"><span>Volatility (ann.)</span><span>${(pred.volatility*100).toFixed(1)}%</span></div>
+              <div class="stat"><span>Model accuracy</span><span>${Math.round(pred.model_accuracy*100)}%</span></div>
+              ${accHtml}
+              ${regHtml}
+              ${sigChipsHtml}
+              <div style="margin-top:0.9rem">
+                <button class="add-ctx-btn" onclick="openGuidanceModal('${ticker}')">+ Add your knowledge</button>
+              </div>
             </div>
             <div class="card">
               <p style="font-size:0.85rem;color:var(--muted);margin-bottom:0.5rem">Horizons</p>
               <div class="horizon-badges" id="horizon-badges"></div>
+              <div style="margin-top:1rem;font-size:0.75rem;color:var(--muted)">
+                <div>Model: ${pred.model_type || "global"}</div>
+                ${pred.regime_label ? `<div style="margin-top:0.3rem">Regime: ${pred.regime_label}</div>` : ""}
+              </div>
             </div>
           </div>
+
+          ${_buildExplainPanel(pred)}
+
           <div class="chart-container">
             <h3 style="margin-bottom:1rem">Price History (1 year)</h3>
             <canvas id="price-chart"></canvas>
           </div>`;
+
         loadHorizons(ticker);
         renderPriceChart(prices);
+
+        // LLM button
+        apiFetch("/models/config").then(cfg => {
+          if (cfg && cfg.active_model_id) {
+            const div = document.createElement("div");
+            div.innerHTML = `
+              <div style="margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem">
+                <button id="llm-btn" class="btn-activate" style="padding:0.5rem 1.2rem;border-radius:8px;border:none;cursor:pointer;font-size:0.9rem"
+                  onclick="runLlmPredict('${ticker}','1w')">Analyze with LLM</button>
+                <span style="font-size:0.8rem;color:var(--muted)">Active: ${cfg.active_model_id}</span>
+              </div>
+              <div id="llm-result"></div>`;
+            container.appendChild(div);
+          }
+        }).catch(() => {});
+
       } catch (e) {
         container.innerHTML = `<p style='color:var(--danger)'>Error: ${e.message}</p>`;
       }
     }
 
+    function _buildExplainPanel(pred) {
+      const expl = pred.explanation || {};
+      const domains = expl.domains || {};
+      const keys = Object.keys(domains);
+      if (!keys.length) return "";
+
+      const method = expl.method || "gbm";
+      const methodBadge = `<span class="method-badge">${method === "shap" ? "SHAP" : "Feature Importance"}</span>`;
+
+      // Find max contribution for bar scaling
+      const maxContrib = Math.max(...keys.map(k => domains[k].total_contribution || 0), 0.001);
+
+      const domainBlocks = keys.map(k => {
+        const d = domains[k];
+        const pct = Math.round((d.total_contribution / maxContrib) * 100);
+        const dirCls = d.direction === "positive" ? "positive" : d.direction === "negative" ? "negative" : "neutral";
+        const dirLabel = d.direction === "positive" ? "Bullish" : d.direction === "negative" ? "Bearish" : "Neutral";
+
+        const factors = (d.top_factors || []).slice(0, 3).map(f => {
+          const arrowCls = f.direction === "up" ? "f-up" : "f-down";
+          const arrow = f.direction === "up" ? "▲" : "▼";
+          return `<li><span class="f-arrow ${arrowCls}">${arrow}</span>${f.explanation || f.name}</li>`;
+        }).join("");
+
+        return `
+          <div class="domain-block">
+            <div class="domain-header">
+              <span class="domain-name">${d.label || k}</span>
+              <span class="domain-dir ${dirCls}">${dirLabel}</span>
+            </div>
+            <div class="domain-bar-track">
+              <div class="domain-bar-fill ${dirCls}" style="width:${pct}%"></div>
+            </div>
+            ${factors ? `<ul class="factor-list">${factors}</ul>` : ""}
+          </div>`;
+      }).join("");
+
+      return `
+        <div class="explain-panel" style="margin-bottom:1rem">
+          <div class="explain-toggle" onclick="toggleExplain(this)">
+            <h3>Why this prediction? ${methodBadge}</h3>
+            <span class="chevron">▼</span>
+          </div>
+          <div class="explain-body" style="display:none">
+            <p style="font-size:0.78rem;color:var(--muted);margin-bottom:0.85rem">
+              Contribution of each domain to the ${Math.round(pred.probability*100)}%
+              ${pred.direction.toUpperCase()} prediction (base probability: ${Math.round((expl.base_probability||pred.probability)*100)}%).
+            </p>
+            ${domainBlocks}
+          </div>
+        </div>`;
+    }
+
+    function toggleExplain(toggle) {
+      const body = toggle.nextElementSibling;
+      const isOpen = body.style.display !== "none";
+      body.style.display = isOpen ? "none" : "block";
+      toggle.classList.toggle("open", !isOpen);
+    }
+
+    async function deleteSignalFromChip(id, ticker) {
+      try {
+        await api.deleteSignal(id);
+        lookupStock(); // refresh
+      } catch (e) { alert("Could not remove signal: " + e.message); }
+    }
+
     async function loadHorizons(ticker) {
       const container = document.getElementById("horizon-badges");
+      if (!container) return;
       for (const h of ["1d", "1w", "1m"]) {
         try {
           const p = await api.predict(ticker, h);
@@ -470,29 +904,27 @@
         type: "line",
         data: {
           labels: sorted.map(p => p.date),
-          datasets: [{ label: "Close", data: sorted.map(p => p.adj_close),
-            borderColor: "#4f8ef7", borderWidth: 2, pointRadius: 0, fill: false, tension: 0.1 }],
+          datasets: [{ label:"Close", data:sorted.map(p => p.adj_close),
+            borderColor:"#4f8ef7", borderWidth:2, pointRadius:0, fill:false, tension:0.1 }],
         },
         options: {
           responsive: true,
           plugins: { legend: { display: false } },
           scales: {
-            x: { ticks: { maxTicksLimit: 8, color: "#64748b" }, grid: { color: "#2a2d3a" } },
-            y: { ticks: { color: "#64748b" }, grid: { color: "#2a2d3a" } },
+            x: { ticks: { maxTicksLimit:8, color:"#64748b" }, grid: { color:"#2a2d3a" } },
+            y: { ticks: { color:"#64748b" }, grid: { color:"#2a2d3a" } },
           },
         },
       });
     }
 
-    // ── Portfolio ─────────────────────────────────────────────────────────────
+    // ── Portfolio ──────────────────────────────────────────────────────────────
     let _portfolioHorizon = "1w";
-
     function setPortfolioHorizon(h, btn) {
       _portfolioHorizon = h;
       document.querySelectorAll(".horizon-tabs button").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
     }
-
     async function analyzePortfolio() {
       const lines = document.getElementById("portfolio-input").value.trim().split("\n").filter(Boolean);
       if (!lines.length) return;
@@ -506,41 +938,35 @@
       try {
         const result = await api.analyzePortfolio(holdings, _portfolioHorizon);
         const s = result.summary;
-        const horizonLabel = { "1d": "1 Day", "1w": "1 Week", "1m": "1 Month" }[s.horizon] ?? s.horizon;
-        const portLow  = (s.portfolio_return_low  * 100).toFixed(1);
-        const portHigh = (s.portfolio_return_high * 100).toFixed(1);
-        const portVol  = (s.weighted_volatility   * 100).toFixed(1);
+        const horizonLabel = { "1d":"1 Day","1w":"1 Week","1m":"1 Month" }[s.horizon] ?? s.horizon;
         container.innerHTML = `
           <div class="summary-card">
             <div style="font-size:1.15rem;font-weight:700">
-              $${Number(result.total_value).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              $${Number(result.total_value).toLocaleString("en-US",{minimumFractionDigits:2})}
               <span style="font-size:0.8rem;font-weight:400;color:var(--muted);margin-left:0.5rem">total value · ${horizonLabel} outlook</span>
             </div>
             <div class="summary-grid">
               <div class="summary-item">Bullish / Bearish<span>${s.bullish_count} ▲ / ${s.bearish_count} ▼</span></div>
-              <div class="summary-item">Portfolio Expected Return<span>${portLow}% to ${portHigh}%</span></div>
-              <div class="summary-item">Weighted Volatility (ann.)<span>${portVol}%</span></div>
-              <div class="summary-item">Model Accuracy<span>${result.holdings.length ? Math.round(result.holdings[0].prediction.model_accuracy * 100) : "—"}%</span></div>
+              <div class="summary-item">Portfolio Expected Return<span>${(s.portfolio_return_low*100).toFixed(1)}% to ${(s.portfolio_return_high*100).toFixed(1)}%</span></div>
+              <div class="summary-item">Weighted Volatility (ann.)<span>${(s.weighted_volatility*100).toFixed(1)}%</span></div>
             </div>
           </div>
           <div class="cards">
             ${result.holdings.map(h => {
               const p = h.prediction;
               const gl = h.gain_loss_pct;
-              const expLow  = (p.expected_return_low  * 100).toFixed(1);
-              const expHigh = (p.expected_return_high * 100).toFixed(1);
               return `
               <div class="card">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem">
                   <div class="ticker" style="margin:0">${h.ticker}</div>
                   <span style="font-size:0.8rem;color:var(--muted)">${h.weight}%</span>
                 </div>
-                <div class="weight-bar"><div class="weight-bar-fill" style="width:${Math.min(h.weight, 100)}%"></div></div>
+                <div class="weight-bar"><div class="weight-bar-fill" style="width:${Math.min(h.weight,100)}%"></div></div>
                 <div style="margin:0.6rem 0 0.4rem">${dirBadge(p)}</div>
                 <div class="stat"><span>Price</span><span>$${Number(h.current_price).toFixed(2)}</span></div>
                 <div class="stat"><span>Value</span><span>$${Number(h.position_value).toLocaleString("en-US",{minimumFractionDigits:2})}</span></div>
-                ${gl != null ? `<div class="stat"><span>Gain / Loss</span><span style="color:${gl >= 0 ? "var(--accent2)" : "var(--danger)"}">${gl >= 0 ? "+" : ""}${gl.toFixed(2)}%</span></div>` : ""}
-                <div class="stat"><span>Expected return</span><span>${expLow}% to ${expHigh}%</span></div>
+                ${gl != null ? `<div class="stat"><span>Gain/Loss</span><span style="color:${gl>=0?'var(--accent2)':'var(--danger)'}">${gl>=0?"+":""}${gl.toFixed(2)}%</span></div>` : ""}
+                <div class="stat"><span>Expected return</span><span>${(p.expected_return_low*100).toFixed(1)}% to ${(p.expected_return_high*100).toFixed(1)}%</span></div>
               </div>`;
             }).join("")}
           </div>
@@ -550,45 +976,199 @@
       }
     }
 
-    // ── Sync ──────────────────────────────────────────────────────────────────
-    async function triggerSync() {
-      const status = document.getElementById("sync-status");
-      status.textContent = "Starting refresh...";
+    // ── Guidance View ──────────────────────────────────────────────────────────
+    async function loadGuidanceView() {
+      // Regime
+      api.getRegime().then(data => {
+        const el = document.getElementById("guidance-regime-content");
+        const interp = document.getElementById("guidance-regime-interp");
+        if (data.regime) {
+          el.innerHTML = _regimeBadgeHtml(data.regime);
+          if (data.interpretation) interp.textContent = data.interpretation;
+        } else {
+          el.textContent = "Regime not yet computed — make a prediction first.";
+        }
+      }).catch(() => { document.getElementById("guidance-regime-content").textContent = "Could not load regime."; });
+
+      // Accuracy
+      api.getAccuracy("1w").then(data => {
+        const el = document.getElementById("guidance-accuracy");
+        if (data.total === 0) {
+          el.textContent = "No resolved outcomes yet. Accuracy is tracked after predictions resolve (35+ days).";
+          return;
+        }
+        el.innerHTML = `
+          <div class="accuracy-grid">
+            <div class="acc-cell"><div class="acc-num">${data.total}</div><div class="acc-lbl">Predictions evaluated</div></div>
+            <div class="acc-cell"><div class="acc-num">${data.correct}</div><div class="acc-lbl">Correct direction</div></div>
+            <div class="acc-cell"><div class="acc-num" style="color:${(data.accuracy||0)>0.55?'var(--accent2)':'var(--warn)'}">${Math.round((data.accuracy||0)*100)}%</div><div class="acc-lbl">Accuracy (1w, 90d)</div></div>
+          </div>`;
+      }).catch(() => { document.getElementById("guidance-accuracy").textContent = "Could not load accuracy."; });
+
+      // Domain weights
+      api.getDomainWeights().then(data => {
+        const el = document.getElementById("guidance-weights");
+        el.innerHTML = (data.weights || []).map(w => {
+          const pct = Math.round(((w.multiplier - 0.5) / 1.5) * 100);
+          const color = w.multiplier > 1.05 ? "var(--accent2)" : w.multiplier < 0.95 ? "var(--danger)" : "var(--muted)";
+          return `
+            <div class="weight-row">
+              <span class="domain-lbl">${w.label}</span>
+              <div style="flex:1;height:4px;background:var(--border);border-radius:2px">
+                <div style="width:${pct}%;height:100%;background:${color};border-radius:2px"></div>
+              </div>
+              <span class="mult-val" style="color:${color}">${w.multiplier.toFixed(2)}×</span>
+            </div>`;
+        }).join("") || "<span>No domain weights found.</span>";
+      }).catch(() => { document.getElementById("guidance-weights").textContent = "Could not load weights."; });
+
+      // Signals
+      loadGuidanceSignals();
+    }
+
+    async function loadGuidanceSignals() {
+      const el = document.getElementById("guidance-signals");
       try {
-        await api.triggerSync();
-        status.textContent = "Refresh running in background...";
-        const poll = setInterval(async () => {
-          try {
-            const s = await api.syncStatus();
-            status.textContent = s.running ? s.message : `Last synced: ${s.last_completed ?? "never"}`;
-            if (!s.running) clearInterval(poll);
-          } catch { clearInterval(poll); }
-        }, 2000);
-      } catch (e) {
-        status.textContent = `Sync failed: ${e.message}`;
+        const data = await api.getAllSignals();
+        if (!data.signals || data.signals.length === 0) {
+          el.innerHTML = `<p style="color:var(--muted);font-size:0.85rem">No active signals. Use "Add Signal" to inject your knowledge.</p>`;
+          return;
+        }
+        el.innerHTML = data.signals.map(s => {
+          const sigVal = parseFloat(s.extracted_signal || 0);
+          const valColor = sigVal > 0.1 ? "var(--accent2)" : sigVal < -0.1 ? "var(--danger)" : "var(--muted)";
+          const expires = s.expires_at ? new Date(s.expires_at).toLocaleDateString() : "Never";
+          return `
+            <div class="signal-row">
+              <span class="sig-domain">${s.domain}</span>
+              <span class="sig-ticker">${s.ticker || "All"}</span>
+              <span class="sig-content">${(s.content||"").slice(0,80)}${(s.content||"").length>80?"…":""}</span>
+              <span class="sig-val" style="color:${valColor}">${sigVal>=0?"+":""}${sigVal.toFixed(2)}</span>
+              <span style="font-size:0.72rem;color:var(--muted);min-width:70px">Exp: ${expires}</span>
+              <button class="sig-del" onclick="deleteGuidanceSignal('${s.id}')">✕ Remove</button>
+            </div>`;
+        }).join("");
+      } catch {
+        el.textContent = "Could not load signals.";
       }
     }
 
-    async function updateSyncStatus() {
+    async function deleteGuidanceSignal(id) {
       try {
-        const s = await api.syncStatus();
-        document.getElementById("sync-status").textContent =
-          s.last_completed ? `Last synced: ${new Date(s.last_completed).toLocaleString()}` : "Never synced — click Refresh Data";
-      } catch { document.getElementById("sync-status").textContent = "Server offline"; }
+        await api.deleteSignal(id);
+        loadGuidanceSignals();
+      } catch (e) { alert("Could not remove signal: " + e.message); }
     }
 
-    // ── LLM predict button in stock lookup ────────────────────────────────────
-    let _currentLookupTicker = null;
+    // ── Guidance Modal ─────────────────────────────────────────────────────────
+    function openGuidanceModal(ticker) {
+      _guidanceModalTicker = ticker;
+      const lbl = document.getElementById("modal-ticker-label");
+      lbl.textContent = ticker ? `for ${ticker}` : "(all tickers)";
+      // Reset form
+      document.getElementById("note-content").value = "";
+      document.getElementById("note-signal").value  = "0";
+      updateSignalLabel("note");
+      document.getElementById("url-content").value  = "";
+      document.getElementById("url-note").value     = "";
+      document.getElementById("url-signal").value   = "0";
+      updateSignalLabel("url");
+      document.getElementById("wt-signal").value    = "0";
+      document.getElementById("wt-multiplier").value= "100";
+      document.getElementById("wt-val").textContent = "1.0×";
+      updateSignalLabel("wt");
+      switchModalTab("note", document.querySelector(".modal-tab"));
+      document.getElementById("guidance-modal").classList.add("open");
+    }
 
+    function closeGuidanceModal() {
+      document.getElementById("guidance-modal").classList.remove("open");
+    }
+
+    function switchModalTab(tab, btn) {
+      _activeModalTab = tab;
+      document.querySelectorAll(".modal-tab").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".modal-tab-panel").forEach(p => p.classList.remove("active"));
+      if (btn) btn.classList.add("active");
+      else document.querySelectorAll(".modal-tab")[["note","url","weight"].indexOf(tab)]?.classList.add("active");
+      document.getElementById(`modal-tab-${tab}`)?.classList.add("active");
+    }
+
+    function updateSignalLabel(prefix) {
+      const val = parseInt(document.getElementById(`${prefix}-signal`).value) / 100;
+      const lbl = document.getElementById(`${prefix}-signal-lbl`);
+      const direction = val > 0.05 ? "Bullish" : val < -0.05 ? "Bearish" : "Neutral";
+      lbl.textContent = `${direction} (${val >= 0 ? "+" : ""}${val.toFixed(2)})`;
+    }
+
+    async function submitGuidanceSignal() {
+      let payload = {};
+      const tab = _activeModalTab;
+
+      if (tab === "note") {
+        const content = document.getElementById("note-content").value.trim();
+        if (!content) { alert("Please enter a note."); return; }
+        payload = {
+          ticker: _guidanceModalTicker || null,
+          signal_type: "note",
+          domain: document.getElementById("note-domain").value,
+          content,
+          extracted_signal: parseInt(document.getElementById("note-signal").value) / 100,
+          weight_multiplier: 1.0,
+          confidence: 0.85,
+          expires_days: parseInt(document.getElementById("note-expires").value) || 7,
+        };
+      } else if (tab === "url") {
+        const url = document.getElementById("url-content").value.trim();
+        const note = document.getElementById("url-note").value.trim();
+        if (!url) { alert("Please enter a URL."); return; }
+        payload = {
+          ticker: _guidanceModalTicker || null,
+          signal_type: "url",
+          domain: document.getElementById("url-domain").value,
+          content: url + (note ? "\n" + note : ""),
+          extracted_signal: parseInt(document.getElementById("url-signal").value) / 100,
+          weight_multiplier: 1.0,
+          confidence: 0.8,
+          expires_days: parseInt(document.getElementById("url-expires").value) || 3,
+        };
+      } else if (tab === "weight") {
+        payload = {
+          ticker: _guidanceModalTicker || null,
+          signal_type: "weight",
+          domain: document.getElementById("wt-domain").value,
+          content: document.getElementById("wt-reason").value.trim() || "User domain weight override",
+          extracted_signal: parseInt(document.getElementById("wt-signal").value) / 100,
+          weight_multiplier: parseInt(document.getElementById("wt-multiplier").value) / 100,
+          confidence: 0.9,
+          expires_days: parseInt(document.getElementById("wt-expires").value) || 7,
+        };
+      }
+
+      try {
+        await api.addSignal(payload);
+        closeGuidanceModal();
+        // Refresh relevant UI
+        if (_currentLookupTicker && document.getElementById("view-stock").classList.contains("active")) {
+          lookupStock();
+        }
+        if (document.getElementById("view-guidance").classList.contains("active")) {
+          loadGuidanceSignals();
+        }
+      } catch (e) {
+        alert("Could not save signal: " + e.message);
+      }
+    }
+
+    // ── LLM Predict ────────────────────────────────────────────────────────────
     async function runLlmPredict(ticker, horizon) {
       const btn = document.getElementById("llm-btn");
       const out = document.getElementById("llm-result");
       if (!btn || !out) return;
-      btn.disabled = true;
-      btn.textContent = "Analyzing...";
-      out.innerHTML = "<p style='color:var(--muted);font-size:0.85rem'>Running LLM inference — this may take 10–60 seconds...</p>";
+      btn.disabled = true; btn.textContent = "Analyzing...";
+      out.innerHTML = "<p style='color:var(--muted);font-size:0.85rem'>Running LLM inference (10–60 seconds)...</p>";
       try {
-        const r = await apiFetch(`/predict/${ticker}/llm?horizon=${horizon}`, { method: "POST" });
+        const r = await apiFetch(`/predict/${ticker}/llm?horizon=${horizon}`, { method:"POST" });
         const cls = r.direction === "up" ? "up" : "down";
         const arrow = r.direction === "up" ? "▲" : "▼";
         out.innerHTML = `
@@ -604,30 +1184,33 @@
       }
     }
 
-    // Patch lookupStock to add LLM button after GBM result
-    const _origLookup = lookupStock;
-    lookupStock = async function() {
-      await _origLookup.call(this);
-      _currentLookupTicker = document.getElementById("ticker-input").value.trim().toUpperCase();
-      const container = document.getElementById("stock-result");
-      const cfg = await apiFetch("/models/config").catch(() => null);
-      if (cfg && cfg.active_model_id && container.querySelector(".chart-container")) {
-        const horizon = "1w";
-        const div = document.createElement("div");
-        div.innerHTML = `
-          <div style="margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem">
-            <button id="llm-btn" class="btn-activate" style="padding:0.5rem 1.2rem;border-radius:8px;border:none;cursor:pointer;font-size:0.9rem"
-              onclick="runLlmPredict('${_currentLookupTicker}', '${horizon}')">Analyze with LLM</button>
-            <span style="font-size:0.8rem;color:var(--muted)">Active: ${cfg.active_model_id}</span>
-          </div>
-          <div id="llm-result"></div>`;
-        container.appendChild(div);
-      }
-    };
+    // ── Sync ────────────────────────────────────────────────────────────────────
+    async function triggerSync() {
+      const status = document.getElementById("sync-status");
+      status.textContent = "Starting refresh...";
+      try {
+        await api.triggerSync();
+        status.textContent = "Refresh running in background...";
+        const poll = setInterval(async () => {
+          try {
+            const s = await api.syncStatus();
+            status.textContent = s.running ? s.message : `Last synced: ${s.last_completed ?? "never"}`;
+            if (!s.running) clearInterval(poll);
+          } catch { clearInterval(poll); }
+        }, 2000);
+      } catch (e) { status.textContent = `Sync failed: ${e.message}`; }
+    }
 
-    // ── Models tab ────────────────────────────────────────────────────────────
+    async function updateSyncStatus() {
+      try {
+        const s = await api.syncStatus();
+        document.getElementById("sync-status").textContent =
+          s.last_completed ? `Last synced: ${new Date(s.last_completed).toLocaleString()}` : "Never synced — click Refresh Data";
+      } catch { document.getElementById("sync-status").textContent = "Server offline"; }
+    }
+
+    // ── Models Tab ──────────────────────────────────────────────────────────────
     let _pollTimers = {};
-
     async function loadModelCatalog() {
       const catalogEl = document.getElementById("model-catalog");
       const hwEl = document.getElementById("hw-bar");
@@ -636,8 +1219,6 @@
       try {
         const data = await apiFetch("/models/catalog");
         const hw = data.hardware;
-
-        // Hardware bar
         hwEl.innerHTML = `
           RAM: <span>${hw.total_ram_gb} GB</span> &nbsp;|&nbsp;
           CPU cores: <span>${hw.cpu_count}</span> &nbsp;|&nbsp;
@@ -646,60 +1227,34 @@
           <br style="margin:0.3rem 0">
           Models folder: <span style="font-family:monospace;font-size:0.78rem">${data.models_dir}</span>
           &nbsp;<button onclick="openModelsFolder()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.15rem 0.45rem;border-radius:4px;cursor:pointer;font-size:0.75rem">📂 Open in Finder</button>`;
-
-        // Active model bar
         if (data.active_model_id) {
           activeBar.innerHTML = `
             <div style="background:rgba(79,142,247,0.1);border:1px solid var(--accent);border-radius:8px;padding:0.6rem 1rem;font-size:0.85rem;display:flex;align-items:center;justify-content:space-between">
-              <span>Active LLM: <strong>${data.active_model_id}</strong> — predictions in Lookup tab will show an "Analyze with LLM" button</span>
+              <span>Active LLM: <strong>${data.active_model_id}</strong></span>
               <button class="btn-deactivate" onclick="deactivateModel()" style="border:1px solid var(--border);background:none;color:var(--muted);padding:0.3rem 0.7rem;border-radius:6px;cursor:pointer;font-size:0.8rem">Use GBM only</button>
             </div>`;
         } else {
-          activeBar.innerHTML = `
-            <div style="color:var(--muted);font-size:0.85rem">
-              Active model: <strong>GBM (built-in, fast)</strong> — download and activate an LLM below for AI-powered reasoning
-            </div>`;
+          activeBar.innerHTML = `<div style="color:var(--muted);font-size:0.85rem">Active model: <strong>GBM (built-in, fast)</strong></div>`;
         }
-
-        // Model cards
-        const compatLabel = { compatible: "✓ Compatible", marginal: "⚠ Marginal", insufficient: "✗ Needs more RAM", unknown: "?" };
-        const compatCls   = { compatible: "compat-ok",   marginal: "compat-warn",  insufficient: "compat-bad",  unknown: "" };
-
+        const compatLabel = { compatible:"✓ Compatible", marginal:"⚠ Marginal", insufficient:"✗ Needs more RAM", unknown:"?" };
+        const compatCls   = { compatible:"compat-ok",   marginal:"compat-warn",  insufficient:"compat-bad",  unknown:"" };
         catalogEl.innerHTML = data.models.map(m => {
-          const compat = m.compatibility;
-          const isActive = m.active;
-          const isDl = m.downloaded;
-          const dlStatus = m.download_status;
+          const isActive = m.active, isDl = m.downloaded, dlStatus = m.download_status;
           const tags = m.tags.map(t => `<span class="tag">${t}</span>`).join("");
-
           let progressHtml = "";
           if (dlStatus && dlStatus.status === "downloading") {
-            const pct = Math.round((dlStatus.progress || 0) * 100);
-            progressHtml = `
-              <div class="progress-wrap"><div class="progress-fill" id="prog-${m.id}" style="width:${pct}%"></div></div>
-              <div style="font-size:0.75rem;color:var(--muted);margin-top:0.3rem" id="prog-txt-${m.id}">${pct}% downloaded</div>`;
+            const pct = Math.round((dlStatus.progress||0)*100);
+            progressHtml = `<div class="progress-wrap"><div class="progress-fill" id="prog-${m.id}" style="width:${pct}%"></div></div><div style="font-size:0.75rem;color:var(--muted);margin-top:0.3rem" id="prog-txt-${m.id}">${pct}% downloaded</div>`;
           }
-
-          let fileInfo = "";
-          if (isDl && m.file_path) {
-            fileInfo = `<div style="font-size:0.75rem;color:var(--muted);margin-top:0.4rem;font-family:monospace;word-break:break-all">${m.file_path}</div>`;
-          }
-
           let actions = "";
-          if (!isDl && !(dlStatus && dlStatus.status === "downloading")) {
+          if (!isDl && !(dlStatus && dlStatus.status === "downloading"))
             actions += `<button class="model-actions button btn-download" onclick="downloadModel('${m.id}')">Download ${m.size_gb} GB</button>`;
-          } else if (dlStatus && dlStatus.status === "downloading") {
+          else if (dlStatus && dlStatus.status === "downloading")
             actions += `<button class="model-actions button" disabled style="opacity:0.5">Downloading...</button>`;
-          } else if (isDl && !isActive) {
-            actions += `<button class="model-actions button btn-activate" onclick="activateModel('${m.id}')">Activate</button>`;
-            actions += `<button class="model-actions button" onclick="openModelsFolder()" style="background:none;border:1px solid var(--border);color:var(--muted)">📂 Open Folder</button>`;
-            actions += `<button class="model-actions button btn-delete" onclick="deleteModel('${m.id}')">Clear (free ${m.size_gb} GB)</button>`;
-          } else if (isActive) {
-            actions += `<button class="model-actions button btn-deactivate" onclick="deactivateModel()">Deactivate</button>`;
-            actions += `<button class="model-actions button" onclick="openModelsFolder()" style="background:none;border:1px solid var(--border);color:var(--muted)">📂 Open Folder</button>`;
-            actions += `<button class="model-actions button btn-delete" onclick="deleteModel('${m.id}')">Clear from disk</button>`;
-          }
-
+          else if (isDl && !isActive)
+            actions += `<button class="model-actions button btn-activate" onclick="activateModel('${m.id}')">Activate</button><button class="model-actions button btn-delete" onclick="deleteModel('${m.id}')">Clear (free ${m.size_gb} GB)</button>`;
+          else if (isActive)
+            actions += `<button class="model-actions button btn-deactivate" onclick="deactivateModel()">Deactivate</button><button class="model-actions button btn-delete" onclick="deleteModel('${m.id}')">Clear from disk</button>`;
           return `
             <div class="model-card ${isActive ? "active-model" : ""}" id="mcard-${m.id}">
               <div class="model-header">
@@ -708,19 +1263,14 @@
                   <div class="model-meta">${m.params_b}B params · ${m.quantization} · ${m.size_gb} GB · ${m.ram_min_gb} GB RAM required</div>
                   <div style="font-size:0.82rem;color:var(--muted)">${m.description}</div>
                 </div>
-                <div class="${compatCls[compat]}" style="white-space:nowrap;font-size:0.82rem">${compatLabel[compat] || compat}</div>
+                <div class="${compatCls[m.compatibility]}" style="white-space:nowrap;font-size:0.82rem">${compatLabel[m.compatibility]||m.compatibility}</div>
               </div>
               ${progressHtml}
-              ${fileInfo}
               <div class="model-actions">${actions}</div>
             </div>`;
         }).join("");
-
-        // Poll for any in-progress downloads
         data.models.forEach(m => {
-          if (m.download_status && m.download_status.status === "downloading") {
-            _startPollDownload(m.id);
-          }
+          if (m.download_status && m.download_status.status === "downloading") _startPollDownload(m.id);
         });
       } catch (e) {
         catalogEl.innerHTML = `<p style='color:var(--danger)'>Error: ${e.message}</p>`;
@@ -728,59 +1278,40 @@
     }
 
     async function downloadModel(modelId) {
-      try {
-        await apiFetch(`/models/download/${modelId}`, { method: "POST" });
-        _startPollDownload(modelId);
-        loadModelCatalog();
-      } catch (e) {
-        alert(`Download failed: ${e.message}`);
-      }
+      try { await apiFetch(`/models/download/${modelId}`, { method:"POST" }); _startPollDownload(modelId); loadModelCatalog(); }
+      catch (e) { alert(`Download failed: ${e.message}`); }
     }
-
     function _startPollDownload(modelId) {
       if (_pollTimers[modelId]) return;
       _pollTimers[modelId] = setInterval(async () => {
         try {
           const s = await apiFetch(`/models/download/${modelId}/status`);
-          const fill = document.getElementById(`prog-${modelId}`);
-          const txt  = document.getElementById(`prog-txt-${modelId}`);
-          if (fill) fill.style.width = Math.round((s.progress || 0) * 100) + "%";
-          if (txt)  txt.textContent = Math.round((s.progress || 0) * 100) + "% downloaded";
-          if (s.status === "done" || s.status === "error") {
-            clearInterval(_pollTimers[modelId]);
-            delete _pollTimers[modelId];
-            loadModelCatalog();
-          }
+          const fill = document.getElementById(`prog-${modelId}`), txt = document.getElementById(`prog-txt-${modelId}`);
+          if (fill) fill.style.width = Math.round((s.progress||0)*100)+"%";
+          if (txt)  txt.textContent  = Math.round((s.progress||0)*100)+"% downloaded";
+          if (s.status==="done"||s.status==="error") { clearInterval(_pollTimers[modelId]); delete _pollTimers[modelId]; loadModelCatalog(); }
         } catch { clearInterval(_pollTimers[modelId]); delete _pollTimers[modelId]; }
       }, 2000);
     }
-
     async function activateModel(modelId) {
-      await apiFetch("/models/activate", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ model_id: modelId }) });
+      await apiFetch("/models/activate", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({model_id:modelId}) });
       loadModelCatalog();
     }
-
     async function deactivateModel() {
-      await apiFetch("/models/activate", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ model_id: null }) });
+      await apiFetch("/models/activate", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({model_id:null}) });
       loadModelCatalog();
     }
-
-    async function openModelsFolder() {
-      await apiFetch("/models/open-folder", { method: "POST" }).catch(() => {});
-    }
-
+    async function openModelsFolder() { await apiFetch("/models/open-folder", { method:"POST" }).catch(()=>{}); }
     async function deleteModel(modelId) {
       if (!confirm("Remove this model from disk? You can re-download it later.")) return;
-      try {
-        await apiFetch(`/models/${modelId}`, { method: "DELETE" });
-        loadModelCatalog();
-      } catch (e) {
-        alert(`Delete failed: ${e.message}`);
-      }
+      try { await apiFetch(`/models/${modelId}`, { method:"DELETE" }); loadModelCatalog(); }
+      catch (e) { alert(`Delete failed: ${e.message}`); }
     }
 
+    // ── Init ────────────────────────────────────────────────────────────────────
     updateSyncStatus();
     loadTopPredictions();
+    loadHomeRegime();
   </script>
 </body>
 </html>

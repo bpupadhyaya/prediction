@@ -13,6 +13,8 @@ def get_conn() -> duckdb.DuckDBPyConnection:
 
 def init_db() -> None:
     conn = get_conn()
+
+    # ── Core market data ──────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS stocks (
             ticker      VARCHAR PRIMARY KEY,
@@ -38,26 +40,28 @@ def init_db() -> None:
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS fundamentals (
-            ticker          VARCHAR,
-            report_date     DATE,
-            pe_ratio        DOUBLE,
-            pb_ratio        DOUBLE,
-            eps             DOUBLE,
-            revenue         DOUBLE,
+            ticker            VARCHAR,
+            report_date       DATE,
+            pe_ratio          DOUBLE,
+            pb_ratio          DOUBLE,
+            eps               DOUBLE,
+            revenue           DOUBLE,
             earnings_surprise DOUBLE,
-            short_ratio     DOUBLE,
-            short_pct_float DOUBLE,
+            short_ratio       DOUBLE,
+            short_pct_float   DOUBLE,
             PRIMARY KEY (ticker, report_date)
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS earnings_history (
-            ticker           VARCHAR,
-            earnings_date    DATE,
+            ticker            VARCHAR,
+            earnings_date     DATE,
             earnings_surprise DOUBLE,
             PRIMARY KEY (ticker, earnings_date)
         )
     """)
+
+    # ── Macro / cross-asset data ──────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS macro_indicators (
             series_id   VARCHAR,
@@ -66,17 +70,20 @@ def init_db() -> None:
             PRIMARY KEY (series_id, date)
         )
     """)
+
+    # ── Predictions ───────────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS predictions (
-            ticker           VARCHAR,
-            horizon          VARCHAR,
-            predicted_at     TIMESTAMP,
-            direction        VARCHAR,
-            probability      DOUBLE,
+            ticker               VARCHAR,
+            horizon              VARCHAR,
+            predicted_at         TIMESTAMP,
+            direction            VARCHAR,
+            probability          DOUBLE,
             expected_return_low  DOUBLE,
             expected_return_high DOUBLE,
-            volatility       DOUBLE,
-            model_version    VARCHAR,
+            volatility           DOUBLE,
+            model_version        VARCHAR,
+            regime_label         VARCHAR,
             PRIMARY KEY (ticker, horizon, predicted_at)
         )
     """)
@@ -91,14 +98,92 @@ def init_db() -> None:
         )
     """)
 
-    # Migrate: add new columns to fundamentals if upgrading from older schema
+    # ── Regime history ────────────────────────────────────────────────────────
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS regime_history (
+            as_of_date  DATE PRIMARY KEY,
+            monetary    INTEGER,
+            credit      INTEGER,
+            volatility  INTEGER,
+            yield_curve INTEGER,
+            label       VARCHAR,
+            recorded_at TIMESTAMP DEFAULT now()
+        )
+    """)
+
+    # ── User guidance signals ─────────────────────────────────────────────────
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS user_signals (
+            id                VARCHAR PRIMARY KEY,
+            ticker            VARCHAR,
+            signal_type       VARCHAR,
+            domain            VARCHAR,
+            content           TEXT,
+            extracted_signal  DOUBLE,
+            weight_multiplier DOUBLE DEFAULT 1.0,
+            confidence        DOUBLE DEFAULT 0.9,
+            source_tag        VARCHAR DEFAULT 'USER_OVERRIDE',
+            created_at        TIMESTAMP DEFAULT now(),
+            expires_at        TIMESTAMP,
+            is_active         BOOLEAN DEFAULT TRUE,
+            outcome_known     BOOLEAN DEFAULT FALSE,
+            was_correct       BOOLEAN,
+            reinforcement_count INTEGER DEFAULT 0
+        )
+    """)
+
+    # ── Prediction outcomes (for online learning) ─────────────────────────────
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS prediction_outcomes (
+            ticker       VARCHAR,
+            horizon      VARCHAR,
+            predicted_at TIMESTAMP,
+            direction    VARCHAR,
+            probability  DOUBLE,
+            regime_label VARCHAR,
+            actual_return DOUBLE,
+            was_correct  BOOLEAN,
+            resolved_at  TIMESTAMP DEFAULT now(),
+            PRIMARY KEY (ticker, horizon, predicted_at)
+        )
+    """)
+
+    # ── Online learning: domain weights ──────────────────────────────────────
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS signal_weights (
+            domain          VARCHAR PRIMARY KEY,
+            weight_multiplier DOUBLE DEFAULT 1.0,
+            correct_count   INTEGER DEFAULT 0,
+            total_count     INTEGER DEFAULT 0,
+            last_updated    TIMESTAMP DEFAULT now()
+        )
+    """)
+
+    # ── Migrations: add new columns to existing tables ────────────────────────
+    _safe_alter(conn, "ALTER TABLE fundamentals ADD COLUMN short_ratio DOUBLE DEFAULT 0")
+    _safe_alter(conn, "ALTER TABLE fundamentals ADD COLUMN short_pct_float DOUBLE DEFAULT 0")
+    _safe_alter(conn, "ALTER TABLE predictions ADD COLUMN regime_label VARCHAR")
+
+    # ── Seed signal_weights with default domains ──────────────────────────────
+    _seed_signal_weights(conn)
+
+    conn.commit()
+
+
+def _safe_alter(conn, sql: str) -> None:
     try:
-        conn.execute("ALTER TABLE fundamentals ADD COLUMN short_ratio DOUBLE DEFAULT 0")
-    except Exception:
-        pass
-    try:
-        conn.execute("ALTER TABLE fundamentals ADD COLUMN short_pct_float DOUBLE DEFAULT 0")
+        conn.execute(sql)
     except Exception:
         pass
 
-    conn.commit()
+
+def _seed_signal_weights(conn) -> None:
+    domains = ["macro", "technical", "momentum", "fundamental", "cross_asset", "sentiment", "geopolitical"]
+    for domain in domains:
+        try:
+            conn.execute("""
+                INSERT OR IGNORE INTO signal_weights (domain, weight_multiplier)
+                VALUES (?, 1.0)
+            """, [domain])
+        except Exception:
+            pass

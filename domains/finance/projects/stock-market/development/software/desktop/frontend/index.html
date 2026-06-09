@@ -319,6 +319,35 @@
     .factor-table tr:hover td { background: rgba(79,142,247,0.03); }
     .shap-bar-wrap { width: 56px; height: 5px; background: var(--border); border-radius: 3px; display: inline-block; vertical-align: middle; }
     .shap-bar-fill { height: 100%; border-radius: 3px; }
+
+    /* ── Factor table — domain grouping + expandable rows ─────────────────── */
+    .factor-domain-row td {
+      background: rgba(30,34,50,0.9); padding: 0.45rem 0.6rem;
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em;
+      text-transform: uppercase; border-top: 1px solid var(--border);
+      border-bottom: 1px solid rgba(42,45,58,0.4);
+    }
+    .factor-row { cursor: pointer; }
+    .factor-row:hover td { background: rgba(79,142,247,0.06) !important; }
+    .factor-detail-row td { background: rgba(12,14,22,0.85); padding: 0; border-bottom: 1px solid var(--border); }
+    .factor-detail-inner {
+      padding: 0.7rem 1rem 0.8rem; display: grid;
+      grid-template-columns: 1fr 1fr; gap: 1.1rem;
+    }
+    @media (max-width: 680px) { .factor-detail-inner { grid-template-columns: 1fr; } }
+    .detail-section-label {
+      font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; margin-bottom: 0.25rem;
+    }
+    .detail-layman  .detail-section-label { color: var(--accent2); }
+    .detail-technical .detail-section-label { color: var(--accent); }
+    .detail-layman  p { font-size: 0.78rem; color: var(--text); line-height: 1.55; }
+    .detail-technical p { font-size: 0.74rem; color: var(--muted); line-height: 1.55; }
+    .expand-chev {
+      display: inline-block; font-size: 0.6rem; color: var(--muted);
+      margin-left: 0.3rem; vertical-align: middle; transition: transform 0.15s;
+      user-select: none;
+    }
   </style>
 </head>
 <body>
@@ -1687,6 +1716,71 @@
       catch (e) { alert(`Delete failed: ${e.message}`); }
     }
 
+    // ── Factor detail explanations (layman + technical) ───────────────────────
+    const _FACTOR_DETAIL = {
+      // Macro & Monetary
+      fed_rate:        { l:"The interest rate set by the Federal Reserve. Higher rates make borrowing expensive — companies pay more on debt and bonds look more attractive than stocks.", t:"Federal Funds Rate midpoint (%). Raises the risk-free discount rate in DCF models, compressing equity P/E multiples. Each +100bp historically coincides with ~8-12% multiple headwind. Fed pivot expectations are the primary equity regime catalyst." },
+      yield_curve:     { l:"The gap between 10-year and 2-year government bond rates. A positive gap (normal) signals economic confidence. Negative (inverted) is historically the most reliable U.S. recession warning.", t:"10Y−2Y Treasury spread (%). Has preceded every U.S. recession since 1960 with 12–18 month lead. Positive slope = healthy term premium and credit creation. Re-steepening after inversion = recession arriving." },
+      yield_curve_inverted: { l:"A simple yes/no flag: is the yield curve currently inverted? Yes usually means the economy is heading for trouble.", t:"Binary indicator (1 when 10Y−2Y < 0). Captures the threshold/nonlinear effect of inversion separately from the spread level, allowing the model to learn asymmetric responses during inversion episodes." },
+      hy_spread:       { l:"The extra interest rate that risky 'junk' bonds pay over safe government bonds. Very high spread = market fears widespread corporate defaults, historically very bad for stocks.", t:"High Yield corporate bond OAS over Treasuries (bp). Leads equity by 1–3 months. Spread > 600bp coincides with severe drawdowns (2008, 2020). Spread < 300bp signals strong risk appetite and low credit stress." },
+      ig_spread:       { l:"The extra interest rate that high-quality corporate bonds pay over government bonds. When it rises, even safe companies' borrowing costs go up — a sign of caution spreading through markets.", t:"Investment Grade corporate OAS over Treasuries (bp). Tightening conditions indicator. IG spreads > 200bp historically precede equity corrections; sustained widening raises the cost of capital across the economy." },
+      tips_real_yield: { l:"The 'real' interest rate you earn after inflation — what you actually gain in purchasing power from safe bonds. When negative, stocks and gold look more attractive by comparison.", t:"10-year TIPS yield (%). Negative real yields lower the opportunity cost of equities and gold. Rising real yields compress growth stock valuations most acutely (long-duration equity effect). Key Fed tightening transmission mechanism." },
+      m2_growth_yoy:   { l:"How fast the total money supply has grown over the past year. More money in the system has historically flowed into stocks — but too much growth can cause inflation.", t:"Year-over-year M2 growth (%). Correlates with equity returns with ~6–12 month lag as excess liquidity flows into risk assets. Negative M2 growth (rare) historically precedes equity drawdowns and correlates with QT cycles." },
+      initial_claims:  { l:"The number of people who filed for unemployment benefits last week. Rising claims = more job losses = weaker economy and often lower stock prices.", t:"Weekly initial jobless claims (seasonally adjusted). More timely than NFP. Claims > 300K signal labor market deterioration. Fed monitors closely — surprises relative to consensus move equity futures significantly." },
+      nfci:            { l:"A financial conditions gauge: how easy or tight it is to borrow and invest. Negative = easy/loose (good for markets); positive = tight (restrictive).", t:"Chicago Fed NFCI — composite of 105 financial indicators across money markets, debt/equity markets, and shadow banking. Negative = looser than historical average. Leads economic activity by 3–6 months; tightening correlates with vol expansion." },
+      pce_core_yoy:    { l:"The Fed's preferred inflation measure. Above the 2% target means the Fed is unlikely to cut interest rates soon, keeping pressure on stock valuations.", t:"Core PCE Price Index, year-over-year (%). Fed's primary inflation target metric. Above-target readings constrain easing and keep discount rates elevated. PCE > 3% in a hiking cycle historically causes 15–20% P/E multiple compression." },
+      fed_balance_sheet:{ l:"How much the Fed has spent buying bonds (quantitative easing). A bigger balance sheet = more money injected into the financial system = historically higher stock prices.", t:"Fed total assets (USD). QE expansion injects liquidity into risk assets; QT contracts it. Post-2008, balance sheet expansion explains much of equity P/E multiple expansion. SPX correlation: ~0.85 over 2009–2021." },
+      monetary_regime: { l:"What the Fed is currently doing with rates: cutting (stimulus), pausing (watching), or hiking (tightening). Each phase historically produces very different stock market returns.", t:"Discrete regime code: 0=Cutting, 1=Pausing, 2=Hiking. Equity returns differ by regime: cutting cycles average +15–20% SPX; hiking cycles average +3–5%. Enables regime-conditional ensemble weighting in the model." },
+      credit_regime:   { l:"The health of the credit market: expansion (normal), stress (cracks appearing), or crisis (systemic risk). Credit markets usually give an early warning before stocks fall.", t:"Discrete regime code: 0=Expansion, 1=Stress, 2=Crisis, derived from HY spread level and momentum. Credit leads equity: HY widening > 100bp typically precedes equity drawdowns by 1–3 months." },
+      yc_regime_code:  { l:"The current shape of the yield curve: normal (healthy), flat (mixed), inverted (recession warning), or re-steepening (recession may have arrived).", t:"Shape regime: 0=Normal, 1=Flat, 2=Inverted, 3=Re-steepening. Re-steepening after inversion is historically the most bearish equity regime — recession typically arrives in this phase, not during inversion itself." },
+      // Volatility
+      vix:             { l:"The 'fear index' — how much market uncertainty is priced into S&P 500 options right now. Below 15 = calm; above 30 = fear and big price swings expected.", t:"CBOE VIX: 30-day implied volatility of SPX options, annualized (%). Mean-reverting with negative autocorrelation to returns. Elevated VIX often precedes short-term bounces but coincides with trend deterioration. Regime threshold: 15 / 25 / 35." },
+      vix_regime:      { l:"A category for the current volatility environment: calm, normal, elevated, or crisis. The model uses different patterns depending on which regime we're in.", t:"Discrete vol regime: 0=Low (<15), 1=Normal (15–25), 2=Elevated (25–35), 3=Crisis (>35). Enables asymmetric model responses — momentum signals dominate in low-vol regimes; macro signals dominate in crisis regimes." },
+      vvix:            { l:"How much the VIX itself is jumping around. High VVIX means even 'fear' is uncertain — usually a precursor to a volatility spike and a negative sign for markets.", t:"CBOE VVIX: implied volatility of VIX options (second-order uncertainty). Spikes in VVIX often lead VIX spikes by 1–5 days, providing a leading indicator of volatility regime changes and tail-risk events." },
+      volatility_20:   { l:"How much this stock's price has been swinging day-to-day over the past month. Higher = more unpredictable. High volatility stocks often underperform on a risk-adjusted basis.", t:"Realized volatility: annualized std dev of daily log returns over 20 days. GARCH effects cause clustering: high vol predicts high vol. Relates to options pricing, VaR, and position sizing. Low-volatility anomaly: low-vol stocks historically outperform (Blitz & Van Vliet 2007)." },
+      vol_regime_code: { l:"The overall market volatility regime right now: calm, normal, elevated, or crisis. Used to switch model behavior depending on how turbulent markets are.", t:"Discrete vol regime code (same thresholds as vix_regime). Used as both a feature and an ensemble routing signal — regime-specific sub-models are weighted differently in calm vs. crisis environments." },
+      // Momentum & Technical
+      return_1d:       { l:"Yesterday's stock price change. Very recent moves can reflect new information not yet fully priced in — or just daily noise.", t:"1-day log return. At 1-day lag, stocks exhibit slight mean-reversion from microstructure effects (bid-ask bounce). Over multi-day horizons momentum dominates. Strong signal for PEAD (post-earnings announcement drift) when near earnings dates." },
+      return_5d:       { l:"How much the stock changed over the past week. Short-term momentum — stocks that have been rising tend to keep rising briefly.", t:"5-day cumulative log return. Short-term momentum signal. Part of cross-sectional weekly momentum strategies. Overlaps with earnings announcement drift window when quarterly reports fall within this range." },
+      return_20d:      { l:"How much the stock changed over the past month. Captures whether the stock is in a short-term uptrend or downtrend.", t:"20-day cumulative log return (~1 month). Medium-term momentum — captures one earnings cycle of trend. Highly correlated with MA20 crossover but provides a continuous signal. Stronger predictor after regime-change events." },
+      return_60d:      { l:"How the stock has performed over 3 months. A cleaner trend signal that filters out short-term day-to-day noise.", t:"60-day cumulative log return (~3 months). Intermediate momentum covering one earnings cycle. Less susceptible to mean-reversion than 5d/20d and more responsive to trend changes than 252d." },
+      return_252d:     { l:"How much the stock gained or lost over the past year. This is the classic 'momentum' factor — last year's winners tend to keep winning for a while.", t:"252-day cumulative log return (12-month, excl. last month to avoid reversal). Canonical Jegadeesh-Titman (1993) momentum factor. Top-decile outperforms bottom-decile by ~10–12% annualized. Signal decays at 12–18 months and reverses at 3–5 years." },
+      ma_5:            { l:"The average price over the last 5 trading days relative to today. A quick gauge of whether the stock is above or below its very recent average.", t:"5-day SMA relative to current price (ratio). Ultra-short trend filter. Above MA5 = very short-term upward momentum. Used in high-frequency tactical signals and mean-reversion detection at sub-week horizons." },
+      ma_20:           { l:"The average price over the past month relative to today. A widely-watched technical level — price above it is generally seen as a positive trend.", t:"20-day SMA relative to current price. Standard short-term trend indicator; MA20 crossovers are heavily traded. Distance from MA20 proxies short-term trend strength and mean-reversion potential." },
+      ma_50:           { l:"The average price over the past 2.5 months relative to today. A key medium-term trend benchmark. Breaks above/below MA50 are major signals watched by institutional traders.", t:"50-day SMA relative to current price. Intermediate trend level. Forms basis of golden cross (MA50 > MA200) and death cross (MA50 < MA200) signals. Distance from MA50 correlates with volatility and mean-reversion probability." },
+      rsi:             { l:"Relative Strength Index (0–100). Above 70 = possibly overbought and due for a pullback. Below 30 = possibly oversold and due for a bounce. Near 50 = neutral.", t:"14-period RSI: ratio of average up-closes to down-closes, scaled 0–100. Standard overbought/oversold oscillator. RSI divergence (price new high, RSI not) signals trend exhaustion. Predictive at extremes; mean-reverting signal rather than trend-following." },
+      high_52w_ratio:  { l:"Where today's price sits relative to the highest price in the past year. At 100% = near all-time high. At 50% = stock is half its 52-week peak.", t:"Current price / 52-week high. George & Hwang (2004) show this is a stronger momentum predictor than raw returns, due to anchoring bias — investors are reluctant to push prices past the prior high, creating a breakout catalyst when resistance is cleared." },
+      amihud_illiquidity:{ l:"How hard it is to trade this stock without moving the price. High illiquidity means your buy or sell order will significantly impact the price.", t:"Amihud (2002) ratio: |return| / dollar_volume, 20-day average. Measures price impact per dollar traded. Illiquid stocks require an illiquidity premium; they also face greater transaction costs and liquidity dry-ups during market stress." },
+      volume_ratio:    { l:"How much trading happened today compared to the usual daily average. High ratio = unusual interest, often linked to news. Low ratio = quiet day.", t:"Current volume / 20-day average volume. Abnormal volume signals informed trading (Kyle 1985). Volume expansion confirming price moves validates the trend; divergence (price move on low volume) suggests lack of conviction and potential reversal." },
+      // Fundamental
+      earnings_surprise:{ l:"How much the company's last earnings beat or missed analyst expectations. A positive surprise usually sends the stock higher; a negative surprise sends it lower.", t:"Standardized Unexpected Earnings (SUE): (reported EPS − consensus) / stock price. Primary driver of Post-Earnings Announcement Drift (PEAD). Ball & Brown (1968) first documented markets take weeks to fully price surprises. Magnitude > 2% produces statistically significant multi-week drift." },
+      short_ratio:     { l:"Days-to-cover: how many days of normal trading volume it would take all short sellers to buy back their shares. High = lots of bearish bets, potential short squeeze fuel.", t:"Short interest / average daily volume. High days-to-cover signals heavy short positioning. Can be contrarian-bullish if a catalyst forces a short squeeze, but primarily signals negative institutional sentiment and fundamental concerns." },
+      // Cross-Asset
+      dxy:             { l:"The U.S. Dollar Index — how strong the dollar is vs. other major currencies. A strong dollar hurts U.S. multinationals' foreign earnings when converted back to dollars.", t:"DXY level. Strong dollar compresses repatriated earnings for multinationals, tightens global USD liquidity (King Dollar effect), and historically negatively correlates with commodity prices and EM equities." },
+      dxy_ret20:       { l:"How much the dollar changed over the past month. A strengthening dollar trend is often a headwind for stocks, especially companies with lots of overseas revenue.", t:"20-day DXY log return. Dollar momentum: sustained strength compresses forward earnings estimates for large-cap multinationals (>50% foreign revenue) and correlates with equity outflows from emerging markets." },
+      gold_equity_ratio:{ l:"How much gold is worth relative to stocks. A high ratio means investors are preferring the safety of gold over stocks — a fear signal.", t:"Gold (GLD) / Equity (SPY) price ratio. Risk-off indicator: spikes during recessions and geopolitical crises. Inversely correlated with equity risk appetite. Historically peaks near equity market bottoms." },
+      copper_ret20:    { l:"How copper prices have moved over the past month. Copper is used in everything from buildings to electronics — rising prices signal a healthy global economy.", t:"20-day log return of copper futures. 'Dr. Copper' leading economic indicator: industrial ubiquity makes it a real-time proxy for global demand. Copper momentum leads global PMI by 1–3 months. Bullish for cyclical equities." },
+      usdjpy_ret5:     { l:"How much the Japanese Yen moved vs. the dollar this week. When the yen strengthens quickly (goes negative), it usually means investors are unwinding risky bets — a bad sign.", t:"5-day USDJPY log return. JPY is the primary carry trade funding currency. Yen weakening (positive) = carry expansion and risk-on; yen strengthening = carry unwind, historically coinciding with equity drawdowns and vol spikes." },
+      oil_ret20:       { l:"How much oil prices changed over the past month. Rising oil increases costs for most companies and can squeeze consumer spending, while falling oil does the opposite.", t:"20-day crude oil (WTI) log return. Affects corporate margins, consumer disposable income, and Fed inflation expectations. Oil price spikes > 20% over short periods historically precede recessions. Energy sector returns are a direct proxy." },
+      btc_spx_corr:    { l:"How closely Bitcoin and the stock market have been moving together over the past month. High correlation means Bitcoin is acting like a risky stock — both fall together in downturns.", t:"30-day rolling BTC/SPX return correlation. High positive correlation = BTC trading as risk asset (correlated selloffs in stress). Near-zero or negative = potential decorrelation or BTC acting as digital gold. Useful liquidity and sentiment signal." },
+      // Cross-sectional ranks
+      rsi_rank:        { l:"How this stock's RSI compares to all other stocks right now (percentile). High = more overbought than most; low = more oversold than most.", t:"Cross-sectional percentile rank of RSI across the universe. Converts absolute RSI to a relative signal, removing market-wide bias. Stocks with extreme cross-sectional RSI (top/bottom decile) show stronger reversion than those with extreme absolute RSI." },
+      return_5d_rank:  { l:"How this week's return ranks vs. all other stocks. High rank = one of the best performers this week vs. the whole market.", t:"Cross-sectional percentile rank of 5-day return. Controls for market beta by ranking — neutralizes systematic market moves and isolates idiosyncratic performance. More robust momentum signal than time-series momentum alone." },
+      return_20d_rank: { l:"How this month's return ranks vs. all other stocks. High = outperforming most of the market recently.", t:"Cross-sectional percentile rank of 20-day return. Monthly cross-sectional momentum. Fama-French momentum portfolios use similar construction. Ranking removes absolute return level, making the signal robust across bull and bear markets." },
+      volatility_20_rank:{ l:"How volatile this stock is compared to all others right now. High rank = more volatile than most. Counterintuitively, lower-volatility stocks tend to outperform higher-volatility stocks over time.", t:"Cross-sectional percentile rank of 20-day realized volatility. Low-volatility anomaly (Blitz & Van Vliet 2007): low-vol stocks outperform by 2–5% annually, contrary to CAPM. High-vol stocks are overpriced relative to their risk-adjusted return." },
+      volume_ratio_rank:{ l:"How this stock's trading activity level compares to all other stocks. High rank = unusually active relative to peers, which often means news or informed trading.", t:"Cross-sectional percentile rank of volume_ratio. Captures relative volume surge across the universe. High cross-sectional volume rank with concurrent price move is stronger trend confirmation than absolute volume alone." },
+      short_ratio_rank:{ l:"How much short interest this stock has vs. all others. High rank = more short sellers betting against it than most other stocks in the market.", t:"Cross-sectional percentile rank of short interest ratio. Normalizes for sector-level short interest differences. Top-decile cross-sectional short interest carries stronger bearish signal than absolute short interest, as it controls for sector baseline." },
+    };
+
+    function toggleFactorDetail(id) {
+      const row = document.getElementById("fd-" + id);
+      const chev = document.getElementById("fc-" + id);
+      if (!row) return;
+      const open = row.style.display !== "none";
+      row.style.display = open ? "none" : "table-row";
+      if (chev) chev.style.transform = open ? "" : "rotate(90deg)";
+    }
+
     // ── Explain Modal (How was this calculated?) ───────────────────────────────
     const _explainCache = {};
     let _explainTicker  = null;
@@ -1754,9 +1848,9 @@
         if (s.blend_formula) {
           extraHtml = `<div style="font-family:monospace;font-size:0.72rem;color:var(--accent);background:rgba(79,142,247,0.08);padding:0.2rem 0.45rem;border-radius:4px;margin-top:0.25rem;word-break:break-all">${s.blend_formula}</div>`;
         }
-        const valColor    = s.value >= 0.5 ? "var(--accent2)" : "var(--danger)";
-        const nudgeDelta  = s.nudge_delta;
-        const nudgeHtml   = nudgeDelta !== undefined && nudgeDelta !== null
+        const valColor   = s.value >= 0.5 ? "var(--accent2)" : "var(--danger)";
+        const nudgeDelta = s.nudge_delta;
+        const nudgeHtml  = nudgeDelta !== undefined && nudgeDelta !== null
           ? ` <span style="font-size:0.72rem;color:${nudgeDelta > 0 ? "var(--accent2)" : nudgeDelta < 0 ? "var(--danger)" : "var(--muted)"}">(${nudgeDelta >= 0 ? "+" : ""}${(nudgeDelta * 100).toFixed(2)}pp)</span>`
           : "";
         return `
@@ -1785,7 +1879,7 @@
           </div>
         </div>`;
 
-      // ── All parameters table ──────────────────────────────────────────────
+      // ── All parameters table — grouped by domain ──────────────────────────
       if (!allFactors.length) {
         return `
           <div style="margin-bottom:1.5rem">
@@ -1795,40 +1889,37 @@
           <p style="color:var(--muted);font-size:0.82rem">Feature breakdown not available — model not yet trained or first prediction.</p>`;
       }
 
-      const maxShap        = Math.max(...allFactors.map(f => Math.abs(f.shap)), 0.001);
+      const maxShap = Math.max(...allFactors.filter(f=>f.shap!=null).map(f => Math.abs(f.shap)), 0.001);
       const methodBadgeHtml = `<span style="background:rgba(79,142,247,0.12);color:var(--accent);font-size:0.7rem;padding:0.15rem 0.4rem;border-radius:3px;margin-left:0.5rem">${method === "shap" ? "SHAP (TreeExplainer)" : "Feature Importance (approx.)"}</span>`;
 
-      const inModelFactors  = allFactors.filter(f => f.in_model !== false);
-      const extraFactors    = allFactors.filter(f => f.in_model === false);
-      const extraNote       = extraFactors.length
-        ? `<tr><td colspan="7" style="padding:0.5rem;font-size:0.72rem;color:var(--muted);font-style:italic;border-top:2px solid var(--border)">
-             ↓ ${extraFactors.length} features defined in current pipeline but absent from the model on disk — retrain to include them
-           </td></tr>`
-        : "";
+      const inModelFactors = allFactors.filter(f => f.in_model !== false);
+      const extraFactors   = allFactors.filter(f => f.in_model === false);
 
       function _fmtVal(v) {
         const av = Math.abs(v);
-        return av >= 100000 ? (v / 1e6).toFixed(2) + "M"
-             : av >= 1000   ? v.toFixed(0)
-             : av >= 0.01   ? v.toFixed(4)
-             : v.toExponential(2);
+        return av >= 1e5 ? (v/1e6).toFixed(2)+"M" : av >= 1000 ? v.toFixed(0) : av >= 0.01 ? v.toFixed(4) : v.toExponential(2);
       }
 
-      function _rowHtml(f, i, dimmed) {
+      // Build one factor row + its hidden detail row
+      function _rowPair(f, idx, dimmed) {
         const hasShap  = f.shap !== null && f.shap !== undefined;
-        const shapAbs  = hasShap ? Math.abs(f.shap) : 0;
-        const barPct   = Math.round((shapAbs / maxShap) * 100);
+        const barPct   = Math.round((hasShap ? Math.abs(f.shap) : 0) / maxShap * 100);
         const barColor = !hasShap ? "var(--border)" : f.direction === "up" ? "#34d399" : "#f87171";
         const arrow    = f.direction === "up" ? "▲" : f.direction === "down" ? "▼" : "—";
         const arrowCol = f.direction === "up" ? "var(--accent2)" : f.direction === "down" ? "var(--danger)" : "var(--muted)";
-        const shapTxt  = hasShap
-          ? `${f.shap >= 0 ? "+" : ""}${f.shap.toFixed(4)}`
-          : `<span style="color:var(--border)">n/a</span>`;
-        const rowOpacity = dimmed ? "opacity:0.45;" : "";
-        return `<tr style="${rowOpacity}">
-          <td style="color:var(--muted);font-size:0.7rem;text-align:right;min-width:22px">${i + 1}</td>
-          <td style="font-family:monospace;color:${dimmed ? "var(--muted)" : "var(--text)"};font-size:0.75rem;white-space:nowrap">${f.name}</td>
-          <td style="color:var(--muted);font-size:0.72rem;white-space:nowrap">${f.domain_label}</td>
+        const shapTxt  = hasShap ? `${f.shap>=0?"+":""}${f.shap.toFixed(4)}` : `<span style="color:var(--border)">n/a</span>`;
+        const opacity  = dimmed ? "opacity:0.45;" : "";
+        const detail   = _FACTOR_DETAIL[f.name];
+        const uid      = f.name.replace(/[^a-z0-9]/gi,"_");
+
+        const chevHtml = detail
+          ? `<span class="expand-chev" id="fc-${uid}">▶</span>`
+          : "";
+        const clickAttr = detail ? `onclick="toggleFactorDetail('${uid}')"` : "";
+
+        const dataRow = `<tr class="factor-row" ${clickAttr} style="${opacity}">
+          <td style="color:var(--muted);font-size:0.68rem;text-align:right;min-width:20px;padding-right:0.3rem">${idx}</td>
+          <td style="font-family:monospace;color:${dimmed?"var(--muted)":"var(--text)"};font-size:0.75rem;white-space:nowrap">${f.name}${chevHtml}</td>
           <td style="font-family:monospace;font-size:0.72rem;color:var(--muted);white-space:nowrap">${_fmtVal(f.value)}</td>
           <td style="white-space:nowrap">
             <div style="display:flex;align-items:center;gap:0.35rem">
@@ -1836,16 +1927,80 @@
               <span style="font-size:0.7rem;font-family:monospace;color:${barColor};min-width:52px">${shapTxt}</span>
             </div>
           </td>
-          <td style="color:${arrowCol};font-size:0.75rem;white-space:nowrap">${arrow}${hasShap ? " " + f.direction.toUpperCase() : ""}</td>
-          <td style="color:var(--muted);font-size:0.71rem;line-height:1.35;max-width:240px">${f.explanation}</td>
+          <td style="color:${arrowCol};font-size:0.75rem;white-space:nowrap">${arrow}${hasShap?" "+f.direction.toUpperCase():""}</td>
+          <td style="color:var(--muted);font-size:0.71rem;line-height:1.35;max-width:220px">${f.explanation}</td>
         </tr>`;
+
+        const detailRow = detail ? `<tr id="fd-${uid}" class="factor-detail-row" style="display:none">
+          <td colspan="6">
+            <div class="factor-detail-inner">
+              <div class="detail-layman">
+                <div class="detail-section-label">In plain English</div>
+                <p>${detail.l}</p>
+              </div>
+              <div class="detail-technical">
+                <div class="detail-section-label">Technical</div>
+                <p>${detail.t}</p>
+              </div>
+            </div>
+          </td>
+        </tr>` : "";
+
+        return dataRow + detailRow;
       }
 
-      const rowsHtml = [
-        ...inModelFactors.map((f, i) => _rowHtml(f, i + 1, false)),
-        extraNote,
-        ...extraFactors.map((f, i) => _rowHtml(f, inModelFactors.length + i + 1, true)),
-      ].join("");
+      // Group in-model factors by domain; sort domains by total |SHAP|
+      const domainBuckets = {};
+      inModelFactors.forEach(f => {
+        const d = f.domain || "other";
+        if (!domainBuckets[d]) domainBuckets[d] = { label: f.domain_label || d, items: [], totalShap: 0, netShap: 0 };
+        domainBuckets[d].items.push(f);
+        domainBuckets[d].totalShap += Math.abs(f.shap || 0);
+        domainBuckets[d].netShap   += (f.shap || 0);
+      });
+      const sortedDomains = Object.entries(domainBuckets).sort((a,b) => b[1].totalShap - a[1].totalShap);
+
+      let rowIdx = 0;
+      const groupedRows = sortedDomains.map(([, grp]) => {
+        const dirColor  = grp.netShap > 0.005 ? "var(--accent2)" : grp.netShap < -0.005 ? "var(--danger)" : "var(--muted)";
+        const dirArrow  = grp.netShap > 0.005 ? "▲" : grp.netShap < -0.005 ? "▼" : "—";
+        const netSign   = grp.netShap >= 0 ? "+" : "";
+        const header = `<tr class="factor-domain-row">
+          <td colspan="6" style="color:var(--text)">
+            <span>${grp.label}</span>
+            <span style="color:var(--muted);font-weight:400;margin-left:0.5rem">${grp.items.length} factor${grp.items.length>1?"s":""}</span>
+            <span style="color:${dirColor};margin-left:1rem">${dirArrow} net ${netSign}${grp.netShap.toFixed(4)}</span>
+            <span style="color:var(--muted);font-weight:400;margin-left:0.75rem;font-style:italic">total influence ${grp.totalShap.toFixed(4)}</span>
+          </td>
+        </tr>`;
+        const rows = grp.items.map(f => { rowIdx++; return _rowPair(f, rowIdx, false); }).join("");
+        return header + rows;
+      }).join("");
+
+      // Group extra (not-in-model) factors by domain
+      let extraGrouped = "";
+      if (extraFactors.length) {
+        const extraBuckets = {};
+        extraFactors.forEach(f => {
+          const d = f.domain || "other";
+          if (!extraBuckets[d]) extraBuckets[d] = { label: f.domain_label || d, items: [] };
+          extraBuckets[d].items.push(f);
+        });
+        const extraSeparator = `<tr><td colspan="6" style="padding:0.6rem 0.5rem;font-size:0.72rem;color:var(--muted);font-style:italic;border-top:2px solid var(--border)">
+          ↓ ${extraFactors.length} parameters defined in current pipeline but absent from the model on disk — retrain to include them
+        </td></tr>`;
+        const extraRows = Object.entries(extraBuckets).map(([, grp]) => {
+          const header = `<tr class="factor-domain-row"><td colspan="6" style="color:var(--muted)">${grp.label} <span style="font-weight:400">${grp.items.length} factor${grp.items.length>1?"s":""}</span></td></tr>`;
+          const rows = grp.items.map(f => { rowIdx++; return _rowPair(f, rowIdx, true); }).join("");
+          return header + rows;
+        }).join("");
+        extraGrouped = extraSeparator + extraRows;
+      }
+
+      const hintHtml = `<p style="font-size:0.72rem;color:var(--muted);margin-bottom:0.6rem">
+        Click any row to see plain-English and technical explanations.
+        Positive SHAP = pushes Prob(UP) higher. Negative = pushes it lower.
+      </p>`;
 
       return `
         <div style="margin-bottom:1.75rem">
@@ -1854,27 +2009,23 @@
           ${finalBox}
         </div>
         <div>
-          <h4 style="margin-bottom:0.4rem;font-size:0.9rem;font-weight:700">
+          <h4 style="margin-bottom:0.35rem;font-size:0.9rem;font-weight:700">
             🔍 All Parameters — ${inModelFactors.length} with SHAP${extraFactors.length ? ` + ${extraFactors.length} defined (not in model on disk)` : ""}${methodBadgeHtml}
           </h4>
-          <p style="font-size:0.75rem;color:var(--muted);margin-bottom:0.75rem">
-            Sorted by absolute SHAP influence. Positive = pushes probability toward UP. Negative = toward DOWN.
-            Dimmed rows are defined in the pipeline but absent from the model file — retrain to include them.
-          </p>
+          ${hintHtml}
           <div style="overflow-x:auto">
             <table class="factor-table">
               <thead>
                 <tr>
-                  <th>#</th>
+                  <th style="min-width:22px">#</th>
                   <th>Parameter</th>
-                  <th>Domain</th>
                   <th>Current Value</th>
                   <th>Influence (SHAP)</th>
                   <th>Direction</th>
-                  <th>Why this matters</th>
+                  <th>Current interpretation</th>
                 </tr>
               </thead>
-              <tbody>${rowsHtml}</tbody>
+              <tbody>${groupedRows}${extraGrouped}</tbody>
             </table>
           </div>
         </div>`;

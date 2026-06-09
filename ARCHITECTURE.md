@@ -155,17 +155,32 @@ When capable robotic systems are available, the development layer of each projec
 
 ### Overview
 
-The **Adaptive Dynamic Prediction System (ADPS)** is the model architecture for the stock-market project. It is a 7-layer, regime-aware, online-learning system that processes 656 exhaustively-researched factors with dynamic per-second weights. The model is custom-written, bundled with the app, and runs fully on-device.
+The **Adaptive Dynamic Prediction System (ADPS)** is the model architecture for the stock-market project. It is a 9-layer, regime-aware, online-learning system that processes 656 exhaustively-researched factors with dynamic per-second weights. The model is custom-written, bundled with the app, and runs fully on-device.
 
 LLMs are a separate, optional enhancement layer: the user downloads a local LLM (e.g., Llama/Mistral) and once present the app automatically uses it to convert unstructured text (earnings calls, FOMC statements, news) into structured numerical features that feed the ADPS. The LLM does not make predictions; the ADPS does.
 
-### 7-Layer Architecture
+Two design imperatives beyond prediction accuracy:
+
+1. **Radical transparency** — the user can always see exactly which factors drove a prediction, what their weights were, and why. No black-box output.
+2. **User-directed refinement** — the user can inject knowledge the model lacks: paste a news URL, type a context note, boost or suppress specific factors. The model incorporates this in real time and learns from whether the user's override was correct.
+
+### 9-Layer Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────┐
+│  Layer 9: User Guidance Interface                        │◄─── user input (news URL,
+│  · Free-text context input                               │     text note, factor
+│  · URL ingestion → LLM extracts signal                   │     boost/suppress)
+│  · Per-factor weight override (boost / suppress)         │
+│  · User context injected as high-confidence features     │
+│  · User's overrides tracked; feed Layer 5 when correct   │
+└──────────────────────────┬───────────────────────────────┘
+                           │ user-injected signals
+┌──────────────────────────▼───────────────────────────────┐
 │  Layer 1: Universal Feature Store (656 factors)          │
 │  · Feature value · Timestamp · Staleness score          │
 │  · Confidence score · Source reliability score          │
+│  · Source tag: SYSTEM | LLM | USER_OVERRIDE             │
 └──────────────────────────┬───────────────────────────────┘
                            │
 ┌──────────────────────────▼───────────────────────────────┐
@@ -180,9 +195,8 @@ LLMs are a separate, optional enhancement layer: the user downloads a local LLM 
 ┌──────────────────────────▼───────────────────────────────┐
 │  Layer 3: Dynamic Weight Generator                       │
 │  · Gating neural network: f(regime, news events,         │
-│    order flow, feature freshness) → weight vector        │
-│  · Weights update on regime changes and live events;     │
-│    feature VALUES update every second (price, volume)    │
+│    order flow, feature freshness, user overrides)        │
+│  · User-overridden weights take precedence               │
 │  · Old/stale features down-weighted via staleness score  │
 └──────────────────────────┬───────────────────────────────┘
                            │ weighted features
@@ -191,22 +205,22 @@ LLMs are a separate, optional enhancement layer: the user downloads a local LLM 
 │  · Regime-aware ensemble: one sub-model per regime       │
 │  · Sub-models: GBM / small neural net per regime bucket  │
 │  · Output: directional probability + confidence interval │
+│  · Also emits: per-feature SHAP importance scores        │
 │  · Walk-forward CV (6-month folds, 2-year min window)   │
 └──────────────────────────┬───────────────────────────────┘
-                           │ prediction + confidence
+                           │ prediction + confidence + SHAP scores
 ┌──────────────────────────▼───────────────────────────────┐
 │  Layer 5: Online Learning Engine                         │
 │  · Compares predictions vs. observed outcomes            │
 │  · Gradient descent on observed results (slow LR)        │
-│  · Updates sub-model weights; prevents overfitting       │
+│  · When user override was correct: reinforces that signal│
 │  · Historical predictions stored on-device (user-clearable)│
 └──────────────────────────┬───────────────────────────────┘
                            │
 ┌──────────────────────────▼───────────────────────────────┐
 │  Layer 6: LLM Text Pipeline (OPTIONAL — user-downloaded) │
-│  · Earnings calls → {tone, hedging, guidance_raised}     │
-│  · FOMC statement → {hawkishness_delta, surprise}        │
-│  · Geopolitical news → {sector_impact_scores}            │
+│  · System sources: earnings calls, FOMC, geopolitical    │
+│  · User sources: any URL or text the user pastes         │
 │  · Output: structured numerical signals → Layer 1 store  │
 └──────────────────────────┬───────────────────────────────┘
                            │
@@ -215,6 +229,15 @@ LLMs are a separate, optional enhancement layer: the user downloads a local LLM 
 │  · New parameters start at near-zero weight              │
 │  · Earn their weight through online learning             │
 │  · No full retraining required to add new signals        │
+└──────────────────────────┬───────────────────────────────┘
+                           │
+┌──────────────────────────▼───────────────────────────────┐
+│  Layer 8: Transparency & Explainability Engine           │
+│  · Consumes SHAP scores from Layer 4                     │
+│  · Groups factors by domain (macro, technical, etc.)     │
+│  · Generates plain-English rationale per factor          │
+│  · Flags user overrides that are active                  │
+│  · Exposes structured data to the UI (see UI below)      │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -246,6 +269,114 @@ Factors fall into 4 roles: continuous time-series features, event/shock signals,
 
 **Tier 3:** Full LLM pipeline (earnings NLP, FOMC NLP, geopolitical NLP, 10-K risk factor diff)
 
+### Layer 8: Transparency & Explainability UI
+
+Every prediction ships with a full "prediction receipt" that is surfaced to the user in the app. The user can never be left wondering *why* the model said what it said.
+
+**What is shown:**
+
+```
+┌─ AAPL Prediction: BULLISH 73% confidence ──────────────┐
+│                                                         │
+│  [Why this prediction?]  ← tappable, opens detail sheet│
+│                                                         │
+│  ▼ Macro Factors           (drove +18% of this call)   │
+│    · Yield curve: NORMAL           weight 0.14  ✓ fresh │
+│    · HY credit spread: tight       weight 0.11  ✓ fresh │
+│    · NFCI financial conditions: −  weight 0.09  ✓ fresh │
+│    · M2 growth: 4.1% YoY          weight 0.07  ⚠ 3d old│
+│                                                         │
+│  ▶ Technical Factors       (drove +22% of this call)   │
+│  ▶ Sentiment Factors       (drove +15% of this call)   │
+│  ▶ Cross-Asset Factors     (drove +12% of this call)   │
+│  ▶ Geopolitical Factors    (drove −8% of this call)    │
+│  ▶ User Overrides          (1 active — "tariff news")  │
+│                                                         │
+│  Active regime: MONETARY=PAUSING · VOL=NORMAL           │
+│  Model accuracy on past 90 predictions: 61%             │
+└─────────────────────────────────────────────────────────┘
+```
+
+**UI implementation:**
+- Bottom sheet / modal panel triggered by "Why this prediction?" button on prediction card
+- Factor groups are collapsible sections; each shows top 3-5 contributing factors with weight, value, freshness indicator, and a one-line plain-English explanation
+- Staleness warnings shown inline (⚠ 3d old) so user can judge data quality
+- Active regime displayed prominently — helps user understand which sub-model fired
+- User overrides shown in their own section so user knows their input was counted
+- Historical accuracy shown so user can calibrate trust ("model was right 61% of the time on similar conditions")
+- "Full factor list" link shows all 656 factors with their current values and weights in a searchable, filterable list
+
+**Data contract from Layer 4:**
+```json
+{
+  "ticker": "AAPL",
+  "direction": "BULLISH",
+  "probability": 0.73,
+  "horizon": "1w",
+  "regime": {"monetary": "PAUSING", "vol": "NORMAL", "yield_curve": "NORMAL"},
+  "top_factors": [
+    {"id": "T10Y2Y", "domain": "macro", "value": 0.42, "weight": 0.14,
+     "direction_contribution": "+", "staleness_days": 0, "explanation": "Yield curve is normal — no recession signal"},
+    ...
+  ],
+  "user_overrides_active": [
+    {"label": "tariff news", "source_url": "...", "injected_signal": 0.65}
+  ],
+  "model_accuracy_90d": 0.61
+}
+```
+
+---
+
+### Layer 9: User Guidance Interface
+
+The user has knowledge the model doesn't. This layer captures it and injects it into the prediction pipeline in real time.
+
+**Input modalities:**
+
+| Mode | What user does | How it works |
+|------|---------------|--------------|
+| **Paste a URL** | User pastes a news link, earnings report URL, SEC filing, etc. | LLM (if available) extracts structured signal; without LLM, keyword extraction; injected into Feature Store with source=USER |
+| **Free-text note** | "Company just lost a $2B contract" / "CEO sold all shares last week" | LLM converts to sentiment/magnitude signal; keyword fallback |
+| **Factor boost/suppress** | Slider per factor group: "I think geopolitical risk is higher than the model thinks" | Multiplies that domain's weight by user-specified scalar (0.5× to 3×) |
+| **Factor pin** | "Always weight short interest heavily for this ticker" | Ticker-specific weight floor; persists across predictions |
+| **Override source link** | "Use this data source instead of the default" | Data URL added to ingestion queue for that factor |
+
+**Lifecycle of a user input:**
+
+```
+User pastes URL or types note
+        ↓
+Layer 6 (LLM) extracts structured signal
+        ↓
+Injected into Layer 1 Feature Store
+  · source_tag = USER_OVERRIDE
+  · confidence = 0.9 (user input presumed intentional)
+  · staleness = 0 (fresh at injection time)
+        ↓
+Layer 3 Weight Generator sees USER_OVERRIDE tag
+  → applies user-specified weight or default boost
+        ↓
+Layer 4 Prediction Engine runs with user signal included
+        ↓
+Layer 8 Transparency UI shows user override in its own section
+        ↓
+When outcome known: Layer 5 Online Learning records
+  · "user override X → outcome Y"
+  · If user was right: increase that signal type's base weight
+  · If user was wrong: decrease (slowly, with floor to avoid overfit)
+```
+
+**UI implementation:**
+- Persistent "Add context" button on every prediction card and stock detail screen
+- In-app bottom sheet with 4 tabs: Paste URL / Write note / Adjust weights / Manage overrides
+- Active overrides shown as chips on the prediction card (e.g., "📎 1 user signal active")
+- "Manage overrides" screen shows all active user inputs per ticker — user can delete, edit, or mark as expired
+- Weight adjustment is per-domain (not per-factor) to avoid overwhelming the user; power users can expand to factor-level
+- No override is permanent by default — each has an expiry (default: 7 days) that user can extend
+
+---
+
 ### Desktop vs Mobile Split
 
 - **Desktop:** Full 656-feature pipeline, online learning, regime classifier, LLM pipeline, live data ingestion (FRED, Yahoo Finance, CBOE, CFTC, SEC EDGAR)
@@ -262,3 +393,6 @@ Different factors maintain predictive power for different durations — intraday
 - Prediction is on-demand at the moment the user taps a symbol, using current feature values and weights
 - Historical predictions stored on-device; user controls storage and can clear it
 - Model evolves via online learning from its own prediction outcomes — no human intervention needed for routine weight updates
+- **Every prediction is fully explainable** — the user can always see which factors drove it, with what weight, and how fresh the data was; no black-box output ever
+- **User knowledge always wins** — the user can inject context the model lacks (news, URLs, notes, weight overrides) and that input is treated as high-confidence signal; the model learns from whether the user was right
+- **Trust is earned incrementally** — model accuracy is surfaced per-ticker and per-regime so the user can decide how much weight to give any individual prediction

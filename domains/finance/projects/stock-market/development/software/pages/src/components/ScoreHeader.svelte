@@ -4,6 +4,7 @@
   export let result: PredictionResult;
   export let onSave: () => void;
   export let onReset: () => void;
+  export let onPredict: () => void;
 
   $: dirColor = result.direction === 'up' ? 'var(--accent2)' : result.direction === 'down' ? 'var(--danger)' : 'var(--muted)';
   $: dirLabel = result.direction === 'up' ? '▲ UP' : result.direction === 'down' ? '▼ DOWN' : '— NEUTRAL';
@@ -28,8 +29,9 @@
   </div>
 
   <div class="actions">
-    <button class="btn-reset" on:click={onReset}>↺ Reset</button>
-    <button class="btn-save"  on:click={onSave} disabled={result.paramsSet === 0}>
+    <button class="btn-reset"   on:click={onReset}>↺ Reset</button>
+    <button class="btn-predict" on:click={onPredict}>▶ Predict</button>
+    <button class="btn-save"    on:click={onSave} disabled={result.paramsSet === 0}>
       💾 Save Snapshot
     </button>
   </div>
@@ -62,6 +64,12 @@
     padding: 0.4rem 1rem; border-radius: 6px; font-size: 0.85rem;
   }
   .btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-predict {
+    background: var(--accent2); border: none; color: #0f1117;
+    padding: 0.4rem 1.1rem; border-radius: 6px; font-size: 0.85rem; font-weight: 700;
+    transition: opacity 0.12s;
+  }
+  .btn-predict:hover { opacity: 0.85; }
   .btn-reset {
     background: none; border: 1px solid var(--border); color: var(--muted);
     padding: 0.4rem 0.8rem; border-radius: 6px; font-size: 0.85rem;

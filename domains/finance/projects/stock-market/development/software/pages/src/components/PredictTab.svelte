@@ -8,12 +8,14 @@
   import ScoreHeader from './ScoreHeader.svelte';
   import ParameterGroup from './ParameterGroup.svelte';
   import ResearchModal from './ResearchModal.svelte';
+  import PredictionResultModal from './PredictionResultModal.svelte';
 
   export let ticker: string;
 
   let states: Record<string, ParamState> = initStates();
   let settings: AppSettings = { fredApiKey: '', corsProxyEnabled: false, llmModelId: null, llmDownloaded: false };
   let researchParam: Parameter | null = null;
+  let showResultModal = false;
   let saveMsg = '';
   let tickerInput = ticker;
 
@@ -98,6 +100,7 @@
   {result}
   onSave={handleSave}
   onReset={handleReset}
+  onPredict={() => showResultModal = true}
 />
 
 <!-- Parameter groups -->
@@ -121,6 +124,16 @@
   onClose={() => researchParam = null}
   onApply={handleApplySuggestion}
 />
+
+<!-- Prediction result modal -->
+{#if showResultModal}
+  <PredictionResultModal
+    {result}
+    {states}
+    {ticker}
+    onClose={() => showResultModal = false}
+  />
+{/if}
 
 <style>
   .ticker-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }

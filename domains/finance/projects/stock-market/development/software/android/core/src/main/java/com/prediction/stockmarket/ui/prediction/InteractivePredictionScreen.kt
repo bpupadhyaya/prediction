@@ -17,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,8 +55,10 @@ fun InteractivePredictionScreen(
     val state by viewModel.state.collectAsState()
 
     LaunchedEffect(ticker) {
-        viewModel.loadParameters(ticker)
-        viewModel.refreshModelStatus()
+        if (ticker.isNotBlank()) {
+            viewModel.loadParameters(ticker)
+            viewModel.refreshModelStatus()
+        }
     }
 
     Scaffold(
@@ -105,17 +109,18 @@ fun InteractivePredictionScreen(
                     text = state.saveMessage,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     color = Color(0xFF4ADE80),
-                    fontSize = 12.sp
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
 
             // Error message
             if (state.errorMessage != null) {
                 Text(
-                    text = state.errorMessage!!,
+                    text = state.errorMessage ?: "",
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     color = Color(0xFFF87171),
-                    fontSize = 12.sp
+                    fontSize = 13.sp
                 )
             }
 
@@ -354,10 +359,13 @@ private fun ParameterRowItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Expand chevron
-            IconButton(onClick = onExpand, modifier = Modifier.size(28.dp)) {
+            IconButton(
+                onClick = onExpand,
+                modifier = Modifier.size(28.dp)
+            ) {
                 Icon(
                     imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ChevronRight,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    contentDescription = if (isExpanded) "Collapse ${param.label}" else "Expand ${param.label}",
                     modifier = Modifier.size(14.dp),
                     tint = Color(0xFF64748B)
                 )
@@ -387,7 +395,9 @@ private fun ParameterRowItem(
                 value = paramState.weight.toFloat(),
                 onValueChange = { onWeight(it.toInt()) },
                 valueRange = 0f..100f,
-                modifier = Modifier.width(80.dp),
+                modifier = Modifier
+                    .width(80.dp)
+                    .semantics { contentDescription = "Weight: ${paramState.weight}" },
                 colors = SliderDefaults.colors(
                     thumbColor = Color(0xFF4F8EF7),
                     activeTrackColor = Color(0xFF4F8EF7),
@@ -399,7 +409,7 @@ private fun ParameterRowItem(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
                 color = Color(0xFF4F8EF7),
-                modifier = Modifier.width(26.dp),
+                modifier = Modifier.width(28.dp),
                 fontWeight = FontWeight.SemiBold
             )
 
@@ -409,25 +419,31 @@ private fun ParameterRowItem(
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 OutlinedButton(
                     onClick = { onDirection(if (upActive) "neutral" else "up") },
-                    modifier = Modifier.height(28.dp),
+                    modifier = Modifier
+                        .height(28.dp)
+                        .semantics { contentDescription = "Set up direction for ${param.label}" },
                     border = BorderStroke(1.dp, if (upActive) Color(0xFF34D399) else Color(0xFF334155)),
+                    shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = if (upActive) Color(0xFF0F4738) else Color.Transparent
                     )
                 ) {
-                    Text("▲", color = if (upActive) Color(0xFF34D399) else Color(0xFF64748B), fontSize = 11.sp)
+                    Text("▲", color = if (upActive) Color(0xFF34D399) else Color(0xFF64748B), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
                 OutlinedButton(
                     onClick = { onDirection(if (downActive) "neutral" else "down") },
-                    modifier = Modifier.height(28.dp),
+                    modifier = Modifier
+                        .height(28.dp)
+                        .semantics { contentDescription = "Set down direction for ${param.label}" },
                     border = BorderStroke(1.dp, if (downActive) Color(0xFFF87171) else Color(0xFF334155)),
+                    shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = if (downActive) Color(0xFF4A1010) else Color.Transparent
                     )
                 ) {
-                    Text("▼", color = if (downActive) Color(0xFFF87171) else Color(0xFF64748B), fontSize = 11.sp)
+                    Text("▼", color = if (downActive) Color(0xFFF87171) else Color(0xFF64748B), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -460,7 +476,7 @@ private fun ParameterRowItem(
                         color = Color.White.copy(alpha = 0.85f)
                     )
                 }
-                // Vertical divider via Box (VerticalDivider requires Material3 1.3+)
+                // Vertical divider via Box
                 Box(
                     modifier = Modifier
                         .width(1.dp)
@@ -552,7 +568,7 @@ private fun LLMResearchSection(
                         )
                         Text(
                             "Download a model in the Models tab to enable AI research",
-                            color = Color.White.copy(alpha = 0.7f),
+                            color = Color.White.copy(alpha = 0.85f),
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -584,14 +600,15 @@ private fun LLMResearchSection(
 
                 Button(
                     onClick = {
-                        if (questionText.isNotBlank()) {
-                            viewModel.askLLM(questionText)
+                        val q = questionText.trim()
+                        if (q.isNotBlank()) {
+                            viewModel.askLLM(q)
                             questionText = ""
                         }
                     },
                     enabled = questionText.isNotBlank() && !state.isStreaming,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF0EA5E9),
                         disabledContainerColor = Color(0xFF0EA5E9).copy(alpha = 0.35f)

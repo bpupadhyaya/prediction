@@ -21,7 +21,7 @@ private let preIPO: [PreIPOCompany] = [
     PreIPOCompany(name: "OpenAI",     sector: "AI / LLM",      description: "Maker of ChatGPT, GPT-4o, and Sora",                     status: "Pre-IPO",   estValuation: "$157B"),
     PreIPOCompany(name: "Anthropic",  sector: "AI / LLM",      description: "AI safety company, maker of Claude",                     status: "Pre-IPO",   estValuation: "$61B"),
     PreIPOCompany(name: "SpaceX",     sector: "Aerospace",     description: "Rockets, Starship, Starlink satellite internet",          status: "Pre-IPO",   estValuation: "$350B"),
-    PreIPOCompany(name: "Stripe",     sector: "Fintech",       description: "Global payments infrastructure for internet businesses", status: "Pre-IPO",   estValuation: "$65B"),
+    PreIPOCompany(name: "Stripe",     sector: "Fintech",       description: "Global payments infrastructure for internet businesses",  status: "Pre-IPO",   estValuation: "$65B"),
     PreIPOCompany(name: "Databricks", sector: "Data / AI",     description: "Unified data analytics and AI platform",                 status: "Pre-IPO",   estValuation: "$62B"),
     PreIPOCompany(name: "Canva",      sector: "Design / SaaS", description: "Online visual design and content creation platform",     status: "Pre-IPO",   estValuation: "$26B"),
     PreIPOCompany(name: "Chime",      sector: "Neobank",       description: "Mobile-first banking and financial services",            status: "Pre-IPO",   estValuation: "$25B"),
@@ -48,7 +48,9 @@ struct HomeView: View {
                 Text("Pre-IPO").tag(2)
             }
             .pickerStyle(.segmented)
-            .padding()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .animation(.easeInOut(duration: 0.2), value: selectedTab)
 
             switch selectedTab {
             case 0: topSignalsSection
@@ -63,6 +65,7 @@ struct HomeView: View {
                 Button(action: store.loadLocal) {
                     Image(systemName: "arrow.clockwise")
                 }
+                .accessibilityLabel("Refresh market data")
             }
         }
     }
@@ -75,6 +78,12 @@ struct HomeView: View {
 
             if store.topPredictions.isEmpty {
                 emptyState
+            } else if filteredPredictions.isEmpty {
+                ContentUnavailableView(
+                    "No Signals for \(selectedHorizon.uppercased())",
+                    systemImage: "clock.arrow.circlepath",
+                    description: Text("Sync data to generate predictions for this horizon")
+                )
             } else {
                 predictionList
             }
@@ -88,13 +97,14 @@ struct HomeView: View {
             }
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal)
+        .padding(.horizontal, 16)
         .padding(.bottom, 8)
+        .animation(.easeInOut(duration: 0.2), value: selectedHorizon)
     }
 
     private var predictionList: some View {
         List(filteredPredictions, id: \.ticker) { pred in
-            NavigationLink(destination: StockDetailView(ticker: pred.ticker)) {
+            NavigationLink(destination: StockDetailView(ticker: pred.ticker).environmentObject(store)) {
                 PredictionRow(prediction: pred)
             }
         }
@@ -130,13 +140,13 @@ struct HomeView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 16)
             .padding(.vertical, 8)
 
             List {
                 ForEach(hotTickers, id: \.self) { ticker in
                     if let pred = store.prediction(for: ticker, horizon: "1w") {
-                        NavigationLink(destination: StockDetailView(ticker: ticker)) {
+                        NavigationLink(destination: StockDetailView(ticker: ticker).environmentObject(store)) {
                             PredictionRow(prediction: pred)
                         }
                     } else {
@@ -152,12 +162,12 @@ struct HomeView: View {
 
     private var preIPOSection: some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                 ForEach(preIPO) { company in
                     PreIPOCard(company: company)
                 }
             }
-            .padding()
+            .padding(16)
         }
     }
 }
@@ -172,6 +182,7 @@ struct PredictionRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(prediction.ticker)
                     .font(.headline)
+                    .foregroundStyle(.primary)
                 Text(String(format: "%.0f%% confidence", prediction.probability * 100))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -203,6 +214,7 @@ private struct HotTickerUnavailableRow: View {
         HStack {
             Text(ticker)
                 .font(.headline)
+                .foregroundStyle(.primary)
             Spacer()
             Text("Not in local database")
                 .font(.caption)
@@ -218,10 +230,11 @@ private struct PreIPOCard: View {
     let company: PreIPOCompany
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(company.name)
                     .font(.subheadline.bold())
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                 Spacer()
                 statusBadge
@@ -249,7 +262,7 @@ private struct PreIPOCard: View {
                     .foregroundStyle(.primary)
             }
         }
-        .padding(12)
+        .padding(16)
         .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
         .background(Color(.systemGray6))
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -264,7 +277,7 @@ private struct PreIPOCard: View {
         return Text(company.status)
             .font(.caption2.bold())
             .foregroundStyle(color)
-            .padding(.horizontal, 5)
+            .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(color.opacity(0.12))
             .clipShape(Capsule())

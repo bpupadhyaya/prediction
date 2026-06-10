@@ -2,18 +2,19 @@ package com.prediction.stockmarket.ui.sync
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -54,7 +55,7 @@ fun SyncScreen(
                 modifier = Modifier.size(32.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
-            Text("Market Data", style = MaterialTheme.typography.headlineSmall)
+            Text("Market Data", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         }
 
         // Data Source section
@@ -68,7 +69,8 @@ fun SyncScreen(
             ) {
                 Text(
                     "Data Source",
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
 
                 // Source dropdown
@@ -84,6 +86,7 @@ fun SyncScreen(
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = sourceDropdownExpanded)
                         },
+                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .menuAnchor()
@@ -115,13 +118,14 @@ fun SyncScreen(
                 if (selectedSource.requiresKey) {
                     OutlinedTextField(
                         value = apiKeyText,
-                        onValueChange = {
-                            apiKeyText = it
-                            viewModel.setApiKey(selectedSource, it)
+                        onValueChange = { newKey ->
+                            apiKeyText = newKey
+                            viewModel.setApiKey(selectedSource, newKey)
                         },
                         label = { Text("API Key") },
                         placeholder = { Text("Enter your API key") },
                         singleLine = true,
+                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -139,14 +143,15 @@ fun SyncScreen(
         Button(
             onClick = { viewModel.sync() },
             enabled = syncState !is SyncUiState.Syncing,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
         ) {
             Icon(
                 Icons.Default.CloudDownload,
                 contentDescription = null,
                 modifier = Modifier.padding(end = 8.dp)
             )
-            Text("Sync Now", style = MaterialTheme.typography.titleMedium)
+            Text("Sync Now", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -186,9 +191,9 @@ private fun SyncStateSection(
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     Text(
                         text = if (currentTicker.isNotEmpty() && total > 0)
-                            "Syncing $currentTicker... ($done/$total)"
+                            "Syncing $currentTicker… ($done/$total)"
                         else
-                            "Preparing sync...",
+                            "Preparing sync…",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -197,6 +202,11 @@ private fun SyncStateSection(
                     LinearProgressIndicator(
                         progress = { progress },
                         modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "$done / $total",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -208,12 +218,13 @@ private fun SyncStateSection(
         ) {
             Icon(
                 Icons.Default.CheckCircle,
-                contentDescription = null,
+                contentDescription = "Sync complete",
                 tint = Color(0xFF4CAF50)
             )
             Text(
                 syncState.tagName,
                 style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
                 color = Color(0xFF4CAF50)
             )
         }
@@ -225,13 +236,14 @@ private fun SyncStateSection(
             ) {
                 Icon(
                     Icons.Default.Error,
-                    contentDescription = null,
-                    tint = Color(0xFFFF5252)
+                    contentDescription = "Sync error",
+                    tint = MaterialTheme.colorScheme.error
                 )
                 Text(
                     "Sync failed",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFFFF5252)
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.error
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))

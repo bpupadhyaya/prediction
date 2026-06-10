@@ -6,6 +6,7 @@
 
   let settings: AppSettings = { fredApiKey: '', corsProxyEnabled: false, llmModelId: null, llmDownloaded: false };
   let saved = false;
+  let saveError = '';
 
   // Download state
   let downloading = false;
@@ -14,12 +15,24 @@
   let downloadText = '';
   let downloadError = '';
 
-  onMount(async () => { settings = await loadSettings(); });
+  onMount(async () => {
+    try {
+      settings = await loadSettings();
+    } catch (err) {
+      saveError = `Failed to load settings: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  });
 
   async function handleSave() {
-    await saveSettings(settings);
-    saved = true;
-    setTimeout(() => saved = false, 2000);
+    saveError = '';
+    try {
+      await saveSettings(settings);
+      saved = true;
+      setTimeout(() => saved = false, 2000);
+    } catch (err) {
+      saveError = `Failed to save settings: ${err instanceof Error ? err.message : String(err)}`;
+      setTimeout(() => saveError = '', 6000);
+    }
   }
 
   async function handleDownload(modelId: string) {
@@ -68,6 +81,10 @@
 <div class="settings">
   <h2>Settings</h2>
 
+  {#if saveError}
+    <div class="error-msg" role="alert">{saveError}</div>
+  {/if}
+
   <!-- LLM Model Manager -->
   <section>
     <h3>🤖 AI Research Assistant</h3>
@@ -78,7 +95,7 @@
     </p>
 
     {#if downloadError}
-      <div class="download-error">{downloadError}</div>
+      <div class="download-error" role="alert">{downloadError}</div>
     {/if}
 
     <div class="model-list">
@@ -97,8 +114,14 @@
             <div class="model-size">{model.sizeGB} GB · stored in browser cache (OPFS)</div>
 
             {#if downloading && downloadingModelId === model.id}
-              <div class="progress-wrap">
-                <div class="progress-bar">
+              <div class="progress-wrap" role="status" aria-live="polite">
+                <div
+                  class="progress-bar"
+                  role="progressbar"
+                  aria-valuenow={downloadProgress}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
                   <div class="progress-fill" style="width:{downloadProgress}%"></div>
                 </div>
                 <div class="progress-text">{downloadText} ({downloadProgress}%)</div>
@@ -108,14 +131,21 @@
 
           <div class="model-actions">
             {#if isCurrentModel(model.id)}
-              <button class="btn-remove" on:click={() => handleRemove(model.id)}
-                disabled={downloading}>
+              <button
+                class="btn-remove"
+                on:click={() => handleRemove(model.id)}
+                disabled={downloading}
+                title="Remove {model.label} from browser cache"
+              >
                 Remove
               </button>
             {:else}
-              <button class="btn-download"
+              <button
+                class="btn-download"
                 on:click={() => handleDownload(model.id)}
-                disabled={downloading}>
+                disabled={downloading}
+                title="Download {model.label} ({model.sizeGB} GB)"
+              >
                 {downloading && downloadingModelId === model.id ? '⏳ Downloading…' : '⬇ Download'}
               </button>
             {/if}
@@ -137,8 +167,13 @@
     <h3>📡 Data Sources</h3>
     <div class="field">
       <label for="fred-key">FRED API Key (free at fred.stlouisfed.org)</label>
-      <input id="fred-key" type="password" placeholder="your_fred_api_key"
-        bind:value={settings.fredApiKey} />
+      <input
+        id="fred-key"
+        type="password"
+        placeholder="your_fred_api_key"
+        bind:value={settings.fredApiKey}
+        autocomplete="off"
+      />
       <span class="field-note">Used to auto-fetch macro data (VIX, yield curve, etc.) into parameter values.</span>
     </div>
     <div class="field toggle-field">
@@ -153,76 +188,151 @@
     </div>
   </section>
 
-  <button class="btn-save" on:click={handleSave}>
+  <button class="btn-save" on:click={handleSave} title="Save settings">
     {saved ? '✓ Saved' : 'Save Settings'}
   </button>
 </div>
 
 <style>
   .settings { max-width: 720px; }
-  h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 1.25rem; }
-  section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.25rem; margin-bottom: 1rem; }
-  h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.6rem; }
+  h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 1.25rem; color: var(--text); }
+  section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+  h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.6rem; color: var(--text); }
   .phase-note { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.75rem; line-height: 1.6; }
+  .error-msg {
+    font-size: 0.78rem;
+    color: var(--danger);
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.2);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+  }
   .model-list { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 0.75rem; }
   .model-card {
-    display: flex; align-items: flex-start; gap: 1rem;
-    background: rgba(42,45,58,0.3); border: 1px solid var(--border);
-    border-radius: 8px; padding: 0.65rem 0.9rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    background: rgba(42,45,58,0.3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.65rem 0.9rem;
+    transition: border-color 0.15s;
   }
   .model-card--active {
     border-color: rgba(52,211,153,0.3);
     background: rgba(52,211,153,0.05);
   }
-  .model-info { flex: 1; }
-  .model-label { font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .model-info { flex: 1; min-width: 0; }
+  .model-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .model-desc  { font-size: 0.75rem; color: var(--muted); margin: 0.1rem 0; }
-  .model-size  { font-size: 0.7rem; color: var(--muted); }
+  .model-size  { font-size: 0.75rem; color: var(--muted); }
   .badge-loaded {
-    font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.45rem;
-    border-radius: 99px; background: rgba(52,211,153,0.15);
-    color: var(--accent2); border: 1px solid rgba(52,211,153,0.3);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+    border-radius: 99px;
+    background: rgba(52,211,153,0.15);
+    color: var(--accent2);
+    border: 1px solid rgba(52,211,153,0.3);
+    white-space: nowrap;
   }
   .badge-downloaded {
-    font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.45rem;
-    border-radius: 99px; background: rgba(79,142,247,0.12);
-    color: var(--accent); border: 1px solid rgba(79,142,247,0.25);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.1rem 0.45rem;
+    border-radius: 99px;
+    background: rgba(79,142,247,0.12);
+    color: var(--accent);
+    border: 1px solid rgba(79,142,247,0.25);
+    white-space: nowrap;
   }
   .progress-wrap { margin-top: 0.5rem; }
   .progress-bar {
-    height: 4px; background: rgba(79,142,247,0.15); border-radius: 2px; overflow: hidden;
+    height: 4px;
+    background: rgba(79,142,247,0.15);
+    border-radius: 2px;
+    overflow: hidden;
   }
   .progress-fill {
-    height: 100%; background: var(--accent); border-radius: 2px;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
     transition: width 0.2s ease;
   }
-  .progress-text { font-size: 0.68rem; color: var(--muted); margin-top: 0.25rem; }
+  .progress-text { font-size: 0.72rem; color: var(--muted); margin-top: 0.25rem; }
   .model-actions { display: flex; flex-direction: column; gap: 0.4rem; align-items: flex-end; flex-shrink: 0; padding-top: 0.1rem; }
   .btn-download {
-    background: rgba(79,142,247,0.15); border: 1px solid rgba(79,142,247,0.3);
-    color: var(--accent); padding: 0.3rem 0.8rem; border-radius: 6px;
-    font-size: 0.8rem; cursor: pointer; white-space: nowrap;
+    background: rgba(79,142,247,0.15);
+    border: 1px solid rgba(79,142,247,0.3);
+    color: var(--accent);
+    padding: 0.3rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
   }
   .btn-download:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-download:not(:disabled):hover { background: rgba(79,142,247,0.25); }
   .btn-remove {
-    background: none; border: 1px solid rgba(239,68,68,0.3);
-    color: var(--danger); padding: 0.3rem 0.8rem; border-radius: 6px;
-    font-size: 0.8rem; cursor: pointer; white-space: nowrap;
+    background: none;
+    border: 1px solid rgba(239,68,68,0.3);
+    color: var(--danger);
+    padding: 0.3rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
   }
   .btn-remove:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-remove:not(:disabled):hover { background: rgba(239,68,68,0.08); }
   .download-error {
-    font-size: 0.76rem; color: var(--danger); background: rgba(239,68,68,0.08);
-    border: 1px solid rgba(239,68,68,0.2); border-radius: 6px;
-    padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; line-height: 1.5;
+    font-size: 0.75rem;
+    color: var(--danger);
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+    word-break: break-word;
   }
-  .storage-note { font-size: 0.74rem; color: var(--muted); line-height: 1.6; margin-top: 0.5rem; }
+  .storage-note { font-size: 0.75rem; color: var(--muted); line-height: 1.6; margin-top: 0.5rem; }
   .field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; }
-  .field label { font-size: 0.82rem; font-weight: 600; }
-  .field input[type="password"] { max-width: 320px; }
-  .field-note { font-size: 0.72rem; color: var(--muted); }
+  .field label { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+  .field input[type="password"] { max-width: 320px; border-radius: 8px; }
+  .field-note { font-size: 0.75rem; color: var(--muted); }
   .field-note.warn { color: var(--warn); }
   .toggle-field label { display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.82rem; }
-  .btn-save { background: var(--accent); border: none; color: #fff; padding: 0.5rem 1.5rem; border-radius: 8px; font-size: 0.9rem; margin-top: 0.5rem; }
+  .btn-save {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    padding: 0.5rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-save:hover { filter: brightness(1.1); }
 </style>

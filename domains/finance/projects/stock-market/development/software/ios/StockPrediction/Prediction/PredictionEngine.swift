@@ -88,17 +88,16 @@ final class PredictionEngine {
         guard let features = buildFeatures(prices: prices) else { return nil }
 
         // OnnxRuntime inference (requires OnnxRuntimeGenAI package)
-        // The API below matches onnxruntime-genai 0.3.x; adjust if package version differs
         let session = try OnnxRuntimeSession(modelPath: modelURL.path)
         let output = try session.run(input: features)
 
         let probUp = output[1]   // probability of UP class
         let direction = probUp >= 0.5 ? "UP" : "DOWN"
 
-        let latestBar = prices.first
         let volatility = standardDeviation(prices.prefix(20).map { Float($0.adjClose) })
-        let expectedLow = probUp >= 0.5 ? Double(probUp - 0.5) * -2 : Double(0.5 - probUp) * -2
-        let expectedHigh = probUp >= 0.5 ? Double(probUp - 0.5) * 2 : Double(0.5 - probUp) * 2
+        let magnitude = abs(Double(probUp) - 0.5) * 2
+        let expectedLow  = probUp >= 0.5 ?  magnitude * 0.5 : -magnitude
+        let expectedHigh = probUp >= 0.5 ?  magnitude       : -magnitude * 0.5
 
         return Prediction(
             ticker: ticker, horizon: horizon, direction: direction,

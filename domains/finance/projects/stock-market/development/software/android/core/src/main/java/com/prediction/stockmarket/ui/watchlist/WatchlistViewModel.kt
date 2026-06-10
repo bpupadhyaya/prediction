@@ -24,13 +24,22 @@ class WatchlistViewModel @Inject constructor(
     private val _predictions = MutableStateFlow<Map<String, PredictionEntity>>(emptyMap())
     val predictions: StateFlow<Map<String, PredictionEntity>> = _predictions
 
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage
+
     init {
         viewModelScope.launch {
             watchlist.collectLatest { list ->
-                _prices.value = list.associate { it.ticker to (repo.latestPrice(it.ticker)?.adjClose ?: 0.0) }
-                _predictions.value = list.mapNotNull { entry ->
-                    repo.prediction(entry.ticker, "1w")?.let { entry.ticker to it }
-                }.toMap()
+                try {
+                    _prices.value = list.associate { entry ->
+                        entry.ticker to (repo.latestPrice(entry.ticker)?.adjClose ?: 0.0)
+                    }
+                    _predictions.value = list.mapNotNull { entry ->
+                        repo.prediction(entry.ticker, "1w")?.let { pred -> entry.ticker to pred }
+                    }.toMap()
+                } catch (e: Exception) {
+                    _errorMessage.value = "Failed to load watchlist data: ${e.message}"
+                }
             }
         }
     }

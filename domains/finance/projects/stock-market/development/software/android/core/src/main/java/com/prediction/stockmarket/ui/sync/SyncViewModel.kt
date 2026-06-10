@@ -55,14 +55,18 @@ class SyncViewModel @Inject constructor(
             _syncProgress.value = Pair(0, 0)
             _currentTicker.value = ""
 
-            val result = syncManager.sync { done, total, ticker ->
-                _syncProgress.value = Pair(done, total)
-                _currentTicker.value = ticker
-            }
+            try {
+                val result = syncManager.sync { done, total, ticker ->
+                    _syncProgress.value = Pair(done, total)
+                    _currentTicker.value = ticker
+                }
 
-            _syncState.value = when (result) {
-                is SyncManager.SyncResult.Success -> SyncUiState.Done(result.tagName)
-                is SyncManager.SyncResult.Error -> SyncUiState.Error(result.message)
+                _syncState.value = when (result) {
+                    is SyncManager.SyncResult.Success -> SyncUiState.Done(result.tagName)
+                    is SyncManager.SyncResult.Error   -> SyncUiState.Error(result.message)
+                }
+            } catch (e: Exception) {
+                _syncState.value = SyncUiState.Error(e.message ?: "Unknown error")
             }
         }
     }

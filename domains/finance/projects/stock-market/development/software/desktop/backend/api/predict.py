@@ -1,12 +1,40 @@
-import asyncio
 import logging
+from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from pydantic import BaseModel
 from backend.models.predictor import predict_ticker
 from backend.config import PREDICTION_HORIZONS
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# ── Response helpers ──────────────────────────────────────────────────────────
+
+def _pred_to_dict(result, include_explanation: bool = False) -> dict:
+    d = {
+        "ticker":               result.ticker,
+        "horizon":              result.horizon,
+        "direction":            result.direction,
+        "probability":          result.probability,
+        "expected_return_low":  result.expected_return_low,
+        "expected_return_high": result.expected_return_high,
+        "volatility":           result.volatility,
+        "model_accuracy":       result.model_accuracy,
+        "model_ready":          result.model_ready,
+        "sector":               result.sector,
+        "model_type":           result.model_type,
+        "regime_label":         result.regime_label,
+        "regime":               result.regime,
+        "user_signals_active":  result.user_signals_active,
+        "recent_accuracy":      result.recent_accuracy,
+        "disclaimer": "This is a probabilistic prediction, not financial advice.",
+    }
+    if include_explanation:
+        d["explanation"] = result.explanation
+        d["calc_chain"]  = result.calc_chain
+    return d
 
 # ── Hot Stocks ────────────────────────────────────────────────────────────────
 # Curated high-profile tickers — some may not be in DB yet (shown as no-data)
@@ -35,126 +63,128 @@ _PRE_IPO = [
 def get_llm_prediction(ticker: str, horizon: str = "1w"):
     """Run prediction with the active LLM model. Slower than GBM but returns reasoning."""
     if horizon not in PREDICTION_HORIZONS:
-        raise HTTPException(status_code=400, detail=f"horizon must be one of {PREDICTION_HORIZONS}")
-    from backend.api.models_api import _load_config
-    from backend.models.llm_predictor import predict_with_llm
-    cfg = _load_config()
-    model_id = cfg.get("active_model_id")
-    if not model_id:
-        raise HTTPException(status_code=400, detail="No LLM model activated. Go to Models tab to download and activate one.")
-    result = predict_with_llm(ticker.upper(), horizon, model_id)
-    if "error" in result:
-        raise HTTPException(status_code=500, detail=result["error"])
-    return {"ticker": ticker.upper(), "horizon": horizon, "model_id": model_id, **result}
+        raise HTTPException(status_code=422, detail=f"horizon must be one of {PREDICTION_HORIZONS}")
+    try:
+        from backend.api.models_api import _load_config
+        from backend.models.llm_predictor import predict_with_llm
+        cfg = _load_config()
+        model_id = cfg.get("active_model_id")
+        if not model_id:
+            raise HTTPException(status_code=400, detail="No LLM model activated. Go to Models tab to download and activate one.")
+        result = predict_with_llm(ticker.upper(), horizon, model_id)
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+        return {"ticker": ticker.upper(), "horizon": horizon, "model_id": model_id, **result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"LLM prediction failed for {ticker}/{horizon}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"LLM prediction error: {e}")
 
 
 @router.get("/{ticker}/explain")
 def get_prediction_explain(ticker: str, horizon: str = "1w"):
     """Full prediction with SHAP domain breakdown, regime, and user signal info."""
     if horizon not in PREDICTION_HORIZONS:
-        raise HTTPException(status_code=400, detail=f"horizon must be one of {PREDICTION_HORIZONS}")
-    result = predict_ticker(ticker.upper(), horizon)
-    return {
-        "ticker":               result.ticker,
-        "horizon":              result.horizon,
-        "direction":            result.direction,
-        "probability":          result.probability,
-        "expected_return_low":  result.expected_return_low,
-        "expected_return_high": result.expected_return_high,
-        "volatility":           result.volatility,
-        "model_accuracy":       result.model_accuracy,
-        "model_ready":          result.model_ready,
-        "sector":               result.sector,
-        "model_type":           result.model_type,
-        "regime_label":         result.regime_label,
-        "regime":               result.regime,
-        "explanation":          result.explanation,
-        "calc_chain":           result.calc_chain,
-        "user_signals_active":  result.user_signals_active,
-        "recent_accuracy":      result.recent_accuracy,
-        "disclaimer": "This is a probabilistic prediction, not financial advice.",
-    }
+        raise HTTPException(status_code=422, detail=f"horizon must be one of {PREDICTION_HORIZONS}")
+    try:
+        result = predict_ticker(ticker.upper(), horizon)
+        return _pred_to_dict(result, include_explanation=True)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Prediction explain failed for {ticker}/{horizon}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Prediction error: {e}")
 
 
 @router.get("/{ticker}")
 def get_prediction(ticker: str, horizon: str = "1w"):
     if horizon not in PREDICTION_HORIZONS:
-        raise HTTPException(status_code=400, detail=f"horizon must be one of {PREDICTION_HORIZONS}")
-    result = predict_ticker(ticker.upper(), horizon)
-    return {
-        "ticker":               result.ticker,
-        "horizon":              result.horizon,
-        "direction":            result.direction,
-        "probability":          result.probability,
-        "expected_return_low":  result.expected_return_low,
-        "expected_return_high": result.expected_return_high,
-        "volatility":           result.volatility,
-        "model_accuracy":       result.model_accuracy,
-        "model_ready":          result.model_ready,
-        "sector":               result.sector,
-        "model_type":           result.model_type,
-        "regime_label":         result.regime_label,
-        "regime":               result.regime,
-        "user_signals_active":  result.user_signals_active,
-        "recent_accuracy":      result.recent_accuracy,
-        "disclaimer": "This is a probabilistic prediction, not financial advice.",
-    }
+        raise HTTPException(status_code=422, detail=f"horizon must be one of {PREDICTION_HORIZONS}")
+    try:
+        result = predict_ticker(ticker.upper(), horizon)
+        return _pred_to_dict(result, include_explanation=False)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Prediction failed for {ticker}/{horizon}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Prediction error: {e}")
 
 
 @router.get("/batch/top")
-def get_top_predictions(sector: str | None = None, limit: int = 500):
-    from backend.database.duckdb_client import get_conn
-    conn = get_conn()
-    query = """
-        SELECT p.ticker
-        FROM (SELECT DISTINCT ticker FROM prices) p
-        LEFT JOIN stocks s ON p.ticker = s.ticker
-    """
-    params = []
-    if sector:
-        query += " WHERE s.sector = ?"
-        params.append(sector)
-    query += " ORDER BY COALESCE(s.market_cap, 0) DESC"
-    tickers = [r[0] for r in conn.execute(query, params).fetchall()]
+def get_top_predictions(sector: Optional[str] = None, limit: int = 500):
+    try:
+        from backend.database.duckdb_client import get_conn
+        conn = get_conn()
+        query = """
+            SELECT p.ticker
+            FROM (SELECT DISTINCT ticker FROM prices) p
+            LEFT JOIN stocks s ON p.ticker = s.ticker
+        """
+        params = []
+        if sector:
+            query += " WHERE s.sector = ?"
+            params.append(sector)
+        query += " ORDER BY COALESCE(s.market_cap, 0) DESC"
+        tickers = [r[0] for r in conn.execute(query, params).fetchall()]
 
-    results = []
-    for ticker in tickers:
-        pred = predict_ticker(ticker, "1w")
-        if pred.model_ready:
-            results.append({
-                "ticker": pred.ticker,
-                "direction": pred.direction,
-                "probability": pred.probability,
-                "expected_return_low": pred.expected_return_low,
-                "expected_return_high": pred.expected_return_high,
-                "volatility": pred.volatility,
-                "model_accuracy": pred.model_accuracy,
-            })
+        results = []
+        for ticker in tickers:
+            try:
+                pred = predict_ticker(ticker, "1w")
+                if pred.model_ready:
+                    results.append({
+                        "ticker": pred.ticker,
+                        "direction": pred.direction,
+                        "probability": pred.probability,
+                        "expected_return_low": pred.expected_return_low,
+                        "expected_return_high": pred.expected_return_high,
+                        "volatility": pred.volatility,
+                        "model_accuracy": pred.model_accuracy,
+                    })
+            except Exception as e:
+                logger.warning(f"Skipping {ticker} in batch/top: {e}")
+                continue
 
-    # Sort by strongest signal (furthest from 50/50)
-    results.sort(key=lambda x: abs(x["probability"] - 0.5), reverse=True)
-    return results[:limit]
+        # Sort by strongest signal (furthest from 50/50)
+        results.sort(key=lambda x: abs(x["probability"] - 0.5), reverse=True)
+        return results[:limit]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"batch/top failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Could not load top predictions: {e}")
 
 
 @router.get("/batch/hot")
 def get_hot_predictions():
     """Predictions for curated high-profile stocks + pre-IPO company list."""
-    traded = []
-    for ticker in _HOT_TRADED:
-        pred = predict_ticker(ticker, "1w")
-        entry: dict = {"ticker": ticker, "model_ready": pred.model_ready}
-        if pred.model_ready:
-            entry.update({
-                "direction": pred.direction,
-                "probability": pred.probability,
-                "expected_return_low": pred.expected_return_low,
-                "expected_return_high": pred.expected_return_high,
-                "volatility": pred.volatility,
-                "model_accuracy": pred.model_accuracy,
-            })
-        traded.append(entry)
+    try:
+        traded = []
+        for ticker in _HOT_TRADED:
+            try:
+                pred = predict_ticker(ticker, "1w")
+                entry: dict = {"ticker": ticker, "model_ready": pred.model_ready}
+                if pred.model_ready:
+                    entry.update({
+                        "direction": pred.direction,
+                        "probability": pred.probability,
+                        "expected_return_low": pred.expected_return_low,
+                        "expected_return_high": pred.expected_return_high,
+                        "volatility": pred.volatility,
+                        "model_accuracy": pred.model_accuracy,
+                    })
+            except Exception as e:
+                logger.warning(f"Skipping {ticker} in batch/hot: {e}")
+                entry = {"ticker": ticker, "model_ready": False}
+            traded.append(entry)
 
-    return {"traded": traded, "pre_ipo": _PRE_IPO}
+        return {"traded": traded, "pre_ipo": _PRE_IPO}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"batch/hot failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Could not load hot predictions: {e}")
 
 
 # ── Retrain ───────────────────────────────────────────────────────────────────
@@ -187,13 +217,13 @@ def _run_retrain():
         _retrain_status["running"] = False
 
 
-@router.post("/retrain")
+@router.post("/retrain", status_code=202)
 def retrain_models(background_tasks: BackgroundTasks):
     """Retrain all GBM models on expanded feature set and re-export ONNX."""
     if _retrain_status["running"]:
-        return {"status": "already_running"}
+        return {"status": "already_running", "message": "Retrain already in progress"}
     background_tasks.add_task(_run_retrain)
-    return {"status": "started"}
+    return {"status": "started", "message": "Retrain started in background"}
 
 
 @router.get("/retrain/status")

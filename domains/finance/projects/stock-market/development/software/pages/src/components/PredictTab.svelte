@@ -17,7 +17,9 @@
   let researchParam: Parameter | null = null;
   let showResultModal = false;
   let saveMsg = '';
+  let saveError = '';
   let tickerInput = ticker;
+  let _saveTimer: number;
 
   // Init default states for all params
   function initStates(): Record<string, ParamState> {
@@ -29,29 +31,39 @@
   }
 
   onMount(async () => {
-    settings = await loadSettings();
-    const saved = await loadParamStates(ticker);
-    states = saved ?? initStates();
+    try {
+      settings = await loadSettings();
+      const saved = await loadParamStates(ticker);
+      states = saved ?? initStates();
+    } catch (err) {
+      console.error('Failed to load saved state:', err);
+    }
   });
 
   $: result = computePrediction(states);
   $: grouped = groupByDomain(PARAMETERS);
 
   async function handleTickerSubmit() {
-    ticker = tickerInput.trim().toUpperCase();
-    const saved = await loadParamStates(ticker);
-    states = saved ?? initStates();
+    const newTicker = tickerInput.trim().toUpperCase();
+    if (!newTicker) return;
+    ticker = newTicker;
+    try {
+      const saved = await loadParamStates(ticker);
+      states = saved ?? initStates();
+    } catch (err) {
+      console.error('Failed to load states for ticker:', ticker, err);
+      states = initStates();
+    }
   }
 
   function handleParamChange(name: string, state: ParamState) {
     states = { ...states, [name]: state };
-    // Debounce save to IndexedDB
     clearTimeout(_saveTimer);
     _saveTimer = setTimeout(() => saveParamStates(ticker, states), 800) as unknown as number;
   }
-  let _saveTimer: number;
 
   async function handleSave() {
+    saveError = '';
     const now  = new Date();
     const today = now.toISOString().slice(0, 10);
     const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
@@ -82,7 +94,7 @@
     let savedFilename = filename;
     if ('showSaveFilePicker' in window) {
       try {
-        const fh = await (window as any).showSaveFilePicker({
+        const fh = await (window as Window & { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
           suggestedName: filename,
           startIn: 'downloads',
           types: [{ description: 'Prediction Snapshot', accept: { 'application/json': ['.json'] } }],
@@ -92,8 +104,8 @@
         await w.close();
         savedToFile = true;
         savedFilename = fh.name ?? filename;
-      } catch (e: any) {
-        if (e?.name === 'AbortError') return; // user cancelled — do nothing
+      } catch (e: unknown) {
+        if (e instanceof Error && e.name === 'AbortError') return;
         // other error: fall through to download fallback
       }
     }
@@ -109,14 +121,19 @@
       URL.revokeObjectURL(url);
     }
 
-    // Also persist to IndexedDB for History tab
-    const dbResult = await saveSnapshot(snap);
+    try {
+      // Also persist to IndexedDB for History tab
+      const dbResult = await saveSnapshot(snap);
 
-    saveMsg = savedToFile
-      ? `✓ Saved as "${savedFilename}" to chosen folder. Also in History tab.`
-      : `✓ Saved as "${filename}" to your Downloads folder. Also in History tab.`;
-    if (dbResult === 'replaced') saveMsg += ' (oldest snapshot for today replaced — max 2/day)';
-    setTimeout(() => saveMsg = '', 6000);
+      saveMsg = savedToFile
+        ? `✓ Saved as "${savedFilename}" to chosen folder. Also in History tab.`
+        : `✓ Saved as "${filename}" to your Downloads folder. Also in History tab.`;
+      if (dbResult === 'replaced') saveMsg += ' (oldest snapshot for today replaced — max 2/day)';
+      setTimeout(() => saveMsg = '', 6000);
+    } catch (err) {
+      saveError = `Failed to save snapshot to history: ${err instanceof Error ? err.message : String(err)}`;
+      setTimeout(() => saveError = '', 8000);
+    }
   }
 
   function handleReset() {
@@ -138,11 +155,14 @@
   <input
     bind:value={tickerInput}
     placeholder="Ticker (e.g. AAPL)"
+    type="text"
+    aria-label="Stock ticker symbol"
     on:keydown={e => e.key === 'Enter' && handleTickerSubmit()}
   />
-  <button on:click={handleTickerSubmit}>Load</button>
+  <button on:click={handleTickerSubmit} title="Load ticker data">Load</button>
 </div>
 {#if saveMsg}<div class="save-msg">{saveMsg}</div>{/if}
+{#if saveError}<div class="save-error">{saveError}</div>{/if}
 
 <!-- Live score header -->
 <ScoreHeader
@@ -155,8 +175,8 @@
 
 <!-- Parameter groups -->
 {#each DOMAIN_ORDER as domain}
-  {#if grouped.get(domain) && (grouped.get(domain) || []).length > 0}
-    {@const domainParams = grouped.get(domain) || []}
+  {#if grouped.get(domain) && (grouped.get(domain) ?? []).length > 0}
+    {@const domainParams = grouped.get(domain) ?? []}
     <ParameterGroup
       domainLabel={domainParams[0].domainLabel}
       params={domainParams}
@@ -187,14 +207,42 @@
 
 <style>
   .ticker-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
-  .ticker-bar input { width: 160px; font-size: 0.9rem; text-transform: uppercase; }
-  .ticker-bar button {
-    background: var(--accent); border: none; color: #fff;
-    padding: 0.4rem 1rem; border-radius: 6px; font-size: 0.9rem;
+  .ticker-bar input {
+    width: 160px;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    border-radius: 8px;
   }
+  .ticker-bar button {
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    padding: 0.4rem 1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .ticker-bar button:hover { filter: brightness(1.1); }
   .save-msg {
-    font-size: 0.78rem; color: var(--accent2);
-    background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.25);
-    border-radius: 6px; padding: 0.4rem 0.85rem; margin-bottom: 0.75rem;
+    font-size: 0.75rem;
+    color: var(--accent2);
+    background: rgba(52,211,153,0.08);
+    border: 1px solid rgba(52,211,153,0.25);
+    border-radius: 8px;
+    padding: 0.4rem 0.85rem;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .save-error {
+    font-size: 0.75rem;
+    color: var(--danger);
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.25);
+    border-radius: 8px;
+    padding: 0.4rem 0.85rem;
+    margin-bottom: 0.75rem;
   }
 </style>

@@ -1,15 +1,15 @@
 import SwiftUI
 
 struct PredictionHomeView: View {
-    var onModuleTap: ((String) -> Void)? = nil
-    @State private var activeModule: String? = nil
+    var onModuleTap: ((String) -> Void)?
+    @State private var activeModule: String?
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
     var body: some View {
         VStack(spacing: 0) {
             heroHeader
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 14) {
+                LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(predictionModules) { module in
                         PredictionModuleCard(module: module) {
                             if module.isAvailable {
@@ -25,7 +25,7 @@ struct PredictionHomeView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 12)
+                .padding(.top, 16)
                 .padding(.bottom, 32)
             }
         }
@@ -44,7 +44,8 @@ struct PredictionHomeView: View {
         .animation(.easeInOut(duration: 0.3), value: activeModule)
     }
 
-    // MARK: - Hero header — same structure as lifeos HeroHeader (isHomePage: true)
+    // MARK: - Hero header
+
     private var heroHeader: some View {
         ZStack {
             VStack(spacing: 4) {
@@ -54,7 +55,6 @@ struct PredictionHomeView: View {
                 Text("AI-powered forecasts across every domain")
                     .font(.subheadline)
                     .foregroundStyle(.white.opacity(0.8))
-                // Zoe badge — tucked into the banner
                 HStack(spacing: 5) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 10))
@@ -63,15 +63,15 @@ struct PredictionHomeView: View {
                 }
                 .foregroundStyle(.white.opacity(0.9))
                 .padding(.horizontal, 10)
-                .padding(.vertical, 5)
+                .padding(.vertical, 6)
                 .background(.white.opacity(0.15))
                 .clipShape(Capsule())
-                .padding(.top, 6)
+                .padding(.top, 8)
             }
             .frame(maxWidth: .infinity)
         }
         .padding(.top, 36)
-        .padding(.bottom, 18)
+        .padding(.bottom, 16)
         .background(
             LinearGradient(
                 colors: [
@@ -120,21 +120,22 @@ struct PredictionModuleCard: View {
 
                 Text(module.subtitle)
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.50))
+                    .foregroundStyle(.white.opacity(0.55))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(14)
+            .padding(16)
             .frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
             .background(module.gradient)
             .clipShape(RoundedRectangle(cornerRadius: 18))
             .opacity(module.isAvailable ? 1.0 : 0.7)
         }
         .buttonStyle(.plain)
+        .sensoryFeedback(.impact(flexibility: .soft), trigger: false)
     }
 }
 
-// MARK: - Stock Market Module wrapper (custom overlay back button, no NavigationStack to avoid TabView conflicts)
+// MARK: - Stock Market Module wrapper
 
 struct StockMarketModuleView: View {
     let onBack: () -> Void
@@ -152,7 +153,7 @@ struct StockMarketModuleView: View {
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.blue)
                 .padding(.horizontal, 12)
-                .padding(.vertical, 7)
+                .padding(.vertical, 8)
                 .background(.ultraThinMaterial)
                 .clipShape(Capsule())
                 .shadow(color: .black.opacity(0.15), radius: 4, y: 2)

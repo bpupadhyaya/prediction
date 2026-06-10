@@ -11,25 +11,37 @@ struct StockDetailView: View {
     @State private var selectedHorizon = "1w"
     @State private var isWatchlisted = false
     @State private var showInteractive = false
+    @State private var isLoading = true
+    @State private var loadError: String?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if let s = stock {
-                    stockHeader(s)
+                if isLoading {
+                    loadingPlaceholder
+                } else {
+                    if let err = loadError {
+                        errorBanner(err)
+                    }
+
+                    if let s = stock {
+                        stockHeader(s)
+                    }
+
+                    priceChart
+
+                    if let pred = prediction {
+                        predictionCard(pred)
+                    } else if !isLoading {
+                        noPredictionCard
+                    }
+
+                    interactivePredictButton
                 }
-
-                priceChart
-
-                if let pred = prediction {
-                    predictionCard(pred)
-                }
-
-                interactivePredictButton
 
                 Spacer()
             }
-            .padding()
+            .padding(16)
         }
         .navigationTitle(ticker)
         .navigationBarTitleDisplayMode(.inline)
@@ -43,6 +55,56 @@ struct StockDetailView: View {
         }
     }
 
+    // MARK: - Loading Placeholder
+
+    private var loadingPlaceholder: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                ProgressView()
+                    .scaleEffect(0.9)
+                Text("Loading \(ticker)…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 32)
+        }
+    }
+
+    // MARK: - Error Banner
+
+    private func errorBanner(_ message: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.primary)
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    // MARK: - No-prediction placeholder
+
+    private var noPredictionCard: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "chart.line.flattrend.xyaxis")
+                .foregroundStyle(.secondary)
+            Text("No prediction available — sync data to generate one")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    // MARK: - Interactive Predict Button
+
     private var interactivePredictButton: some View {
         Button {
             showInteractive = true
@@ -54,7 +116,7 @@ struct StockDetailView: View {
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 13)
+            .padding(.vertical, 16)
             .background(
                 LinearGradient(
                     colors: [Color(red: 0.231, green: 0.510, blue: 0.965),
@@ -64,21 +126,34 @@ struct StockDetailView: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
+        .buttonStyle(.plain)
+        .sensoryFeedback(.impact(flexibility: .soft), trigger: showInteractive)
     }
+
+    // MARK: - Watchlist Button
 
     private var watchlistButton: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            Button(action: { store.toggleWatchlist(ticker) ; isWatchlisted.toggle() }) {
+            Button {
+                store.toggleWatchlist(ticker)
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isWatchlisted.toggle()
+                }
+            } label: {
                 Image(systemName: isWatchlisted ? "star.fill" : "star")
-                    .foregroundStyle(isWatchlisted ? .yellow : .secondary)
+                    .foregroundStyle(isWatchlisted ? Color(red: 0.72, green: 0.53, blue: 0.04) : .secondary)
             }
+            .accessibilityLabel(isWatchlisted ? "Remove from watchlist" : "Add to watchlist")
         }
     }
+
+    // MARK: - Stock Header
 
     private func stockHeader(_ s: Stock) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(s.name)
                 .font(.title2.bold())
+                .foregroundStyle(.primary)
             if let sector = s.sector {
                 Text(sector)
                     .font(.caption)
@@ -92,13 +167,19 @@ struct StockDetailView: View {
         }
     }
 
+    // MARK: - Price Chart
+
     private var priceChart: some View {
         Group {
             if prices.isEmpty {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(.systemGray6))
                     .frame(height: 180)
-                    .overlay(Text("No price data").foregroundStyle(.secondary))
+                    .overlay(
+                        Text("No price data available")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    )
             } else {
                 Chart(prices.reversed(), id: \.date) { bar in
                     LineMark(
@@ -109,15 +190,30 @@ struct StockDetailView: View {
                 }
                 .frame(height: 180)
                 .chartXAxis(.hidden)
+                .chartYAxis {
+                    AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
+                        AxisGridLine()
+                        AxisValueLabel {
+                            if let price = value.as(Double.self) {
+                                Text(String(format: "$%.0f", price))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
+
+    // MARK: - Prediction Card
 
     private func predictionCard(_ pred: Prediction) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Prediction")
                     .font(.headline)
+                    .foregroundStyle(.primary)
                 Spacer()
                 Picker("Horizon", selection: $selectedHorizon) {
                     ForEach(["1d", "1w", "1m"], id: \.self) { Text($0).tag($0) }
@@ -125,7 +221,9 @@ struct StockDetailView: View {
                 .pickerStyle(.segmented)
                 .frame(width: 140)
                 .onChange(of: selectedHorizon) { _, _ in
-                    prediction = store.prediction(for: ticker, horizon: selectedHorizon)
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        prediction = store.prediction(for: ticker, horizon: selectedHorizon)
+                    }
                 }
             }
 
@@ -135,7 +233,8 @@ struct StockDetailView: View {
                         .font(.title2.bold())
                         .foregroundStyle(pred.isBullish ? .green : .red)
                     Text("Direction")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Divider()
@@ -143,8 +242,10 @@ struct StockDetailView: View {
                 VStack(alignment: .leading) {
                     Text(String(format: "%.0f%%", pred.probability * 100))
                         .font(.title2.bold())
+                        .foregroundStyle(.primary)
                     Text("Confidence")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Divider()
@@ -152,8 +253,10 @@ struct StockDetailView: View {
                 VStack(alignment: .leading) {
                     Text(String(format: "%.0f%%", pred.modelAccuracy * 100))
                         .font(.title2.bold())
+                        .foregroundStyle(.primary)
                     Text("Model Accuracy")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -161,15 +264,24 @@ struct StockDetailView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
-        .padding()
+        .padding(16)
         .background(Color(.systemGray6))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
+    // MARK: - Data Loading
+
     private func loadData() async {
+        isLoading = true
+        loadError = nil
         prices = store.prices(for: ticker, days: 90)
         prediction = store.prediction(for: ticker, horizon: selectedHorizon)
         isWatchlisted = store.isWatchlisted(ticker)
-        stock = try? DatabaseManager.shared.stock(ticker: ticker)
+        do {
+            stock = try DatabaseManager.shared.stock(ticker: ticker)
+        } catch {
+            loadError = "Could not load stock info: \(error.localizedDescription)"
+        }
+        isLoading = false
     }
 }

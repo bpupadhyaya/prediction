@@ -8,8 +8,9 @@ prediction sessions (built from manually entered signals in the UI).
 from __future__ import annotations
 
 import json
+import logging
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -17,6 +18,7 @@ from pydantic import BaseModel
 
 from backend.database.duckdb_client import get_conn
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/interactive", tags=["interactive"])
 
 
@@ -42,48 +44,54 @@ class InteractivePredictionRequest(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@router.post("/predictions")
+@router.post("/predictions", status_code=201)
 def save_interactive_prediction(payload: InteractivePredictionRequest) -> dict:
     """Save an interactive prediction session built from user-entered signals."""
-    pred_id    = str(uuid.uuid4())
-    created_at = datetime.utcnow()
-    session_date = created_at.date()
-    signals_json = json.dumps([s.model_dump() for s in payload.user_signals])
+    try:
+        pred_id      = str(uuid.uuid4())
+        created_at   = datetime.now(tz=timezone.utc)
+        session_date = created_at.date()
+        signals_json = json.dumps([s.model_dump() for s in payload.user_signals])
 
-    conn = get_conn()
-    conn.execute("""
-        INSERT INTO interactive_predictions
-            (id, ticker, session_date, created_at,
-             user_signals, signals_count,
-             prob_up, confidence, direction,
-             notes, source)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, [
-        pred_id,
-        payload.ticker.upper(),
-        session_date,
-        created_at,
-        signals_json,
-        len(payload.user_signals),
-        payload.prob_up,
-        payload.confidence,
-        payload.direction,
-        payload.notes,
-        payload.source,
-    ])
-    conn.commit()
-
-    return {
-        "id":           pred_id,
-        "ticker":       payload.ticker.upper(),
-        "session_date": str(session_date),
-        "created_at":   created_at.isoformat(),
-        "direction":    payload.direction,
-        "prob_up":      payload.prob_up,
-        "confidence":   payload.confidence,
-        "signals_count": len(payload.user_signals),
-        "message":      "Interactive prediction saved",
-    }
+        conn = get_conn()
+        conn.execute("""
+            INSERT INTO interactive_predictions
+                (id, ticker, session_date, created_at,
+                 user_signals, signals_count,
+                 prob_up, confidence, direction,
+                 notes, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [
+            pred_id,
+            payload.ticker.upper(),
+            session_date,
+            created_at,
+            signals_json,
+            len(payload.user_signals),
+            payload.prob_up,
+            payload.confidence,
+            payload.direction,
+            payload.notes,
+            payload.source,
+        ])
+        conn.commit()
+        logger.info(f"Interactive prediction saved: {payload.ticker} dir={payload.direction} signals={len(payload.user_signals)}")
+        return {
+            "id":            pred_id,
+            "ticker":        payload.ticker.upper(),
+            "session_date":  str(session_date),
+            "created_at":    created_at.isoformat(),
+            "direction":     payload.direction,
+            "prob_up":       payload.prob_up,
+            "confidence":    payload.confidence,
+            "signals_count": len(payload.user_signals),
+            "message":       "Interactive prediction saved",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"save_interactive_prediction failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Could not save prediction: {e}")
 
 
 @router.get("/predictions")

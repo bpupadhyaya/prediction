@@ -14,6 +14,7 @@ struct LLMModel: Identifiable {
     let hfFile: String
 
     var downloadURL: URL {
+        // Force-unwrap is safe: all hfRepo/hfFile values in the catalog are valid URLs
         URL(string: "https://huggingface.co/\(hfRepo)/resolve/main/\(hfFile)")!
     }
 
@@ -25,8 +26,8 @@ struct LLMModel: Identifiable {
 }
 
 enum ModelCompatibility: String {
-    case compatible = "✓ Compatible"
-    case marginal = "⚠ Marginal"
+    case compatible   = "✓ Compatible"
+    case marginal     = "⚠ Marginal"
     case insufficient = "✗ Needs more RAM"
 }
 
@@ -76,7 +77,7 @@ final class LLMDownloadManager: ObservableObject {
 
     @Published var downloadProgress: [String: Double] = [:]   // model id → 0..1
     @Published var downloadStatus: [String: String] = [:]     // model id → "downloading" | "done" | "error"
-    @Published var activeModelId: String? = nil
+    @Published var activeModelId: String?
 
     private let modelsDir: URL
     private let configURL: URL

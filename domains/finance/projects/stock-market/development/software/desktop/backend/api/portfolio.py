@@ -1,8 +1,10 @@
-from fastapi import APIRouter
+import logging
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from backend.models.predictor import predict_ticker
 from backend.database.duckdb_client import get_conn
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -19,7 +21,17 @@ class PortfolioRequest(BaseModel):
 
 @router.post("/analyze")
 def analyze_portfolio(req: PortfolioRequest):
-    conn = get_conn()
+    if not req.holdings:
+        raise HTTPException(status_code=422, detail="holdings list cannot be empty")
+    if req.horizon not in ("1d", "1w", "1m"):
+        raise HTTPException(status_code=422, detail="horizon must be one of: 1d, 1w, 1m")
+
+    try:
+        conn = get_conn()
+    except Exception as e:
+        logger.error(f"DB connection failed in portfolio/analyze: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Database unavailable")
+
     results = []
     total_value = 0.0
 
@@ -34,7 +46,11 @@ def analyze_portfolio(req: PortfolioRequest):
         position_value = current_price * h.quantity
         total_value += position_value
 
-        pred = predict_ticker(ticker, req.horizon)
+        try:
+            pred = predict_ticker(ticker, req.horizon)
+        except Exception as e:
+            logger.warning(f"Prediction failed for {ticker} in portfolio analysis: {e}")
+            raise HTTPException(status_code=502, detail=f"Prediction unavailable for {ticker}: {e}")
         gain_loss = None
         if h.purchase_price and h.purchase_price > 0:
             gain_loss = round((current_price - h.purchase_price) / h.purchase_price * 100, 2)

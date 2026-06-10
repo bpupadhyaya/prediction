@@ -9,7 +9,7 @@ export interface ExportPayload {
   parameters: Parameter[];
 }
 
-function download(content: string | Uint8Array, filename: string, mime: string) {
+function download(content: string | Uint8Array, filename: string, mime: string): void {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -21,7 +21,7 @@ function download(content: string | Uint8Array, filename: string, mime: string) 
   URL.revokeObjectURL(url);
 }
 
-export function exportJSON(p: ExportPayload) {
+export function exportJSON(p: ExportPayload): void {
   const out = {
     ticker: p.ticker,
     date: p.date,
@@ -48,7 +48,7 @@ export function exportJSON(p: ExportPayload) {
   download(JSON.stringify(out, null, 2), `${p.ticker}_prediction_${p.date}.json`, 'application/json');
 }
 
-export function exportCSV(p: ExportPayload) {
+export function exportCSV(p: ExportPayload): void {
   const escape = (v: unknown) => `"${String(v).replace(/"/g, '""')}"`;
   const rows: string[][] = [
     ['Interactive Stock Predictor — Prediction Export'],
@@ -84,7 +84,7 @@ export function exportCSV(p: ExportPayload) {
   download(csv, `${p.ticker}_prediction_${p.date}.csv`, 'text/csv;charset=utf-8;');
 }
 
-export function exportPDF(p: ExportPayload) {
+export function exportPDF(p: ExportPayload): void {
   const changedParams = p.parameters.filter(param => {
     const s = p.states[param.name];
     return s && s.direction !== 'neutral';
@@ -155,12 +155,15 @@ ${changedParams.length > 0 ? `<div class="section">Parameters You Set (${changed
 </body></html>`;
 
   const win = window.open('', '_blank', 'width=900,height=700');
-  if (!win) return;
+  if (!win) {
+    alert('Pop-up blocked. Please allow pop-ups for this site to use PDF export.');
+    return;
+  }
   win.document.write(html);
   win.document.close();
 }
 
-export async function exportXLSX(p: ExportPayload) {
+export async function exportXLSX(p: ExportPayload): Promise<void> {
   const XLSX = await import('xlsx');
 
   const wb = XLSX.utils.book_new();
@@ -204,7 +207,14 @@ export async function exportXLSX(p: ExportPayload) {
     .filter(param => (p.states[param.name]?.direction ?? 'neutral') !== 'neutral')
     .map(param => {
       const s = p.states[param.name];
-      return [param.name, param.domainLabel, param.label, s?.direction, s?.weight, s?.value ?? param.defaultValue];
+      return [
+        param.name,
+        param.domainLabel,
+        param.label,
+        s?.direction ?? 'neutral',
+        s?.weight ?? 50,
+        s?.value ?? param.defaultValue,
+      ];
     });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([changedHeaders, ...changedRows]), 'My Signals');
 

@@ -23,22 +23,26 @@
     nav button {
       background: none; border: 1px solid var(--border); color: var(--muted);
       padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
-    nav button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    nav button:hover:not(.active) { background: rgba(79,142,247,0.08); color: var(--text); }
+    nav button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 
     /* Compatibility / model card utilities */
     .compat-ok   { color: var(--accent2); font-weight: 600; }
     .compat-warn { color: var(--warn); font-weight: 600; }
     .compat-bad  { color: var(--danger); }
-    .model-card  { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+    .model-card  { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; }
     .model-card.active-model { border-color: var(--accent); }
     .model-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
-    .model-name { font-weight: 700; font-size: 1rem; }
+    .model-name { font-weight: 700; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .model-meta { font-size: 0.8rem; color: var(--muted); margin: 0.3rem 0 0.6rem; }
     .model-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; }
-    .model-actions button { padding: 0.35rem 0.85rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; border: 1px solid var(--border); }
+    .model-actions button { padding: 0.35rem 0.85rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; border: 1px solid var(--border); transition: opacity 0.15s, filter 0.15s; }
+    .model-actions button:not(:disabled):hover { filter: brightness(1.1); }
+    .model-actions button:disabled { opacity: 0.45; cursor: not-allowed; }
     .btn-download  { background: var(--accent); color: #fff; border-color: var(--accent) !important; }
-    .btn-activate  { background: var(--accent2); color: #000; border-color: var(--accent2) !important; }
+    .btn-activate  { background: var(--accent2); color: #0f1117; border-color: var(--accent2) !important; font-weight: 700; }
     .btn-deactivate{ background: var(--surface); color: var(--muted); }
     .btn-delete    { background: none; color: var(--danger); border-color: var(--danger) !important; }
     .progress-wrap { margin-top: 0.5rem; background: var(--border); border-radius: 4px; height: 6px; }
@@ -53,20 +57,27 @@
     .search-bar input {
       flex: 1; background: var(--surface); border: 1px solid var(--border);
       color: var(--text); padding: 0.75rem 1rem; border-radius: 8px; font-size: 1rem;
+      transition: border-color 0.15s; outline: none;
     }
+    .search-bar input:focus { border-color: var(--accent); }
     .search-bar button {
       background: var(--accent); border: none; color: #fff;
       padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; font-size: 1rem;
+      transition: opacity 0.15s;
     }
+    .search-bar button:not(:disabled):hover { opacity: 0.88; }
+    .search-bar button:disabled { opacity: 0.45; cursor: not-allowed; }
     .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
     .card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.25rem; cursor: pointer;
+      border-radius: 10px; padding: 1.25rem; cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
+    .card:hover { border-color: rgba(79,142,247,0.4); box-shadow: 0 2px 12px rgba(0,0,0,0.3); }
     .card .ticker { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.75rem; }
-    .badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
-    .badge.up   { background: rgba(52,211,153,0.15); color: var(--accent2); }
-    .badge.down { background: rgba(248,113,113,0.15); color: var(--danger); }
+    .badge { display: inline-block; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.82rem; font-weight: 600; }
+    .badge.up   { background: rgba(52,211,153,0.18); color: #2dd4a0; }
+    .badge.down { background: rgba(248,113,113,0.18); color: #f87171; }
 
     /* ── Tooltip ──────────────────────────────────────────────────────────────── */
     .tip { position: relative; display: inline-block; cursor: help; }
@@ -96,7 +107,8 @@
     .tip:hover::after { opacity: 1; }
     .stat { display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.85rem; }
     .stat span:last-child { color: var(--muted); }
-    .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .chart-container canvas { min-height: 140px; }
     canvas { width: 100% !important; }
     .disclaimer { color: var(--muted); font-size: 0.75rem; margin-top: 2rem; text-align: center; }
     .accuracy-badge { background: rgba(79,142,247,0.15); color: var(--accent); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
@@ -104,8 +116,15 @@
     #view-home.active, #view-stock.active, #view-portfolio.active, #view-models.active, #view-guidance.active, #view-interactive.active { display: block; }
     .ticker-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
     .ticker-bar input { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 0.75rem; border-radius: 8px; font-size: 0.95rem; width: 200px; }
-    .ticker-bar button { background: var(--accent); border: none; color: #fff; padding: 0.5rem 1.1rem; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
-    #ip-save-msg { background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.3); color: var(--accent2); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem; margin-bottom: 1rem; }
+    .ticker-bar button { background: var(--accent); border: none; color: #fff; padding: 0.5rem 1.1rem; border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: opacity 0.15s; }
+    .ticker-bar button:not(:disabled):hover { opacity: 0.88; }
+    .ticker-bar button:disabled { opacity: 0.45; cursor: not-allowed; }
+    #ip-save-msg { background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.3); color: #2dd4a0; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem; margin-bottom: 1rem; }
+    .error-banner { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.3); color: #f87171; padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.85rem; margin-bottom: 1rem; }
+    .loading-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 0.4rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .skeleton { background: linear-gradient(90deg, var(--surface) 25%, rgba(255,255,255,0.04) 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 4px; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     .portfolio-form textarea {
       width: 100%; background: var(--surface); border: 1px solid var(--border);
       color: var(--text); padding: 0.75rem; border-radius: 8px; font-family: monospace;
@@ -113,15 +132,19 @@
     }
     .portfolio-form button {
       margin-top: 0.75rem; background: var(--accent); border: none; color: #fff;
-      padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer;
+      padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer; transition: opacity 0.15s;
     }
+    .portfolio-form button:not(:disabled):hover { opacity: 0.88; }
+    .portfolio-form button:disabled { opacity: 0.45; cursor: not-allowed; }
     .horizon-tabs { display: flex; gap: 0.4rem; margin-top: 0.75rem; }
     .horizon-tabs button {
       background: var(--surface); border: 1px solid var(--border); color: var(--muted);
       padding: 0.35rem 0.85rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
-    .horizon-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; }
+    .horizon-tabs button:hover:not(.active) { color: var(--text); border-color: rgba(79,142,247,0.4); }
+    .horizon-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    .summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1.25rem; }
     .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; margin-top: 0.75rem; }
     .summary-item { font-size: 0.85rem; color: var(--muted); }
     .summary-item span { display: block; font-size: 1.1rem; font-weight: 600; color: var(--text); margin-top: 0.2rem; }
@@ -131,7 +154,9 @@
       background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
       padding: 0.75rem 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
     }
-    .sync-bar button { background: var(--accent); border: none; color: #fff; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    .sync-bar button { background: var(--accent); border: none; color: #fff; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: opacity 0.15s; }
+    .sync-bar button:not(:disabled):hover { opacity: 0.88; }
+    .sync-bar button:disabled { opacity: 0.45; cursor: not-allowed; }
     .sync-bar span { color: var(--muted); font-size: 0.85rem; }
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
     .horizon-badges { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
@@ -161,7 +186,7 @@
 
     /* ── SHAP explanation panel ──────────────────────────────────────────────── */
     .explain-panel {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
       padding: 1.25rem; margin-bottom: 1rem;
     }
     .explain-toggle {
@@ -204,7 +229,7 @@
       display: flex; align-items: center; gap: 0.3rem;
     }
     .signal-chip .del-chip {
-      cursor: pointer; color: var(--muted); font-size: 0.65rem; margin-left: 0.2rem;
+      cursor: pointer; color: var(--muted); font-size: 0.72rem; margin-left: 0.2rem;
     }
     .signal-chip .del-chip:hover { color: var(--danger); }
 
@@ -213,6 +238,7 @@
       background: rgba(79,142,247,0.1); border: 1px solid rgba(79,142,247,0.3);
       color: var(--accent); padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer;
       font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.3rem;
+      transition: background 0.15s;
     }
     .add-ctx-btn:hover { background: rgba(79,142,247,0.2); }
 
@@ -222,11 +248,11 @@
     }
     .modal-overlay.open { display: flex; }
     .modal {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
       padding: 1.5rem; width: 480px; max-width: 95vw; max-height: 85vh; overflow-y: auto;
     }
     .modal-lg {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
       padding: 1.5rem; width: 900px; max-width: 96vw; max-height: 90vh; overflow-y: auto;
     }
     .hist-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 1rem; }
@@ -254,16 +280,23 @@
     .form-group input, .form-group textarea, .form-group select {
       width: 100%; background: var(--bg); border: 1px solid var(--border);
       color: var(--text); padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem;
+      transition: border-color 0.15s; outline: none;
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+      border-color: var(--accent);
     }
     .form-group textarea { height: 80px; resize: vertical; font-family: inherit; }
     .form-group input[type=range] { padding: 0; }
     .signal-slider-labels { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--muted); }
     .modal-footer { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem; }
-    .btn-primary { background: var(--accent); border: none; color: #fff; padding: 0.5rem 1.2rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
-    .btn-secondary { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: var(--accent); border: none; color: #fff; padding: 0.5rem 1.2rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: opacity 0.15s; }
+    .btn-primary:not(:disabled):hover { opacity: 0.88; }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-secondary { background: none; border: 1px solid var(--border); color: var(--muted); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: color 0.15s, border-color 0.15s; }
+    .btn-secondary:hover { color: var(--text); border-color: rgba(79,142,247,0.4); }
 
     /* ── Guidance view ───────────────────────────────────────────────────────── */
-    .guidance-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.25rem; }
+    .guidance-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1.25rem; }
     .guidance-section h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.85rem; }
     .weight-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.6rem; }
     .weight-row .domain-lbl { font-size: 0.85rem; color: var(--text); min-width: 150px; }
@@ -276,7 +309,7 @@
     .signal-row:last-child { border-bottom: none; }
     .signal-row .sig-domain { color: var(--accent); min-width: 90px; }
     .signal-row .sig-ticker { color: var(--muted); min-width: 60px; }
-    .signal-row .sig-content { color: var(--text); flex: 1; line-height: 1.3; }
+    .signal-row .sig-content { color: var(--text); flex: 1; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
     .signal-row .sig-val { color: var(--warn); min-width: 36px; text-align: right; }
     .signal-row .sig-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.75rem; padding: 0.15rem 0.4rem; }
     .signal-row .sig-del:hover { color: var(--danger); }
@@ -288,10 +321,11 @@
     /* ── "How?" button on horizon badges ────────────────────────────────────── */
     .how-btn {
       background: rgba(79,142,247,0.1); border: 1px solid rgba(79,142,247,0.3);
-      color: var(--accent); font-size: 0.6rem; font-weight: 700;
-      width: 16px; height: 16px; border-radius: 50%; cursor: pointer;
+      color: var(--accent); font-size: 0.65rem; font-weight: 700;
+      width: 18px; height: 18px; border-radius: 50%; cursor: pointer;
       display: inline-flex; align-items: center; justify-content: center;
       padding: 0; line-height: 1; flex-shrink: 0;
+      transition: background 0.12s;
     }
     .how-btn:hover { background: rgba(79,142,247,0.25); }
 
@@ -323,6 +357,19 @@
     .factor-table tr:hover td { background: rgba(79,142,247,0.03); }
     .shap-bar-wrap { width: 56px; height: 5px; background: var(--border); border-radius: 3px; display: inline-block; vertical-align: middle; }
     .shap-bar-fill { height: 100%; border-radius: 3px; }
+
+    /* ── Interactive parameter studio ─────────────────────────────────────── */
+    .ip-dir-btn {
+      font-size: 0.75rem; padding: 0.25rem 0.65rem; border-radius: 4px; cursor: pointer;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .ip-dir-btn.up-inactive   { border: 1px solid var(--border); background: none; color: var(--muted); }
+    .ip-dir-btn.up-inactive:hover { border-color: var(--accent2); color: var(--accent2); }
+    .ip-dir-btn.up-active     { border: 1px solid var(--accent2); background: rgba(52,211,153,0.18); color: #2dd4a0; font-weight: 700; }
+    .ip-dir-btn.down-inactive { border: 1px solid var(--border); background: none; color: var(--muted); }
+    .ip-dir-btn.down-inactive:hover { border-color: var(--danger); color: var(--danger); }
+    .ip-dir-btn.down-active   { border: 1px solid var(--danger); background: rgba(248,113,113,0.18); color: #f87171; font-weight: 700; }
+    .ip-weight-val { font-size: 0.8rem; font-family: monospace; color: var(--accent); min-width: 28px; text-align: right; font-weight: 700; }
 
     /* ── Factor table — domain grouping + expandable rows ─────────────────── */
     .factor-domain-row td {
@@ -670,7 +717,7 @@
       </div>
 
       <!-- Trend chart -->
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1rem">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1rem;min-height:160px">
         <div style="display:flex;align-items:center;gap:1rem;margin-bottom:0.5rem;flex-wrap:wrap">
           <span style="font-size:0.78rem;color:var(--muted)">
             <span style="display:inline-block;width:10px;height:3px;background:#4f8ef7;border-radius:2px;vertical-align:middle;margin-right:3px"></span>Prob(UP) %
@@ -720,6 +767,20 @@
     const BASE = "/api";
     let _guidanceModalTicker = null;
     let _activeModalTab = "note";
+
+    // ── Toast notifications ────────────────────────────────────────────────────
+    function _showToast(msg, type = "success") {
+      const t = document.createElement("div");
+      t.style.cssText = `position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;padding:0.65rem 1.1rem;
+        border-radius:8px;font-size:0.85rem;font-weight:500;max-width:340px;
+        box-shadow:0 4px 20px rgba(0,0,0,0.5);transition:opacity 0.3s;opacity:1;
+        background:${type==="error"?"rgba(248,113,113,0.15)":"rgba(52,211,153,0.15)"};
+        border:1px solid ${type==="error"?"rgba(248,113,113,0.4)":"rgba(52,211,153,0.4)"};
+        color:${type==="error"?"#f87171":"#2dd4a0"}`;
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 320); }, 3500);
+    }
 
     async function apiFetch(path, options) {
       const res = await fetch(BASE + path, options);
@@ -778,15 +839,22 @@
       return `${(pred.expected_return_low * 100).toFixed(1)}% to ${(pred.expected_return_high * 100).toFixed(1)}%`;
     }
 
+    // Accepts both raw-integer regime (from predictor) and {code,label} regime (from guidance endpoint)
+    function _regimeCode(v) { return (v != null && typeof v === "object") ? v.code : v; }
     function _regimeBadgeHtml(regime) {
-      if (!regime || !regime.monetary && regime.monetary !== 0) return "";
-      const mon  = ["🔽 Cutting", "⏸ Pausing",  "🔼 Hiking"][regime.monetary]  || "?";
-      const cred = ["✅ Expansion","⚠️ Stress",  "🚨 Crisis"][regime.credit]    || "?";
-      const credCls = ["credit", "credit-stress", "credit-crisis"][regime.credit] || "credit";
-      const vol  = ["🟢 Low Vol", "🔵 Normal", "🟡 Elevated", "🔴 Vol Crisis"][regime.volatility] || "?";
-      const volCls = ["vol-low","vol-norm","vol-elev","vol-cris"][regime.volatility] || "vol-norm";
-      const yc   = ["📈 Normal YC", "➡ Flat YC", "🔃 Inverted YC", "↗ Re-steepening"][regime.yield_curve] || "?";
-      const ycCls = ["yc-normal","yc-flat","yc-inv","yc-re"][regime.yield_curve] || "yc-normal";
+      if (!regime) return "";
+      const monCode  = _regimeCode(regime.monetary);
+      const credCode = _regimeCode(regime.credit);
+      const volCode  = _regimeCode(regime.volatility);
+      const ycCode   = _regimeCode(regime.yield_curve);
+      if (monCode == null && monCode !== 0) return "";
+      const mon  = ["🔽 Cutting", "⏸ Pausing",  "🔼 Hiking"][monCode]   || "?";
+      const cred = ["✅ Expansion","⚠ Stress",  "🚨 Crisis"][credCode]   || "?";
+      const credCls = ["credit", "credit-stress", "credit-crisis"][credCode] || "credit";
+      const vol  = ["🟢 Low Vol", "🔵 Normal", "🟡 Elevated", "🔴 Crisis"][volCode] || "?";
+      const volCls = ["vol-low","vol-norm","vol-elev","vol-cris"][volCode] || "vol-norm";
+      const yc   = ["📈 Normal YC", "↔ Flat YC", "🔻 Inverted YC", "↗ Re-steepening"][ycCode] || "?";
+      const ycCls = ["yc-normal","yc-flat","yc-inv","yc-re"][ycCode] || "yc-normal";
       return `
         <span class="regime-badge monetary">${mon}</span>
         <span class="regime-badge ${credCls}">${cred}</span>
@@ -844,11 +912,17 @@
     function showAllSP500()  { _sp500Shown = _sp500All.length; _renderSP500(); }
     async function loadTopPredictions() {
       const container = document.getElementById("top-cards");
+      container.innerHTML = `<p style='color:var(--muted)'><span class="loading-spinner"></span>Loading predictions…</p>`;
       try {
         _sp500All = await api.topPredictions(500);
-        if (!_sp500All.length) { container.innerHTML = "<p style='color:var(--muted)'>No predictions yet — wait for model training.</p>"; return; }
+        if (!_sp500All.length) {
+          container.innerHTML = "<p style='color:var(--muted)'>No predictions yet — wait for model training to complete.</p>";
+          return;
+        }
         _sp500Shown = 50; _renderSP500();
-      } catch { container.innerHTML = "<p style='color:var(--muted)'>Could not load predictions.</p>"; }
+      } catch (e) {
+        container.innerHTML = `<div class="error-banner">Could not load predictions: ${e.message}</div>`;
+      }
     }
 
     // ── Hot Stocks ─────────────────────────────────────────────────────────────
@@ -925,7 +999,9 @@
       if (!ticker) return;
       _currentLookupTicker = ticker;
       const container = document.getElementById("stock-result");
-      container.innerHTML = "<p style='color:var(--muted)'>Loading...</p>";
+      const predictBtn = document.querySelector("#view-stock .search-bar button");
+      if (predictBtn) { predictBtn.disabled = true; predictBtn.textContent = "Loading…"; }
+      container.innerHTML = `<p style='color:var(--muted)'><span class="loading-spinner"></span>Fetching prediction for ${ticker}…</p>`;
 
       try {
         const [pred, prices] = await Promise.all([
@@ -1038,7 +1114,9 @@
         }).catch(() => {});
 
       } catch (e) {
-        container.innerHTML = `<p style='color:var(--danger)'>Error: ${e.message}</p>`;
+        container.innerHTML = `<div class="error-banner">Error loading prediction: ${e.message}</div>`;
+      } finally {
+        if (predictBtn) { predictBtn.disabled = false; predictBtn.textContent = "Predict"; }
       }
     }
 
@@ -1105,8 +1183,9 @@
     async function deleteSignalFromChip(id, ticker) {
       try {
         await api.deleteSignal(id);
+        _showToast("Signal removed.", "success");
         lookupStock(); // refresh
-      } catch (e) { alert("Could not remove signal: " + e.message); }
+      } catch (e) { _showToast("Could not remove signal: " + e.message, "error"); }
     }
 
     async function loadHorizons(ticker) {
@@ -1181,14 +1260,19 @@
     }
     async function analyzePortfolio() {
       const lines = document.getElementById("portfolio-input").value.trim().split("\n").filter(Boolean);
-      if (!lines.length) return;
+      if (!lines.length) {
+        document.getElementById("portfolio-result").innerHTML = `<div class="error-banner">Please enter at least one holding (e.g. AAPL:50:150.00).</div>`;
+        return;
+      }
       const holdings = lines.map(line => {
         const [ticker, qty, price] = line.split(":");
         return { ticker: ticker.trim().toUpperCase(), quantity: parseFloat(qty ?? "1"),
           ...(price ? { purchase_price: parseFloat(price) } : {}) };
       });
       const container = document.getElementById("portfolio-result");
-      container.innerHTML = "<p style='color:var(--muted)'>Analyzing...</p>";
+      const analyzeBtn = document.querySelector(".portfolio-form button");
+      if (analyzeBtn) { analyzeBtn.disabled = true; analyzeBtn.textContent = "Analyzing…"; }
+      container.innerHTML = `<p style='color:var(--muted)'><span class="loading-spinner"></span>Analyzing portfolio…</p>`;
       try {
         const result = await api.analyzePortfolio(holdings, _portfolioHorizon);
         const s = result.summary;
@@ -1226,55 +1310,63 @@
           </div>
           <p class="disclaimer">${result.disclaimer}</p>`;
       } catch (e) {
-        container.innerHTML = `<p style='color:var(--danger)'>Error: ${e.message}</p>`;
+        container.innerHTML = `<div class="error-banner">Portfolio analysis failed: ${e.message}</div>`;
+      } finally {
+        if (analyzeBtn) { analyzeBtn.disabled = false; analyzeBtn.textContent = "Analyze Portfolio"; }
       }
     }
 
     // ── Guidance View ──────────────────────────────────────────────────────────
     async function loadGuidanceView() {
       // Regime
+      const regEl = document.getElementById("guidance-regime-content");
+      regEl.innerHTML = `<span class="loading-spinner"></span>Loading…`;
       api.getRegime().then(data => {
-        const el = document.getElementById("guidance-regime-content");
         const interp = document.getElementById("guidance-regime-interp");
         if (data.regime) {
-          el.innerHTML = _regimeBadgeHtml(data.regime);
+          regEl.innerHTML = _regimeBadgeHtml(data.regime);
           if (data.interpretation) interp.textContent = data.interpretation;
         } else {
-          el.textContent = "Regime not yet computed — make a prediction first.";
+          regEl.textContent = "Regime not yet computed — make a prediction first.";
         }
-      }).catch(() => { document.getElementById("guidance-regime-content").textContent = "Could not load regime."; });
+      }).catch(e => { regEl.innerHTML = `<span class="error-banner">Could not load regime: ${e.message}</span>`; });
 
       // Accuracy
+      const accEl = document.getElementById("guidance-accuracy");
+      accEl.innerHTML = `<span class="loading-spinner"></span>Loading…`;
       api.getAccuracy("1w").then(data => {
-        const el = document.getElementById("guidance-accuracy");
         if (data.total === 0) {
-          el.textContent = "No resolved outcomes yet. Accuracy is tracked after predictions resolve (35+ days).";
+          accEl.textContent = "No resolved outcomes yet. Accuracy is tracked after predictions resolve (35+ days).";
           return;
         }
-        el.innerHTML = `
+        const accColor = (data.accuracy||0) > 0.55 ? "#2dd4a0" : "var(--warn)";
+        accEl.innerHTML = `
           <div class="accuracy-grid">
             <div class="acc-cell"><div class="acc-num">${data.total}</div><div class="acc-lbl">Predictions evaluated</div></div>
             <div class="acc-cell"><div class="acc-num">${data.correct}</div><div class="acc-lbl">Correct direction</div></div>
-            <div class="acc-cell"><div class="acc-num" style="color:${(data.accuracy||0)>0.55?'var(--accent2)':'var(--warn)'}">${Math.round((data.accuracy||0)*100)}%</div><div class="acc-lbl">Accuracy (1w, 90d)</div></div>
+            <div class="acc-cell"><div class="acc-num" style="color:${accColor}">${Math.round((data.accuracy||0)*100)}%</div><div class="acc-lbl">Accuracy (1w, 90d)</div></div>
           </div>`;
-      }).catch(() => { document.getElementById("guidance-accuracy").textContent = "Could not load accuracy."; });
+      }).catch(e => { accEl.innerHTML = `<span class="error-banner">Could not load accuracy: ${e.message}</span>`; });
 
       // Domain weights
+      const wtEl = document.getElementById("guidance-weights");
+      wtEl.innerHTML = `<span class="loading-spinner"></span>Loading…`;
       api.getDomainWeights().then(data => {
-        const el = document.getElementById("guidance-weights");
-        el.innerHTML = (data.weights || []).map(w => {
+        const rows = (data.weights || []);
+        if (!rows.length) { wtEl.textContent = "No domain weights found."; return; }
+        wtEl.innerHTML = rows.map(w => {
           const pct = Math.round(((w.multiplier - 0.5) / 1.5) * 100);
-          const color = w.multiplier > 1.05 ? "var(--accent2)" : w.multiplier < 0.95 ? "var(--danger)" : "var(--muted)";
+          const color = w.multiplier > 1.05 ? "#2dd4a0" : w.multiplier < 0.95 ? "var(--danger)" : "var(--muted)";
           return `
             <div class="weight-row">
               <span class="domain-lbl">${w.label}</span>
               <div style="flex:1;height:4px;background:var(--border);border-radius:2px">
-                <div style="width:${pct}%;height:100%;background:${color};border-radius:2px"></div>
+                <div style="width:${pct}%;height:100%;background:${color};border-radius:2px;transition:width 0.4s"></div>
               </div>
               <span class="mult-val" style="color:${color}">${w.multiplier.toFixed(2)}×</span>
             </div>`;
-        }).join("") || "<span>No domain weights found.</span>";
-      }).catch(() => { document.getElementById("guidance-weights").textContent = "Could not load weights."; });
+        }).join("");
+      }).catch(e => { wtEl.innerHTML = `<span class="error-banner">Could not load weights: ${e.message}</span>`; });
 
       // Signals
       loadGuidanceSignals();
@@ -1282,6 +1374,7 @@
 
     async function loadGuidanceSignals() {
       const el = document.getElementById("guidance-signals");
+      el.innerHTML = `<span class="loading-spinner"></span>Loading…`;
       try {
         const data = await api.getAllSignals();
         if (!data.signals || data.signals.length === 0) {
@@ -1290,7 +1383,7 @@
         }
         el.innerHTML = data.signals.map(s => {
           const sigVal = parseFloat(s.extracted_signal || 0);
-          const valColor = sigVal > 0.1 ? "var(--accent2)" : sigVal < -0.1 ? "var(--danger)" : "var(--muted)";
+          const valColor = sigVal > 0.1 ? "#2dd4a0" : sigVal < -0.1 ? "var(--danger)" : "var(--muted)";
           const expires = s.expires_at ? new Date(s.expires_at).toLocaleDateString() : "Never";
           return `
             <div class="signal-row">
@@ -1302,16 +1395,17 @@
               <button class="sig-del" onclick="deleteGuidanceSignal('${s.id}')">✕ Remove</button>
             </div>`;
         }).join("");
-      } catch {
-        el.textContent = "Could not load signals.";
+      } catch (e) {
+        el.innerHTML = `<div class="error-banner">Could not load signals: ${e.message}</div>`;
       }
     }
 
     async function deleteGuidanceSignal(id) {
       try {
         await api.deleteSignal(id);
+        _showToast("Signal removed.", "success");
         loadGuidanceSignals();
-      } catch (e) { alert("Could not remove signal: " + e.message); }
+      } catch (e) { _showToast("Could not remove signal: " + e.message, "error"); }
     }
 
     // ── Guidance Modal ─────────────────────────────────────────────────────────
@@ -1361,7 +1455,7 @@
 
       if (tab === "note") {
         const content = document.getElementById("note-content").value.trim();
-        if (!content) { alert("Please enter a note."); return; }
+        if (!content) { _showToast("Please enter a note before saving.", "error"); return; }
         payload = {
           ticker: _guidanceModalTicker || null,
           signal_type: "note",
@@ -1375,7 +1469,7 @@
       } else if (tab === "url") {
         const url = document.getElementById("url-content").value.trim();
         const note = document.getElementById("url-note").value.trim();
-        if (!url) { alert("Please enter a URL."); return; }
+        if (!url) { _showToast("Please enter a URL before saving.", "error"); return; }
         payload = {
           ticker: _guidanceModalTicker || null,
           signal_type: "url",
@@ -1399,9 +1493,12 @@
         };
       }
 
+      const saveBtn = document.querySelector("#guidance-modal .btn-primary");
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
       try {
         await api.addSignal(payload);
         closeGuidanceModal();
+        _showToast("Signal saved successfully.", "success");
         // Refresh relevant UI
         if (_currentLookupTicker && document.getElementById("view-stock").classList.contains("active")) {
           lookupStock();
@@ -1410,7 +1507,9 @@
           loadGuidanceSignals();
         }
       } catch (e) {
-        alert("Could not save signal: " + e.message);
+        _showToast("Could not save signal: " + e.message, "error");
+      } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Signal"; }
       }
     }
 
@@ -1585,7 +1684,7 @@
           </table>`;
 
       } catch (e) {
-        tableWrap.innerHTML = `<p style='color:var(--danger)'>Error loading history: ${e.message}</p>`;
+        tableWrap.innerHTML = `<div class="error-banner">Error loading history: ${e.message}</div>`;
         _clearHistChart();
       }
     }
@@ -1622,19 +1721,31 @@
 
     // ── Sync ────────────────────────────────────────────────────────────────────
     async function triggerSync() {
-      const status = document.getElementById("sync-status");
-      status.textContent = "Starting refresh...";
+      const status  = document.getElementById("sync-status");
+      const syncBtn = document.querySelector(".sync-bar button");
+      if (syncBtn) { syncBtn.disabled = true; syncBtn.textContent = "Refreshing…"; }
+      status.innerHTML = `<span class="loading-spinner"></span>Starting refresh…`;
       try {
         await api.triggerSync();
-        status.textContent = "Refresh running in background...";
+        status.innerHTML = `<span class="loading-spinner"></span>Refresh running in background…`;
         const poll = setInterval(async () => {
           try {
             const s = await api.syncStatus();
-            status.textContent = s.running ? s.message : `Last synced: ${s.last_completed ?? "never"}`;
-            if (!s.running) clearInterval(poll);
-          } catch { clearInterval(poll); }
+            if (s.running) {
+              status.innerHTML = `<span class="loading-spinner"></span>${s.message || "Running…"}`;
+            } else {
+              status.textContent = `Last synced: ${s.last_completed ?? "never"}`;
+              if (syncBtn) { syncBtn.disabled = false; syncBtn.textContent = "⟳ Refresh Data"; }
+              clearInterval(poll);
+              _showToast("Data refresh complete.", "success");
+            }
+          } catch { clearInterval(poll); if (syncBtn) { syncBtn.disabled = false; syncBtn.textContent = "⟳ Refresh Data"; } }
         }, 2000);
-      } catch (e) { status.textContent = `Sync failed: ${e.message}`; }
+      } catch (e) {
+        status.textContent = `Sync failed: ${e.message}`;
+        if (syncBtn) { syncBtn.disabled = false; syncBtn.textContent = "⟳ Refresh Data"; }
+        _showToast(`Sync failed: ${e.message}`, "error");
+      }
     }
 
     async function updateSyncStatus() {
@@ -1709,13 +1820,14 @@
           if (m.download_status && m.download_status.status === "downloading") _startPollDownload(m.id);
         });
       } catch (e) {
-        catalogEl.innerHTML = `<p style='color:var(--danger)'>Error: ${e.message}</p>`;
+        catalogEl.innerHTML = `<div class="error-banner">Could not load model catalog: ${e.message}</div>`;
+        hwEl.innerHTML = `<span style="color:var(--muted)">Hardware info unavailable.</span>`;
       }
     }
 
     async function downloadModel(modelId) {
       try { await apiFetch(`/models/download/${modelId}`, { method:"POST" }); _startPollDownload(modelId); loadModelCatalog(); }
-      catch (e) { alert(`Download failed: ${e.message}`); }
+      catch (e) { _showToast(`Download failed: ${e.message}`, "error"); }
     }
     function _startPollDownload(modelId) {
       if (_pollTimers[modelId]) return;
@@ -1730,18 +1842,27 @@
       }, 2000);
     }
     async function activateModel(modelId) {
-      await apiFetch("/models/activate", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({model_id:modelId}) });
-      loadModelCatalog();
+      try {
+        await apiFetch("/models/activate", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({model_id:modelId}) });
+        loadModelCatalog();
+        _showToast("Model activated.", "success");
+      } catch (e) { _showToast(`Activation failed: ${e.message}`, "error"); }
     }
     async function deactivateModel() {
-      await apiFetch("/models/activate", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({model_id:null}) });
-      loadModelCatalog();
+      try {
+        await apiFetch("/models/activate", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({model_id:null}) });
+        loadModelCatalog();
+        _showToast("Reverted to GBM (built-in) model.", "success");
+      } catch (e) { _showToast(`Deactivation failed: ${e.message}`, "error"); }
     }
     async function openModelsFolder() { await apiFetch("/models/open-folder", { method:"POST" }).catch(()=>{}); }
     async function deleteModel(modelId) {
       if (!confirm("Remove this model from disk? You can re-download it later.")) return;
-      try { await apiFetch(`/models/${modelId}`, { method:"DELETE" }); loadModelCatalog(); }
-      catch (e) { alert(`Delete failed: ${e.message}`); }
+      try {
+        await apiFetch(`/models/${modelId}`, { method:"DELETE" });
+        loadModelCatalog();
+        _showToast("Model removed from disk.", "success");
+      } catch (e) { _showToast(`Delete failed: ${e.message}`, "error"); }
     }
 
     // ── Factor detail explanations (layman + technical) ───────────────────────
@@ -1846,7 +1967,7 @@
           data = await api.predictExplain(ticker, horizon);
           _explainCache[cacheKey] = data;
         } catch (e) {
-          document.getElementById("explain-content").innerHTML = `<p style='color:var(--danger)'>Error: ${e.message}</p>`;
+          document.getElementById("explain-content").innerHTML = `<div class="error-banner">Could not load explanation: ${e.message}</div>`;
           return;
         }
       }
@@ -2070,12 +2191,13 @@
 
     async function _ipLoadParameters() {
       if (PARAMETERS.length > 0) return;
+      document.getElementById('ip-groups').innerHTML = `<p style='color:var(--muted)'><span class="loading-spinner"></span>Loading parameter definitions…</p>`;
       try {
         const res = await fetch('/src/parameters.json');
-        if (!res.ok) throw new Error('Failed to load parameters.json');
+        if (!res.ok) throw new Error('Failed to load parameters.json — server returned ' + res.status);
         PARAMETERS = await res.json();
       } catch (e) {
-        console.error('Interactive: could not load parameters.json', e);
+        document.getElementById('ip-groups').innerHTML = `<div class="error-banner">Could not load parameter definitions: ${e.message}</div>`;
       }
     }
 
@@ -2180,15 +2302,15 @@
                 <input type="range" min="0" max="100" value="${s.weight}"
                   style="flex:1;accent-color:var(--accent);cursor:pointer"
                   oninput="ipSetWeight('${p.name}', this.value); document.getElementById('ip-wv-${safeN}').textContent=this.value">
-                <span id="ip-wv-${safeN}" style="font-size:.78rem;font-family:monospace;color:var(--accent);min-width:24px;text-align:right">${s.weight}</span>
+                <span id="ip-wv-${safeN}" class="ip-weight-val">${s.weight}</span>
               </div>
             </td>
             <td style="padding:.45rem .5rem;white-space:nowrap">
-              <div style="display:flex;gap:.3rem">
-                <button onclick="ipSetDir('${p.name}','${upActive?'neutral':'up'}')"
-                  style="font-size:.72rem;padding:.2rem .5rem;border-radius:4px;border:1px solid ${upActive?'var(--accent2)':'var(--border)'};background:${upActive?'rgba(52,211,153,.15)':'none'};color:${upActive?'var(--accent2)':'var(--muted)'};cursor:pointer">&#9650; UP</button>
-                <button onclick="ipSetDir('${p.name}','${downActive?'neutral':'down'}')"
-                  style="font-size:.72rem;padding:.2rem .5rem;border-radius:4px;border:1px solid ${downActive?'var(--danger)':'var(--border)'};background:${downActive?'rgba(248,113,113,.15)':'none'};color:${downActive?'var(--danger)':'var(--muted)'};cursor:pointer">&#9660; DOWN</button>
+              <div style="display:flex;gap:.35rem">
+                <button class="ip-dir-btn ${upActive?'up-active':'up-inactive'}"
+                  onclick="ipSetDir('${p.name}','${upActive?'neutral':'up'}')">&#9650; UP</button>
+                <button class="ip-dir-btn ${downActive?'down-active':'down-inactive'}"
+                  onclick="ipSetDir('${p.name}','${downActive?'neutral':'down'}')">&#9660; DOWN</button>
               </div>
             </td>
           </tr>`;
@@ -2288,6 +2410,8 @@
         user_signals: userSignals,
         source: 'desktop'
       };
+      const saveBtn = document.querySelector('#ip-score-header button:last-child');
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
       try {
         await apiFetch('/interactive/predictions', {
           method: 'POST',
@@ -2295,11 +2419,13 @@
           body: JSON.stringify(payload)
         });
         const msg = document.getElementById('ip-save-msg');
-        msg.textContent = '&#10003; Saved snapshot for ' + ipTicker + ' — ' + r.paramsSet + ' signals, direction ' + r.direction.toUpperCase();
+        msg.innerHTML = '&#10003; Saved snapshot for <strong>' + ipTicker + '</strong> — ' + r.paramsSet + ' signals set, direction <strong>' + r.direction.toUpperCase() + '</strong>';
         msg.style.display = 'block';
         setTimeout(() => { msg.style.display = 'none'; }, 5000);
       } catch (e) {
-        alert('Save failed: ' + e.message);
+        _showToast('Save failed: ' + e.message, 'error');
+      } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 Save Snapshot'; }
       }
     }
 

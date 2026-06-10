@@ -3,7 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var store: AppStore
     @State private var selectedTab = 0
-    @State private var activeModuleId: String? = nil
+    @State private var activeModuleId: String?
 
     init() { applyPredictionTabBarAppearance() }
 
@@ -16,19 +16,19 @@ struct ContentView: View {
                 .tabItem { Label("Home", systemImage: "house.fill") }
                 .tag(0)
 
-                NavigationStack { HomeView() }
+                NavigationStack { HomeView().environmentObject(store) }
                     .tabItem { Label("Market", systemImage: "chart.line.uptrend.xyaxis") }
                     .tag(1)
 
-                NavigationStack { SearchView() }
+                NavigationStack { SearchView().environmentObject(store) }
                     .tabItem { Label("Lookup", systemImage: "magnifyingglass") }
                     .tag(2)
 
-                NavigationStack { PortfolioView() }
+                NavigationStack { PortfolioView().environmentObject(store) }
                     .tabItem { Label("Portfolio", systemImage: "briefcase") }
                     .tag(3)
 
-                NavigationStack { WatchlistView() }
+                NavigationStack { WatchlistView().environmentObject(store) }
                     .tabItem { Label("Watchlist", systemImage: "star") }
                     .tag(4)
             }
@@ -49,7 +49,7 @@ struct ContentView: View {
 
     private func handleModuleTap(_ moduleId: String) {
         if marketModuleIds.contains(moduleId) {
-            withAnimation { selectedTab = 1 }
+            withAnimation(.easeInOut(duration: 0.25)) { selectedTab = 1 }
         } else {
             withAnimation(.easeInOut(duration: 0.3)) { activeModuleId = moduleId }
         }
@@ -107,7 +107,7 @@ private struct StockModulePlaceholderOverlay: View {
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 12)
-                .padding(.vertical, 7)
+                .padding(.vertical, 8)
                 .background(.ultraThinMaterial)
                 .clipShape(Capsule())
                 .shadow(color: .black.opacity(0.15), radius: 4, y: 2)

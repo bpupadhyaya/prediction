@@ -28,11 +28,13 @@ struct PortfolioView: View {
                 }
             }
             .navigationTitle("Portfolio")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: { showingAddSheet = true }) {
                         Image(systemName: "plus")
                     }
+                    .accessibilityLabel("Add holding")
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Picker("", selection: $selectedHorizon) {
@@ -40,10 +42,12 @@ struct PortfolioView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 120)
+                    .animation(.easeInOut(duration: 0.2), value: selectedHorizon)
                 }
             }
             .sheet(isPresented: $showingAddSheet) {
                 AddHoldingSheet()
+                    .environmentObject(store)
             }
         }
     }
@@ -51,9 +55,11 @@ struct PortfolioView: View {
     private var summaryHeader: some View {
         VStack(spacing: 8) {
             Text("Total Value")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Text(String(format: "$%.2f", totalValue))
                 .font(.largeTitle.bold())
+                .foregroundStyle(.primary)
             let gain = totalValue - totalCost
             let gainPct = totalCost > 0 ? gain / totalCost * 100 : 0
             HStack(spacing: 4) {
@@ -62,9 +68,10 @@ struct PortfolioView: View {
             }
             .font(.subheadline)
             .foregroundStyle(gain >= 0 ? .green : .red)
+            .animation(.easeInOut(duration: 0.2), value: gain)
         }
         .frame(maxWidth: .infinity)
-        .padding()
+        .padding(16)
         .background(Color(.systemGray6))
     }
 
@@ -102,16 +109,21 @@ struct HoldingRow: View {
     private var gainPct: Double { holding.costBasis > 0 ? (currentPrice - holding.costBasis) / holding.costBasis * 100 : 0 }
 
     var body: some View {
-        NavigationLink(destination: StockDetailView(ticker: holding.ticker)) {
+        NavigationLink(destination: StockDetailView(ticker: holding.ticker).environmentObject(store)) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(holding.ticker).font(.headline)
+                    Text(holding.ticker)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
                     Text(String(format: "%.2f shares @ $%.2f", holding.shares, holding.costBasis))
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text(String(format: "$%.2f", marketValue)).font(.subheadline.bold())
+                    Text(String(format: "$%.2f", marketValue))
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.primary)
                     Text(String(format: "%+.1f%%", gainPct))
                         .font(.caption)
                         .foregroundStyle(gain >= 0 ? .green : .red)
@@ -129,12 +141,13 @@ struct AddHoldingSheet: View {
     @State private var ticker = ""
     @State private var shares = ""
     @State private var costBasis = ""
+    @State private var validationError: String?
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Stock") {
-                    TextField("Ticker (e.g. AAPL)", text: $ticker)
+                    TextField("Ticker (e.g. TSLA)", text: $ticker)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.characters)
                 }
@@ -143,6 +156,13 @@ struct AddHoldingSheet: View {
                         .keyboardType(.decimalPad)
                     TextField("Average cost per share ($)", text: $costBasis)
                         .keyboardType(.decimalPad)
+                }
+                if let err = validationError {
+                    Section {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                 }
             }
             .navigationTitle("Add Holding")
@@ -160,8 +180,13 @@ struct AddHoldingSheet: View {
     }
 
     private func addHolding() {
-        guard let s = Double(shares), let c = Double(costBasis), !ticker.isEmpty else { return }
-        store.addHolding(ticker: ticker, shares: s, costBasis: c)
+        guard let s = Double(shares), s > 0,
+              let c = Double(costBasis), c > 0,
+              !ticker.isEmpty else {
+            validationError = "Please enter valid positive numbers for shares and cost."
+            return
+        }
+        store.addHolding(ticker: ticker.uppercased(), shares: s, costBasis: c)
         dismiss()
     }
 }

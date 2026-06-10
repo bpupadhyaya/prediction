@@ -1,5 +1,6 @@
 package com.prediction.stockmarket.ui.models
 
+import androidx.compose.animation.animateItemPlacement
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,7 +26,10 @@ fun ModelsScreen(
     val state by viewModel.state.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-        TopAppBar(title = { Text("LLM Models") })
+        TopAppBar(
+            title = { Text("LLM Models") },
+            colors = TopAppBarDefaults.mediumTopAppBarColors()
+        )
 
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -154,7 +158,11 @@ private fun ActiveModelBanner(model: LLMModel) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Active:", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(
+                "Active:",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
             Text(
                 model.name,
                 style = MaterialTheme.typography.bodyMedium,
@@ -189,7 +197,9 @@ private fun ModelCard(
     val hasError = downloadStatus == "error"
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateItemPlacement(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -228,7 +238,7 @@ private fun ModelCard(
                 MetaItem("Min RAM", "%.0f GB".format(model.ramMinGB))
             }
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
 
             // Description
             Text(
@@ -273,40 +283,55 @@ private fun ModelCard(
                 )
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             HorizontalDivider(thickness = 0.5.dp)
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
 
             // Action buttons
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 when {
                     isDownloading -> {
-                        Button(onClick = {}, enabled = false) {
+                        Button(
+                            onClick = {},
+                            enabled = false,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
                             Text("Downloading…")
                         }
                     }
                     !isDownloaded -> {
-                        Button(onClick = onDownload) {
+                        Button(
+                            onClick = onDownload,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
                             Text("Download %.1f GB".format(model.sizeGB))
                         }
                     }
                     isActive -> {
-                        OutlinedButton(onClick = onDeactivate) {
+                        OutlinedButton(
+                            onClick = onDeactivate,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
                             Text("Deactivate")
                         }
                         OutlinedButton(
                             onClick = onDelete,
+                            shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                         ) {
                             Text("Clear from Disk")
                         }
                     }
                     else -> {
-                        Button(onClick = onActivate) {
+                        Button(
+                            onClick = onActivate,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
                             Text("Activate")
                         }
                         OutlinedButton(
                             onClick = onDelete,
+                            shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                         ) {
                             Text("Clear")
@@ -328,6 +353,7 @@ private fun TagBadge(tag: String) {
             tag,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
+            fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
     }
@@ -336,8 +362,8 @@ private fun TagBadge(tag: String) {
 @Composable
 private fun CompatibilityBadge(compatibility: ModelCompatibility) {
     val (bg, fg) = when (compatibility) {
-        ModelCompatibility.COMPATIBLE -> Pair(Color(0xFF4CAF50).copy(alpha = 0.15f), Color(0xFF2E7D32))
-        ModelCompatibility.MARGINAL -> Pair(Color(0xFFFF9800).copy(alpha = 0.15f), Color(0xFFE65100))
+        ModelCompatibility.COMPATIBLE   -> Pair(Color(0xFF4CAF50).copy(alpha = 0.15f), Color(0xFF2E7D32))
+        ModelCompatibility.MARGINAL     -> Pair(Color(0xFFFF9800).copy(alpha = 0.15f), Color(0xFFE65100))
         ModelCompatibility.INSUFFICIENT -> Pair(MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
     }
     Surface(
@@ -348,7 +374,7 @@ private fun CompatibilityBadge(compatibility: ModelCompatibility) {
             compatibility.label,
             style = MaterialTheme.typography.labelSmall,
             color = fg,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         )
     }

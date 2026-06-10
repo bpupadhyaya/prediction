@@ -18,15 +18,15 @@
 
   // Feature inputs — sensible defaults
   let features: OnnxFeatures = {
-    return_1d:    0,
-    return_5d:    0,
-    return_20d:   0,
-    ma5_ratio:    1.0,
-    ma20_ratio:   1.0,
-    ma50_ratio:   1.0,
+    return_1d:     0,
+    return_5d:     0,
+    return_20d:    0,
+    ma5_ratio:     1.0,
+    ma20_ratio:    1.0,
+    ma50_ratio:    1.0,
     volatility_20: 0.02,
     volume_ratio:  1.0,
-    rsi:          50,
+    rsi:           50,
   };
 
   onMount(async () => {
@@ -59,7 +59,21 @@
     }
   }
 
-  function directionColor(dir: 'up' | 'down' | 'neutral'): string {
+  async function retryLoad() {
+    loadError = '';
+    modelLoading = true;
+    loadProgress = 0;
+    try {
+      await loadModel(pct => { loadProgress = pct; });
+      modelReady = true;
+    } catch (err) {
+      loadError = err instanceof Error ? err.message : String(err);
+    } finally {
+      modelLoading = false;
+    }
+  }
+
+  function directionClass(dir: 'up' | 'down' | 'neutral'): string {
     if (dir === 'up')   return 'badge-up';
     if (dir === 'down') return 'badge-down';
     return 'badge-neutral';
@@ -81,26 +95,18 @@
 
   <!-- Loading state -->
   {#if modelLoading}
-    <div class="loading-box">
+    <div class="loading-box" role="status" aria-live="polite">
       <div class="loading-label">Loading ONNX model… {loadProgress}%</div>
-      <div class="progress-bar">
+      <div class="progress-bar" role="progressbar" aria-valuenow={loadProgress} aria-valuemin={0} aria-valuemax={100}>
         <div class="progress-fill" style="width:{loadProgress}%"></div>
       </div>
       <div class="loading-note">~226 KB · runs entirely in your browser</div>
     </div>
   {:else if loadError}
-    <div class="error-box">
+    <div class="error-box" role="alert">
       <div class="error-title">Failed to load model</div>
       <div class="error-msg">{loadError}</div>
-      <button class="btn-retry" on:click={() => {
-        loadError = '';
-        modelLoading = true;
-        loadProgress = 0;
-        loadModel(pct => { loadProgress = pct; })
-          .then(() => { modelReady = true; })
-          .catch(e => { loadError = e instanceof Error ? e.message : String(e); })
-          .finally(() => { modelLoading = false; });
-      }}>Retry</button>
+      <button class="btn-retry" on:click={retryLoad}>Retry</button>
     </div>
   {:else if modelReady}
     <!-- Feature inputs -->
@@ -109,17 +115,17 @@
         <h3>Returns</h3>
         <label>
           <span>1-day return</span>
-          <input type="number" step="0.001" bind:value={features.return_1d} />
+          <input type="number" step="0.001" bind:value={features.return_1d} aria-label="1-day return" />
           <span class="hint">e.g. 0.012 = +1.2%</span>
         </label>
         <label>
           <span>5-day return</span>
-          <input type="number" step="0.001" bind:value={features.return_5d} />
+          <input type="number" step="0.001" bind:value={features.return_5d} aria-label="5-day return" />
           <span class="hint">e.g. -0.03 = -3%</span>
         </label>
         <label>
           <span>20-day return</span>
-          <input type="number" step="0.001" bind:value={features.return_20d} />
+          <input type="number" step="0.001" bind:value={features.return_20d} aria-label="20-day return" />
         </label>
       </div>
 
@@ -127,16 +133,16 @@
         <h3>Moving Average Ratios</h3>
         <label>
           <span>MA5 ratio (close / MA5)</span>
-          <input type="number" step="0.001" bind:value={features.ma5_ratio} />
+          <input type="number" step="0.001" bind:value={features.ma5_ratio} aria-label="MA5 ratio" />
           <span class="hint">1.0 = at 5-day MA</span>
         </label>
         <label>
           <span>MA20 ratio (close / MA20)</span>
-          <input type="number" step="0.001" bind:value={features.ma20_ratio} />
+          <input type="number" step="0.001" bind:value={features.ma20_ratio} aria-label="MA20 ratio" />
         </label>
         <label>
           <span>MA50 ratio (close / MA50)</span>
-          <input type="number" step="0.001" bind:value={features.ma50_ratio} />
+          <input type="number" step="0.001" bind:value={features.ma50_ratio} aria-label="MA50 ratio" />
         </label>
       </div>
 
@@ -144,17 +150,17 @@
         <h3>Momentum &amp; Volume</h3>
         <label>
           <span>Volatility 20d (std dev of returns)</span>
-          <input type="number" step="0.001" min="0" bind:value={features.volatility_20} />
+          <input type="number" step="0.001" min="0" bind:value={features.volatility_20} aria-label="20-day volatility" />
           <span class="hint">e.g. 0.02 = 2% daily vol</span>
         </label>
         <label>
           <span>Volume ratio (vol / 20d avg)</span>
-          <input type="number" step="0.01" min="0" bind:value={features.volume_ratio} />
+          <input type="number" step="0.01" min="0" bind:value={features.volume_ratio} aria-label="Volume ratio" />
           <span class="hint">1.0 = average volume</span>
         </label>
         <label>
           <span>RSI (14-period, 0–100)</span>
-          <input type="number" step="0.1" min="0" max="100" bind:value={features.rsi} />
+          <input type="number" step="0.1" min="0" max="100" bind:value={features.rsi} aria-label="RSI 14-period" />
           <span class="hint">50 = neutral</span>
         </label>
       </div>
@@ -162,25 +168,35 @@
 
     <!-- Run button -->
     <div class="run-row">
-      <button class="btn-run" on:click={handleRunModel} disabled={inferring}>
-        {inferring ? 'Running…' : 'Run Model'}
+      <button
+        class="btn-run"
+        on:click={handleRunModel}
+        disabled={inferring}
+        title={inferring ? 'Model is running…' : 'Run the ONNX model with current feature values'}
+      >
+        {inferring ? '⏳ Running…' : 'Run Model'}
       </button>
     </div>
 
     <!-- Inference error -->
     {#if inferError}
-      <div class="error-box">
+      <div class="error-box" role="alert">
         <div class="error-title">Inference error</div>
         <div class="error-msg">{inferError}</div>
       </div>
     {/if}
 
+    <!-- Inferring indicator -->
+    {#if inferring}
+      <div class="infer-loading" role="status" aria-live="polite">Running model inference…</div>
+    {/if}
+
     <!-- Result -->
     {#if prediction}
-      <div class="result-card">
+      <div class="result-card" role="region" aria-label="Model prediction result">
         <div class="result-header">
           <span class="result-ticker">{ticker}</span>
-          <span class="direction-badge {directionColor(prediction.direction)}">
+          <span class="direction-badge {directionClass(prediction.direction)}">
             {directionLabel(prediction.direction)}
           </span>
         </div>
@@ -198,7 +214,7 @@
             <div class="metric-value">{prediction.confidence}%</div>
           </div>
         </div>
-        <div class="result-bar-wrap">
+        <div class="result-bar-wrap" role="presentation">
           <div class="result-bar-up" style="width:{prediction.probUp}%"></div>
           <div class="result-bar-down" style="width:{prediction.probDown}%"></div>
         </div>
@@ -219,6 +235,7 @@
     font-size: 1.1rem;
     font-weight: 700;
     margin-bottom: 0.3rem;
+    color: var(--text);
   }
 
   .subtitle {
@@ -239,6 +256,7 @@
   .loading-label {
     font-size: 0.85rem;
     font-weight: 600;
+    color: var(--text);
     margin-bottom: 0.5rem;
   }
 
@@ -258,8 +276,18 @@
   }
 
   .loading-note {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     color: var(--muted);
+  }
+
+  /* Inferring */
+  .infer-loading {
+    font-size: 0.82rem;
+    color: var(--muted);
+    padding: 0.5rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
   }
 
   /* Error */
@@ -291,8 +319,10 @@
     border: 1px solid var(--danger);
     color: var(--danger);
     padding: 0.3rem 0.9rem;
-    border-radius: 6px;
+    border-radius: 8px;
     font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
   }
 
   .btn-retry:hover {
@@ -330,15 +360,18 @@
     margin-bottom: 0.6rem;
     font-size: 0.8rem;
     font-weight: 600;
+    color: var(--text);
   }
 
   label input[type="number"] {
     width: 100%;
     font-size: 0.85rem;
+    border-radius: 8px;
+    transition: border-color 0.15s;
   }
 
   .hint {
-    font-size: 0.68rem;
+    font-size: 0.75rem;
     font-weight: 400;
     color: var(--muted);
   }
@@ -356,6 +389,8 @@
     border-radius: 8px;
     font-size: 0.9rem;
     font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
   }
 
   .btn-run:disabled {
@@ -371,7 +406,7 @@
   .result-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 10px;
     padding: 1.1rem 1.25rem;
     margin-top: 0.5rem;
   }
@@ -387,6 +422,7 @@
     font-weight: 800;
     font-size: 1rem;
     letter-spacing: 0.04em;
+    color: var(--text);
   }
 
   .direction-badge {
@@ -420,6 +456,7 @@
     display: flex;
     gap: 2rem;
     margin-bottom: 0.9rem;
+    flex-wrap: wrap;
   }
 
   .metric {
@@ -438,6 +475,7 @@
   .metric-value {
     font-size: 1.3rem;
     font-weight: 800;
+    color: var(--text);
   }
 
   .metric-value.up   { color: var(--accent2); }
@@ -464,7 +502,8 @@
   }
 
   .result-note {
-    font-size: 0.68rem;
+    font-size: 0.75rem;
     color: var(--muted);
+    margin: 0;
   }
 </style>

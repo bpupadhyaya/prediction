@@ -18,10 +18,17 @@ export async function fetchUrl(url: string, useCorsProxy: boolean): Promise<Fetc
       const text = await res.text();
       return { ok: true, content: text.slice(0, 30000), method: 'direct' };
     }
-  } catch { /* CORS or network error — fall through */ }
+  } catch {
+    // CORS or network error — fall through
+  }
 
   if (!useCorsProxy) {
-    return { ok: false, content: '', method: 'failed', error: 'Direct fetch failed. Enable CORS proxy in Settings or paste content manually.' };
+    return {
+      ok: false,
+      content: '',
+      method: 'failed',
+      error: 'Direct fetch failed. Enable CORS proxy in Settings or paste content manually.',
+    };
   }
 
   // Try CORS proxy
@@ -31,11 +38,11 @@ export async function fetchUrl(url: string, useCorsProxy: boolean): Promise<Fetc
       const json = await res.json() as { contents: string };
       return { ok: true, content: json.contents.slice(0, 30000), method: 'proxy' };
     }
-  } catch (e) {
-    return { ok: false, content: '', method: 'failed', error: `Proxy fetch failed: ${e}` };
+    return { ok: false, content: '', method: 'failed', error: `Proxy returned ${res.status}. Please paste content manually.` };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, content: '', method: 'failed', error: `Proxy fetch failed: ${msg}` };
   }
-
-  return { ok: false, content: '', method: 'failed', error: 'All fetch methods failed. Please paste content manually.' };
 }
 
 export function extractText(html: string): string {

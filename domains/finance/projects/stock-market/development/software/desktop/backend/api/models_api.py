@@ -48,26 +48,33 @@ def hardware_info():
 
 @router.get("/catalog")
 def model_catalog():
-    hw = get_hardware_info()
+    try:
+        hw = get_hardware_info()
+    except Exception as e:
+        logger.warning(f"Hardware info unavailable: {e}")
+        hw = {"total_ram_gb": "?", "cpu_count": "?", "machine": "?", "is_apple_silicon": False}
     downloaded = _downloaded_ids()
     cfg = _load_config()
     active = cfg.get("active_model_id")
 
     result = []
     for m in MODELS:
-        model_path = LLM_MODELS_DIR / m["hf_file"]
-        size_on_disk = round(model_path.stat().st_size / (1024 ** 3), 2) if model_path.exists() else None
-        dl_status = _downloads.get(m["id"])
-        result.append({
-            **m,
-            "compatibility": model_compatibility(m["ram_min_gb"], hw),
-            "downloaded": m["id"] in downloaded,
-            "size_on_disk_gb": size_on_disk,
-            "file_path": str(model_path) if model_path.exists() else None,
-            "models_dir": str(LLM_MODELS_DIR),
-            "active": m["id"] == active,
-            "download_status": dl_status,
-        })
+        try:
+            model_path = LLM_MODELS_DIR / m["hf_file"]
+            size_on_disk = round(model_path.stat().st_size / (1024 ** 3), 2) if model_path.exists() else None
+            dl_status = _downloads.get(m["id"])
+            result.append({
+                **m,
+                "compatibility": model_compatibility(m["ram_min_gb"], hw),
+                "downloaded": m["id"] in downloaded,
+                "size_on_disk_gb": size_on_disk,
+                "file_path": str(model_path) if model_path.exists() else None,
+                "models_dir": str(LLM_MODELS_DIR),
+                "active": m["id"] == active,
+                "download_status": dl_status,
+            })
+        except Exception as e:
+            logger.warning(f"Could not build catalog entry for {m.get('id')}: {e}")
     return {"hardware": hw, "active_model_id": active, "models_dir": str(LLM_MODELS_DIR), "models": result}
 
 

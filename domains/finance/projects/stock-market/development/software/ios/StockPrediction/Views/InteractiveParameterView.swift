@@ -46,7 +46,7 @@ struct InteractiveParameterView: View {
     @State private var llmQuestion = ""
     @State private var llmResponse = ""
     @State private var isStreaming = false
-    @State private var llmError: String? = nil
+    @State private var llmError: String?
 
     var body: some View {
         ZStack {
@@ -72,10 +72,10 @@ struct InteractiveParameterView: View {
 
                             // LLM Research section at bottom
                             llmResearchSection
-                                .padding(.horizontal)
+                                .padding(.horizontal, 16)
                                 .padding(.bottom, 32)
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, 16)
                     }
                 }
                 .background(IPVColor.bg)
@@ -86,10 +86,15 @@ struct InteractiveParameterView: View {
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         Button("Reset") {
-                            store.initStates()
-                            store.saveForTicker(ticker)
-                            expandedParams = []
-                            saveMessage = "Reset"
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                store.initStates()
+                                store.saveForTicker(ticker)
+                                expandedParams = []
+                                saveMessage = "Reset"
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                                withAnimation { saveMessage = "" }
+                            }
                         }
                         .foregroundStyle(IPVColor.textSec)
                     }
@@ -135,6 +140,7 @@ struct InteractiveParameterView: View {
                 .font(.title3)
                 .fontWeight(.heavy)
                 .foregroundStyle(dirColor)
+                .animation(.easeInOut(duration: 0.2), value: r.direction)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Prob(UP): \(String(format: "%.1f", r.probUp * 100))%")
@@ -151,7 +157,7 @@ struct InteractiveParameterView: View {
                 .font(.caption)
                 .foregroundStyle(IPVColor.textMuted)
         }
-        .padding(.horizontal)
+        .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(IPVColor.header)
     }
@@ -172,8 +178,8 @@ struct InteractiveParameterView: View {
                 noModelBanner
             }
 
-            VStack(spacing: 10) {
-                TextField("Ask a question about \(ticker)...", text: $llmQuestion, axis: .vertical)
+            VStack(spacing: 8) {
+                TextField("Ask a question about \(ticker)…", text: $llmQuestion, axis: .vertical)
                     .lineLimit(2...4)
                     .textFieldStyle(.plain)
                     .font(.system(size: 15))
@@ -189,7 +195,7 @@ struct InteractiveParameterView: View {
                         if isStreaming {
                             ProgressView().tint(.white).scaleEffect(0.8)
                         }
-                        Text(isStreaming ? "Generating..." : "Ask AI")
+                        Text(isStreaming ? "Generating…" : "Ask AI")
                             .font(.system(size: 15, weight: .semibold))
                     }
                     .foregroundStyle(.white)
@@ -197,6 +203,7 @@ struct InteractiveParameterView: View {
                     .padding(.vertical, 12)
                     .background(canAsk ? IPVColor.accent : IPVColor.accent.opacity(0.3))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .animation(.easeInOut(duration: 0.15), value: canAsk)
                 }
                 .disabled(!canAsk)
             }
@@ -236,7 +243,7 @@ struct InteractiveParameterView: View {
                 }
             }
         }
-        .padding(14)
+        .padding(16)
         .background(IPVColor.card)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(IPVColor.border, lineWidth: 1))
@@ -296,9 +303,9 @@ struct InteractiveParameterView: View {
                     Task { @MainActor in self.llmResponse += token }
                 }
             } catch {
-                llmError = error.localizedDescription
+                await MainActor.run { llmError = error.localizedDescription }
             }
-            isStreaming = false
+            await MainActor.run { isStreaming = false }
             llmQuestion = ""
         }
     }
@@ -461,11 +468,11 @@ private struct ParameterRowView: View {
                     set: { onWeight(Int($0)) }
                 ), in: 0...100, step: 1)
                 .frame(width: 70)
-                .tint(Color(hex: "4f8ef7"))
+                .tint(IPVColor.accent)
 
                 Text("\(state.weight)")
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(Color(hex: "4f8ef7"))
+                    .foregroundStyle(IPVColor.accent)
                     .frame(width: 24, alignment: .trailing)
 
                 // Direction buttons
@@ -508,7 +515,7 @@ private struct ParameterRowView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("TECHNICAL")
                             .font(.system(size: 9, weight: .heavy))
-                            .foregroundStyle(Color(hex: "4f8ef7"))
+                            .foregroundStyle(IPVColor.accent)
                             .kerning(1)
                         Text(param.technical)
                             .font(.caption)

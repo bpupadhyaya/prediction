@@ -8,10 +8,17 @@
 
   let snapshots: PredictionSnapshot[] = [];
   let loading = true;
+  let loadError = '';
+  let deletingId: string | null = null;
 
   onMount(async () => {
-    snapshots = await loadAllSnapshots();
-    loading = false;
+    try {
+      snapshots = await loadAllSnapshots();
+    } catch (err) {
+      loadError = `Failed to load history: ${err instanceof Error ? err.message : String(err)}`;
+    } finally {
+      loading = false;
+    }
   });
 
   // Group snapshots by ticker, preserving recency order
@@ -56,8 +63,16 @@
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this snapshot?')) return;
-    await deleteSnapshot(id);
-    snapshots = snapshots.filter(s => s.id !== id);
+    deletingId = id;
+    try {
+      await deleteSnapshot(id);
+      snapshots = snapshots.filter(s => s.id !== id);
+    } catch (err) {
+      loadError = `Failed to delete snapshot: ${err instanceof Error ? err.message : String(err)}`;
+      setTimeout(() => loadError = '', 6000);
+    } finally {
+      deletingId = null;
+    }
   }
 </script>
 
@@ -66,15 +81,19 @@
   <p class="note">All saved snapshots across tickers. Up to 2 per ticker per day. Each export includes all {PARAMETERS.length} parameters with your values, weights, directions, and the final prediction.</p>
 </div>
 
+{#if loadError}
+  <div class="error-msg" role="alert">{loadError}</div>
+{/if}
+
 {#if loading}
-  <div class="empty">Loading...</div>
+  <div class="empty" role="status">Loading history…</div>
 {:else if !snapshots.length}
   <div class="empty">No snapshots saved yet. Go to the Predict tab, set your parameters, and click "Save Snapshot".</div>
 {:else}
-  {#each [...grouped.entries()] as [ticker, snaps]}
+  {#each [...grouped.entries()] as [tickerKey, snaps]}
     <div class="ticker-section">
       <div class="ticker-heading">
-        <span class="ticker-label">{ticker}</span>
+        <span class="ticker-label">{tickerKey}</span>
         <span class="ticker-count">{snaps.length} snapshot{snaps.length !== 1 ? 's' : ''}</span>
       </div>
 
@@ -105,6 +124,8 @@
                 <span class="param-chip more">+{setCount - 12} more</span>
               {/if}
             </div>
+          {:else}
+            <div class="snap-empty">No signals set for this snapshot.</div>
           {/if}
 
           <div class="snap-actions">
@@ -115,7 +136,15 @@
               <button class="export-btn" on:click={() => handleExportPDF(snap)} title="Export as PDF">🖨️ PDF</button>
               <button class="export-btn" on:click={() => handleExportXLSX(snap)} title="Export as Excel">📈 Excel</button>
             </div>
-            <button class="delete-btn" on:click={() => handleDelete(snap.id)} title="Delete snapshot">🗑 Delete</button>
+            <button
+              class="delete-btn"
+              on:click={() => handleDelete(snap.id)}
+              title="Delete snapshot"
+              aria-label="Delete snapshot from {snap.date}"
+              disabled={deletingId === snap.id}
+            >
+              {deletingId === snap.id ? '⏳' : '🗑'} Delete
+            </button>
           </div>
         </div>
       {/each}
@@ -125,30 +154,46 @@
 
 <style>
   .history-header { margin-bottom: 1.25rem; }
-  h2 { font-size: 1rem; font-weight: 700; margin-bottom: 0.3rem; }
-  .note { font-size: 0.78rem; color: var(--muted); }
-  .empty { color: var(--muted); font-size: 0.88rem; padding: 2rem; text-align: center; }
+  h2 { font-size: 1rem; font-weight: 700; margin-bottom: 0.3rem; color: var(--text); }
+  .note { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+  .empty { color: var(--muted); font-size: 0.875rem; padding: 2rem; text-align: center; }
+  .error-msg {
+    font-size: 0.78rem;
+    color: var(--danger);
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.2);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+  }
 
   .ticker-section { margin-bottom: 1.5rem; }
   .ticker-heading {
-    display: flex; align-items: center; gap: 0.6rem;
-    padding: 0.4rem 0.75rem; margin-bottom: 0.5rem;
-    background: rgba(79,142,247,0.06); border-left: 3px solid var(--accent);
-    border-radius: 0 6px 6px 0;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 0.75rem;
+    margin-bottom: 0.5rem;
+    background: rgba(79,142,247,0.06);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
   }
   .ticker-label { font-family: monospace; font-size: 0.95rem; font-weight: 700; color: var(--accent); }
-  .ticker-count { font-size: 0.72rem; color: var(--muted); }
+  .ticker-count { font-size: 0.75rem; color: var(--muted); }
 
   .snapshot-card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 10px; padding: 0.85rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
     margin-bottom: 0.6rem;
+    overflow: hidden;
   }
 
   .snap-top { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; margin-bottom: 0.55rem; }
   .snap-meta { display: flex; flex-direction: column; gap: 1px; min-width: 90px; }
-  .snap-date { font-weight: 700; font-size: 0.88rem; color: var(--text); }
-  .snap-time { font-size: 0.72rem; color: var(--muted); }
+  .snap-date { font-weight: 700; font-size: 0.875rem; color: var(--text); }
+  .snap-time { font-size: 0.75rem; color: var(--muted); }
   .snap-result { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
   .snap-dir { font-weight: 700; font-size: 0.95rem; }
   .snap-stat { font-size: 0.75rem; color: var(--muted); }
@@ -156,30 +201,50 @@
 
   .snap-chips { display: flex; flex-wrap: wrap; gap: 0.28rem; margin-bottom: 0.65rem; }
   .param-chip {
-    font-family: monospace; font-size: 0.67rem; padding: 0.1rem 0.38rem;
-    border-radius: 4px; border: 1px solid var(--border);
+    font-family: monospace;
+    font-size: 0.75rem;
+    padding: 0.1rem 0.38rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    white-space: nowrap;
   }
   .param-chip.up   { background: rgba(52,211,153,0.1);  color: var(--accent2); border-color: rgba(52,211,153,0.2); }
   .param-chip.down { background: rgba(248,113,113,0.1); color: var(--danger);  border-color: rgba(248,113,113,0.2); }
   .param-chip.more { color: var(--muted); background: none; }
+  .snap-empty { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.65rem; }
 
   .snap-actions {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 0.5rem; flex-wrap: wrap;
-    padding-top: 0.55rem; border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding-top: 0.55rem;
+    border-top: 1px solid var(--border);
   }
   .export-btns { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
-  .export-label { font-size: 0.7rem; color: var(--muted); }
+  .export-label { font-size: 0.75rem; color: var(--muted); }
   .export-btn {
-    font-size: 0.72rem; padding: 0.22rem 0.6rem;
-    background: none; border: 1px solid var(--border); border-radius: 5px;
-    color: var(--text); cursor: pointer; transition: all 0.12s;
+    font-size: 0.75rem;
+    padding: 0.22rem 0.6rem;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
   }
   .export-btn:hover { background: rgba(79,142,247,0.1); border-color: var(--accent); color: var(--accent); }
   .delete-btn {
-    font-size: 0.72rem; padding: 0.22rem 0.6rem;
-    background: none; border: 1px solid transparent; border-radius: 5px;
-    color: var(--muted); cursor: pointer; transition: all 0.12s;
+    font-size: 0.75rem;
+    padding: 0.22rem 0.6rem;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
   }
-  .delete-btn:hover { background: rgba(248,113,113,0.1); border-color: var(--danger); color: var(--danger); }
+  .delete-btn:hover:not(:disabled) { background: rgba(248,113,113,0.1); border-color: var(--danger); color: var(--danger); }
+  .delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

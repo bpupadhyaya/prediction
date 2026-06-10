@@ -7,6 +7,7 @@ into the prediction system, reviewing active signals, and recording outcomes.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import date, datetime, timedelta
 from typing import Optional
@@ -16,6 +17,7 @@ from pydantic import BaseModel
 
 from backend.database.duckdb_client import get_conn
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -39,99 +41,124 @@ class OutcomeRequest(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@router.post("/signal")
+@router.post("/signal", status_code=201)
 def add_signal(req: SignalRequest):
     """
     Add a user guidance signal to the prediction system.
     The signal will be applied as a nudge on the next predict_ticker() call.
     """
     if req.extracted_signal < -1.0 or req.extracted_signal > 1.0:
-        raise HTTPException(status_code=400, detail="extracted_signal must be in [-1, 1]")
+        raise HTTPException(status_code=422, detail="extracted_signal must be in [-1, 1]")
     if req.weight_multiplier < 0.1 or req.weight_multiplier > 5.0:
-        raise HTTPException(status_code=400, detail="weight_multiplier must be in [0.1, 5.0]")
+        raise HTTPException(status_code=422, detail="weight_multiplier must be in [0.1, 5.0]")
+    if not req.content or not req.content.strip():
+        raise HTTPException(status_code=422, detail="content cannot be empty")
 
-    signal_id  = str(uuid.uuid4())
-    expires_at = (datetime.now() + timedelta(days=req.expires_days)) if req.expires_days else None
+    try:
+        signal_id  = str(uuid.uuid4())
+        expires_at = (datetime.now() + timedelta(days=req.expires_days)) if req.expires_days else None
 
-    conn = get_conn()
-    conn.execute("""
-        INSERT INTO user_signals
-            (id, ticker, signal_type, domain, content, extracted_signal,
-             weight_multiplier, confidence, source_tag, created_at, expires_at, is_active)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'USER_OVERRIDE', now(), ?, TRUE)
-    """, [
-        signal_id,
-        req.ticker or None,
-        req.signal_type,
-        req.domain,
-        req.content,
-        req.extracted_signal,
-        req.weight_multiplier,
-        req.confidence,
-        expires_at,
-    ])
-    conn.commit()
-
-    return {
-        "id":               signal_id,
-        "message":          "Signal added successfully",
-        "ticker":           req.ticker,
-        "domain":           req.domain,
-        "extracted_signal": req.extracted_signal,
-        "expires_at":       expires_at.isoformat() if expires_at else None,
-    }
+        conn = get_conn()
+        conn.execute("""
+            INSERT INTO user_signals
+                (id, ticker, signal_type, domain, content, extracted_signal,
+                 weight_multiplier, confidence, source_tag, created_at, expires_at, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'USER_OVERRIDE', now(), ?, TRUE)
+        """, [
+            signal_id,
+            req.ticker or None,
+            req.signal_type,
+            req.domain,
+            req.content,
+            req.extracted_signal,
+            req.weight_multiplier,
+            req.confidence,
+            expires_at,
+        ])
+        conn.commit()
+        logger.info(f"Signal added: {req.signal_type}/{req.domain} ticker={req.ticker}")
+        return {
+            "id":               signal_id,
+            "message":          "Signal added successfully",
+            "ticker":           req.ticker,
+            "domain":           req.domain,
+            "extracted_signal": req.extracted_signal,
+            "expires_at":       expires_at.isoformat() if expires_at else None,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"add_signal failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Could not save signal: {e}")
 
 
 @router.get("/signals/{ticker}")
 def get_signals(ticker: str):
     """Return active, unexpired signals for this ticker (plus global signals)."""
-    conn = get_conn()
-    df = conn.execute("""
-        SELECT id, ticker, signal_type, domain, content,
-               extracted_signal, weight_multiplier, confidence,
-               source_tag, created_at, expires_at, outcome_known, was_correct
-        FROM user_signals
-        WHERE is_active = TRUE
-          AND (expires_at IS NULL OR expires_at > now())
-          AND (ticker = ? OR ticker IS NULL OR ticker = '')
-        ORDER BY created_at DESC
-    """, [ticker.upper()]).df()
+    try:
+        conn = get_conn()
+        df = conn.execute("""
+            SELECT id, ticker, signal_type, domain, content,
+                   extracted_signal, weight_multiplier, confidence,
+                   source_tag, created_at, expires_at, outcome_known, was_correct
+            FROM user_signals
+            WHERE is_active = TRUE
+              AND (expires_at IS NULL OR expires_at > now())
+              AND (ticker = ? OR ticker IS NULL OR ticker = '')
+            ORDER BY created_at DESC
+        """, [ticker.upper()]).df()
 
-    return {
-        "ticker":  ticker.upper(),
-        "signals": df.to_dict("records"),
-        "count":   len(df),
-    }
+        return {
+            "ticker":  ticker.upper(),
+            "signals": df.to_dict("records"),
+            "count":   len(df),
+        }
+    except Exception as e:
+        logger.error(f"get_signals failed for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Could not retrieve signals: {e}")
 
 
 @router.get("/signals")
 def get_all_signals():
     """Return all active, unexpired signals across all tickers."""
-    conn = get_conn()
-    df = conn.execute("""
-        SELECT id, ticker, signal_type, domain, content,
-               extracted_signal, weight_multiplier, confidence,
-               source_tag, created_at, expires_at, outcome_known, was_correct
-        FROM user_signals
-        WHERE is_active = TRUE
-          AND (expires_at IS NULL OR expires_at > now())
-        ORDER BY created_at DESC
-        LIMIT 100
-    """).df()
-
-    return {"signals": df.to_dict("records"), "count": len(df)}
+    try:
+        conn = get_conn()
+        df = conn.execute("""
+            SELECT id, ticker, signal_type, domain, content,
+                   extracted_signal, weight_multiplier, confidence,
+                   source_tag, created_at, expires_at, outcome_known, was_correct
+            FROM user_signals
+            WHERE is_active = TRUE
+              AND (expires_at IS NULL OR expires_at > now())
+            ORDER BY created_at DESC
+            LIMIT 100
+        """).df()
+        return {"signals": df.to_dict("records"), "count": len(df)}
+    except Exception as e:
+        logger.error(f"get_all_signals failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Could not retrieve signals: {e}")
 
 
 @router.delete("/signal/{signal_id}")
 def delete_signal(signal_id: str):
     """Deactivate (soft-delete) a signal."""
-    conn = get_conn()
-    result = conn.execute("""
-        UPDATE user_signals SET is_active = FALSE
-        WHERE id = ?
-    """, [signal_id])
-    conn.commit()
-    return {"message": "Signal deactivated", "id": signal_id}
+    try:
+        conn = get_conn()
+        # Verify it exists and is active before updating
+        existing = conn.execute(
+            "SELECT id FROM user_signals WHERE id = ? AND is_active = TRUE", [signal_id]
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"Signal '{signal_id}' not found or already removed")
+        conn.execute("UPDATE user_signals SET is_active = FALSE WHERE id = ?", [signal_id])
+        conn.commit()
+        logger.info(f"Signal deactivated: {signal_id}")
+        return {"message": "Signal deactivated", "id": signal_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"delete_signal failed for {signal_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Could not remove signal: {e}")
 
 
 @router.post("/outcome")
@@ -179,16 +206,20 @@ def get_current_regime():
 @router.get("/accuracy")
 def get_accuracy(horizon: str = "1w", days: int = 90):
     """Return recent model directional accuracy from online learning outcomes."""
-    from backend.models.online_learner import get_recent_accuracy
-    result = get_recent_accuracy(horizon=horizon, days=days)
-    return {
-        "horizon":  horizon,
-        "days":     days,
-        "total":    result.get("total", 0),
-        "correct":  result.get("correct", 0),
-        "accuracy": result.get("accuracy"),
-        "message":  "Insufficient data" if result.get("total", 0) < 10 else None,
-    }
+    try:
+        from backend.models.online_learner import get_recent_accuracy
+        result = get_recent_accuracy(horizon=horizon, days=days)
+        return {
+            "horizon":  horizon,
+            "days":     days,
+            "total":    result.get("total", 0),
+            "correct":  result.get("correct", 0),
+            "accuracy": result.get("accuracy"),
+            "message":  "Insufficient data" if result.get("total", 0) < 10 else None,
+        }
+    except Exception as e:
+        logger.error(f"get_accuracy failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Could not retrieve accuracy: {e}")
 
 
 @router.get("/history/{ticker}")
@@ -245,24 +276,28 @@ def get_prediction_history(ticker: str, horizon: str = "1w", days: int = 90):
 @router.get("/domain-weights")
 def get_domain_weights():
     """Return current per-domain signal weight multipliers."""
-    from backend.models.online_learner import get_domain_weights
-    weights = get_domain_weights()
-    domain_labels = {
-        "macro":      "Macro & Monetary",
-        "momentum":   "Momentum & Technical",
-        "volatility": "Volatility",
-        "fundamental": "Fundamental",
-        "cross_asset": "Cross-Asset",
-        "sentiment":  "Sentiment",
-        "geopolitical": "Geopolitical",
-        "technical":  "Technical",
-    }
-    return {
-        "weights": [
-            {"domain": d, "label": domain_labels.get(d, d), "multiplier": w}
-            for d, w in sorted(weights.items())
-        ]
-    }
+    try:
+        from backend.models.online_learner import get_domain_weights
+        weights = get_domain_weights()
+        domain_labels = {
+            "macro":        "Macro & Monetary",
+            "momentum":     "Momentum & Technical",
+            "volatility":   "Volatility",
+            "fundamental":  "Fundamental",
+            "cross_asset":  "Cross-Asset",
+            "sentiment":    "Sentiment",
+            "geopolitical": "Geopolitical",
+            "technical":    "Technical",
+        }
+        return {
+            "weights": [
+                {"domain": d, "label": domain_labels.get(d, d), "multiplier": w}
+                for d, w in sorted(weights.items())
+            ]
+        }
+    except Exception as e:
+        logger.error(f"get_domain_weights failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Could not retrieve domain weights: {e}")
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────

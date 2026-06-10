@@ -13,7 +13,7 @@ interface AppDB extends DBSchema {
   };
   settings: {
     key: string;
-    value: AppSettings;
+    value: AppSettings & { key: string };
   };
 }
 
@@ -50,8 +50,10 @@ export async function saveSnapshot(snap: PredictionSnapshot): Promise<'saved' | 
   let replaced = false;
   if (existing.length >= 2) {
     existing.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    await db.delete('snapshots', existing[0].id);
-    replaced = true;
+    if (existing[0]) {
+      await db.delete('snapshots', existing[0].id);
+      replaced = true;
+    }
   }
   await db.put('snapshots', snap);
   return replaced ? 'replaced' : 'saved';
@@ -77,10 +79,12 @@ export async function deleteSnapshot(id: string): Promise<void> {
 export async function loadSettings(): Promise<AppSettings> {
   const db = await getDB();
   const row = await db.get('settings', 'main');
-  return row ?? { fredApiKey: '', corsProxyEnabled: false, llmModelId: null, llmDownloaded: false };
+  if (!row) return { fredApiKey: '', corsProxyEnabled: false, llmModelId: null, llmDownloaded: false };
+  const { key: _key, ...settings } = row;
+  return settings;
 }
 
 export async function saveSettings(s: AppSettings): Promise<void> {
   const db = await getDB();
-  await db.put('settings', { ...s, key: 'main' } as AppSettings & { key: string });
+  await db.put('settings', { ...s, key: 'main' });
 }

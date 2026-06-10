@@ -16,6 +16,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -162,9 +164,9 @@ private fun StockHeroHeader() {
                 ) {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
+                        contentDescription = "Powered by Zoe AI",
                         tint = Color.White.copy(alpha = 0.9f),
-                        modifier = Modifier.size(10.dp)
+                        modifier = Modifier.size(12.dp)
                     )
                     Text(
                         text = "Powered by Zoe AI · All predictions run on-device",
@@ -194,6 +196,7 @@ private fun StockSectionCard(section: StockSection, onClick: () -> Unit) {
             .background(gradient)
             .clickable(onClick = onClick)
             .padding(14.dp)
+            .semantics { contentDescription = "${section.title}: ${section.subtitle}" }
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -208,7 +211,7 @@ private fun StockSectionCard(section: StockSection, onClick: () -> Unit) {
             ) {
                 Icon(
                     imageVector = section.icon,
-                    contentDescription = section.title,
+                    contentDescription = null,
                     tint = section.iconColor,
                     modifier = Modifier.size(22.dp)
                 )
@@ -225,7 +228,7 @@ private fun StockSectionCard(section: StockSection, onClick: () -> Unit) {
                 Text(
                     text = section.subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.50f),
+                    color = Color.White.copy(alpha = 0.70f),
                     lineHeight = 15.sp,
                     maxLines = 2
                 )

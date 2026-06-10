@@ -20,6 +20,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.prediction.stockmarket.data.database.PredictionEntity
 
+private val DIRECTION_HORIZONS = listOf("1d", "1w", "1m")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StockDetailScreen(
@@ -30,12 +32,14 @@ fun StockDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    LaunchedEffect(ticker) { viewModel.load(ticker) }
+    LaunchedEffect(ticker) {
+        if (ticker.isNotBlank()) viewModel.load(ticker)
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(ticker) },
+                title = { Text(ticker.ifBlank { "Stock Detail" }) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -45,58 +49,88 @@ fun StockDetailScreen(
                     IconButton(onClick = { viewModel.toggleWatchlist() }) {
                         Icon(
                             if (uiState.isWatchlisted) Icons.Default.Star else Icons.Outlined.StarOutline,
-                            contentDescription = "Watchlist",
+                            contentDescription = if (uiState.isWatchlisted) "Remove from watchlist" else "Add to watchlist",
                             tint = if (uiState.isWatchlisted) Color(0xFFFFC107) else LocalContentColor.current
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.mediumTopAppBarColors()
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            uiState.latestPrice?.let { price ->
-                Text("$%.2f".format(price), style = MaterialTheme.typography.displaySmall)
-            }
-
-            uiState.prediction?.let { pred ->
-                PredictionCard(pred, viewModel::onHorizonChange)
-            }
-
-            // Interactive prediction entry point
-            Button(
-                onClick = { onInteractivePredict(ticker) },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF142B47)
-                )
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    Icons.Default.AutoAwesome,
-                    contentDescription = null,
-                    tint = Color(0xFF7DD3F8),
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(8.dp))
+                CircularProgressIndicator()
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                uiState.errorMessage?.let { error ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Text(
+                            text = error,
+                            modifier = Modifier.padding(12.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+
+                uiState.latestPrice?.let { price ->
+                    Text(
+                        "$%.2f".format(price),
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                uiState.prediction?.let { pred ->
+                    PredictionCard(pred, viewModel::onHorizonChange)
+                }
+
+                // Interactive prediction entry point
+                Button(
+                    onClick = { onInteractivePredict(ticker) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1A3A5C)
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = Color(0xFF7DD3F8),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Interactive Predict",
+                        color = Color(0xFF7DD3F8),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
                 Text(
-                    "Interactive Predict",
-                    color = Color(0xFF7DD3F8),
-                    fontWeight = FontWeight.SemiBold
+                    "This is a probabilistic prediction, not financial advice.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
-            Text(
-                "This is a probabilistic prediction, not financial advice.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -109,15 +143,15 @@ private fun PredictionCard(pred: PredictionEntity, onHorizonChange: (String) -> 
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Prediction", style = MaterialTheme.typography.titleMedium)
+            Text("Prediction", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
 
-            SingleChoiceSegmentedButtonRow {
-                listOf("1d", "1w", "1m").forEachIndexed { i, h ->
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                DIRECTION_HORIZONS.forEachIndexed { i, h ->
                     SegmentedButton(
                         selected = pred.horizon == h,
                         onClick = { onHorizonChange(h) },
-                        shape = SegmentedButtonDefaults.itemShape(i, 3),
-                        label = { Text(h) }
+                        shape = SegmentedButtonDefaults.itemShape(i, DIRECTION_HORIZONS.size),
+                        label = { Text(h.uppercase()) }
                     )
                 }
             }
@@ -134,8 +168,11 @@ private fun PredictionCard(pred: PredictionEntity, onHorizonChange: (String) -> 
 @Composable
 private fun StatCell(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
     Column(horizontalAlignment = Alignment.Start) {
-        Text(value, style = MaterialTheme.typography.titleLarge, color = valueColor)
-        Text(label, style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = valueColor)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

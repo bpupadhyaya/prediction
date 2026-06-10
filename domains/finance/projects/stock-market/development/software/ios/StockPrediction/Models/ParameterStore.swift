@@ -16,9 +16,9 @@ struct StockParameter: Codable, Identifiable {
 }
 
 struct ParamState {
-    var weight: Int = 0           // 0–100
-    var direction: String = "neutral"  // "up", "down", "neutral"
-    var value: Double? = nil
+    var weight: Int = 0               // 0–100
+    var direction: String = "neutral" // "up", "down", "neutral"
+    var value: Double?
 }
 
 // MARK: - Codable helpers for UserDefaults persistence
@@ -56,7 +56,6 @@ final class ParameterStore: ObservableObject {
 
     private func loadParameters() {
         guard let url = Bundle.main.url(forResource: "parameters", withExtension: "json") else {
-            print("[ParameterStore] parameters.json not found in bundle")
             return
         }
         do {
@@ -64,7 +63,7 @@ final class ParameterStore: ObservableObject {
             let decoded = try JSONDecoder().decode([StockParameter].self, from: data)
             parameters = decoded
         } catch {
-            print("[ParameterStore] Failed to decode parameters.json: \(error)")
+            // Parameters could not be decoded; app continues with empty list.
         }
     }
 

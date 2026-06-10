@@ -22,11 +22,12 @@ struct ModelsView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                        .padding(.horizontal, 16)
                 }
-                .padding()
+                .padding(16)
             }
             .navigationTitle("Models")
+            .navigationBarTitleDisplayMode(.large)
         }
     }
 
@@ -42,7 +43,7 @@ struct ModelsView: View {
         }()
 
         return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 20) {
+            HStack(spacing: 24) {
                 LabeledValue(label: "RAM", value: String(format: "%.0f GB", ram))
                 LabeledValue(label: "CPU Cores", value: "\(cpu)")
                 if isAppleSilicon {
@@ -54,7 +55,7 @@ struct ModelsView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
         }
-        .padding()
+        .padding(16)
         .background(Color(.systemGray6))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
@@ -62,15 +63,19 @@ struct ModelsView: View {
     private func activeModelBanner(_ model: LLMModel) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Active LLM").font(.caption).foregroundStyle(.secondary)
-                Text(model.name).font(.subheadline.bold())
+                Text("Active LLM")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(model.name)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.primary)
             }
             Spacer()
             Button("Use GBM Only") { dm.deactivate() }
                 .font(.caption)
                 .buttonStyle(.bordered)
         }
-        .padding()
+        .padding(16)
         .background(Color.blue.opacity(0.1))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.blue.opacity(0.3)))
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -94,11 +99,13 @@ struct ModelCard: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(model.name).font(.headline)
+                        Text(model.name)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
                         ForEach(model.tags, id: \.self) { tag in
                             Text(tag)
                                 .font(.caption2)
-                                .padding(.horizontal, 5)
+                                .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(Color.blue.opacity(0.15))
                                 .foregroundStyle(.blue)
@@ -117,10 +124,19 @@ struct ModelCard: View {
             }
 
             if status == "downloading" {
-                ProgressView(value: progress)
-                Text("\(Int(progress * 100))% downloaded")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    ProgressView(value: progress)
+                        .animation(.easeInOut(duration: 0.3), value: progress)
+                    Text("\(Int(progress * 100))% downloaded")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if status == "error" {
+                Label("Download failed — check your connection and try again", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
             }
 
             if isDownloaded, let gb = dm.diskSizeGB(model) {
@@ -158,7 +174,7 @@ struct ModelCard: View {
                 }
             }
         }
-        .padding()
+        .padding(16)
         .background(Color(.systemGray6))
         .overlay(
             RoundedRectangle(cornerRadius: 12)
@@ -169,8 +185,8 @@ struct ModelCard: View {
 
     private func compatBadge(_ compat: ModelCompatibility) -> some View {
         let color: Color = switch compat {
-        case .compatible: .green
-        case .marginal: .yellow
+        case .compatible:   .green
+        case .marginal:     Color(red: 0.72, green: 0.53, blue: 0.04)   // readable amber instead of .yellow
         case .insufficient: .red
         }
         return Text(compat.rawValue)
@@ -187,8 +203,12 @@ struct LabeledValue: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.subheadline.bold())
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.subheadline.bold())
+                .foregroundStyle(.primary)
         }
     }
 }

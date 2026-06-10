@@ -17,6 +17,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -96,8 +98,8 @@ private fun PredictionHeroHeader() {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()                         // clears status bar
-                .padding(top = 8.dp, bottom = 12.dp)        // tight fit: text immediately below status bar
+                .statusBarsPadding()
+                .padding(top = 8.dp, bottom = 12.dp)
                 .padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -131,9 +133,9 @@ private fun PredictionHeroHeader() {
                 ) {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
+                        contentDescription = "Powered by Zoe AI",
                         tint = Color.White.copy(alpha = 0.9f),
-                        modifier = Modifier.size(10.dp)
+                        modifier = Modifier.size(12.dp)
                     )
                     Text(
                         text = "Powered by Zoe AI · All predictions run on-device",
@@ -164,12 +166,13 @@ private fun PredictionModuleCard(module: PredictionModule, onClick: () -> Unit) 
             .background(gradient)
             .clickable(enabled = module.isAvailable, onClick = onClick)
             .padding(14.dp)
+            .semantics { contentDescription = "${module.title}: ${module.subtitle}" }
     ) {
         if (!module.isAvailable) {
             Icon(
                 imageVector = Icons.Default.Lock,
                 contentDescription = "Coming soon",
-                tint = Color.White.copy(alpha = 0.50f),
+                tint = Color.White.copy(alpha = 0.60f),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .size(16.dp)
@@ -189,7 +192,7 @@ private fun PredictionModuleCard(module: PredictionModule, onClick: () -> Unit) 
             ) {
                 Icon(
                     imageVector = iconForModule(module.iconName),
-                    contentDescription = module.title,
+                    contentDescription = null,
                     tint = module.iconColor,
                     modifier = Modifier.size(22.dp)
                 )
@@ -206,7 +209,7 @@ private fun PredictionModuleCard(module: PredictionModule, onClick: () -> Unit) 
                 Text(
                     text = module.subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.50f),
+                    color = Color.White.copy(alpha = 0.70f),
                     lineHeight = 15.sp,
                     maxLines = 2
                 )

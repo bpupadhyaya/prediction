@@ -23,14 +23,18 @@ def trigger_refresh(background_tasks: BackgroundTasks):
 
 @router.get("/status")
 def refresh_status():
-    if _refresh_status["last_completed"] is None:
-        conn = get_conn()
-        count = int(conn.execute("SELECT COUNT(*) FROM prices").fetchone()[0])
-        if count > 0:
-            max_date = conn.execute("SELECT MAX(date) FROM prices").fetchone()[0]
-            return {**_refresh_status, "last_completed": str(max_date),
-                    "message": f"Setup data loaded ({count:,} price bars through {max_date})"}
-    return _refresh_status
+    try:
+        if _refresh_status["last_completed"] is None:
+            conn = get_conn()
+            count = int(conn.execute("SELECT COUNT(*) FROM prices").fetchone()[0])
+            if count > 0:
+                max_date = conn.execute("SELECT MAX(date) FROM prices").fetchone()[0]
+                return {**_refresh_status, "last_completed": str(max_date),
+                        "message": f"Setup data loaded ({count:,} price bars through {max_date})"}
+        return _refresh_status
+    except Exception as e:
+        logger.error(f"refresh_status failed: {e}")
+        return {**_refresh_status, "message": f"Status check error: {e}"}
 
 
 def _run_refresh():

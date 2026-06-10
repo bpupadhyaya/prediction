@@ -15,7 +15,7 @@ struct WatchlistView: View {
                 } else {
                     List {
                         ForEach(store.watchlist, id: \.ticker) { entry in
-                            NavigationLink(destination: StockDetailView(ticker: entry.ticker)) {
+                            NavigationLink(destination: StockDetailView(ticker: entry.ticker).environmentObject(store)) {
                                 WatchlistRow(ticker: entry.ticker)
                             }
                         }
@@ -29,6 +29,7 @@ struct WatchlistView: View {
                 }
             }
             .navigationTitle("Watchlist")
+            .navigationBarTitleDisplayMode(.large)
         }
     }
 }
@@ -43,16 +44,22 @@ struct WatchlistRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(ticker).font(.headline)
+                Text(ticker)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
                 if let pred = prediction {
                     HStack(spacing: 4) {
                         Image(systemName: pred.isBullish ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
                             .foregroundStyle(pred.isBullish ? .green : .red)
                             .font(.caption)
-                        Text(String(format: "%.0f%%", pred.probability * 100))
+                        Text(String(format: "%.0f%% · %@", pred.probability * 100, pred.direction))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                } else {
+                    Text("No prediction — tap to sync")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
             }
 
@@ -61,6 +68,11 @@ struct WatchlistRow: View {
             if let p = price {
                 Text(String(format: "$%.2f", p))
                     .font(.subheadline.bold())
+                    .foregroundStyle(.primary)
+            } else {
+                Text("—")
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
             }
         }
         .padding(.vertical, 4)

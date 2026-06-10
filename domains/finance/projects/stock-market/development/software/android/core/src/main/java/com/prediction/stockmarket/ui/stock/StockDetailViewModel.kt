@@ -16,7 +16,9 @@ data class StockDetailUiState(
     val latestPrice: Double? = null,
     val prediction: PredictionEntity? = null,
     val isWatchlisted: Boolean = false,
-    val horizon: String = "1w"
+    val horizon: String = "1w",
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
 )
 
 @HiltViewModel
@@ -30,30 +32,64 @@ class StockDetailViewModel @Inject constructor(
 
     fun load(ticker: String) {
         viewModelScope.launch {
-            val price = repo.latestPrice(ticker)?.adjClose
-            val pred = loadOrComputePrediction(ticker, _uiState.value.horizon)
-            val watchlisted = repo.isWatchlisted(ticker)
-            _uiState.value = StockDetailUiState(ticker, price, pred, watchlisted)
+            _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
+            try {
+                val price = repo.latestPrice(ticker)?.adjClose
+                val pred = loadOrComputePrediction(ticker, _uiState.value.horizon)
+                val watchlisted = repo.isWatchlisted(ticker)
+                _uiState.value = StockDetailUiState(
+                    ticker = ticker,
+                    latestPrice = price,
+                    prediction = pred,
+                    isWatchlisted = watchlisted,
+                    isLoading = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "Failed to load data: ${e.message}"
+                )
+            }
         }
     }
 
     fun onHorizonChange(horizon: String) {
         val ticker = _uiState.value.ticker
+        if (ticker.isBlank()) return
         viewModelScope.launch {
-            val pred = loadOrComputePrediction(ticker, horizon)
-            _uiState.value = _uiState.value.copy(horizon = horizon, prediction = pred)
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            try {
+                val pred = loadOrComputePrediction(ticker, horizon)
+                _uiState.value = _uiState.value.copy(
+                    horizon = horizon,
+                    prediction = pred,
+                    isLoading = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    errorMessage = "Failed to load prediction: ${e.message}"
+                )
+            }
         }
     }
 
     fun toggleWatchlist() {
         val ticker = _uiState.value.ticker
+        if (ticker.isBlank()) return
         viewModelScope.launch {
-            if (_uiState.value.isWatchlisted) {
-                repo.removeFromWatchlist(ticker)
-            } else {
-                repo.addToWatchlist(ticker)
+            try {
+                if (_uiState.value.isWatchlisted) {
+                    repo.removeFromWatchlist(ticker)
+                } else {
+                    repo.addToWatchlist(ticker)
+                }
+                _uiState.value = _uiState.value.copy(isWatchlisted = !_uiState.value.isWatchlisted)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "Failed to update watchlist: ${e.message}"
+                )
             }
-            _uiState.value = _uiState.value.copy(isWatchlisted = !_uiState.value.isWatchlisted)
         }
     }
 

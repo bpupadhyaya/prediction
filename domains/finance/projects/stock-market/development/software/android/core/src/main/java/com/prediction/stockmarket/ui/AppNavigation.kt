@@ -15,10 +15,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -67,7 +68,12 @@ fun AppNavigation() {
                                     restoreState = true
                                 }
                             },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
+                            icon = {
+                                Icon(
+                                    tab.icon,
+                                    contentDescription = tab.label
+                                )
+                            },
                             label = { Text(tab.label) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Color.White,
@@ -85,14 +91,16 @@ fun AppNavigation() {
         NavHost(navController, startDestination = "stockhome") {
             composable("stockhome") {
                 StockPredictionHomeScreen { sectionId ->
-                    if (sectionId in marketSectionIds) {
-                        navController.navigate("market") {
-                            popUpTo("stockhome") { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
+                    if (sectionId.isNotBlank()) {
+                        if (sectionId in marketSectionIds) {
+                            navController.navigate("market") {
+                                popUpTo("stockhome") { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        } else {
+                            navController.navigate("stock_module/$sectionId")
                         }
-                    } else {
-                        navController.navigate("stock_module/$sectionId")
                     }
                 }
             }
@@ -106,20 +114,22 @@ fun AppNavigation() {
                 "stock/{ticker}",
                 arguments = listOf(navArgument("ticker") { type = NavType.StringType })
             ) { backstack ->
-                val ticker = backstack.arguments?.getString("ticker") ?: ""
-                StockDetailScreen(
-                    ticker = ticker,
-                    navController = navController,
-                    onInteractivePredict = { t ->
-                        navController.navigate("interactive_prediction/$t")
-                    }
-                )
+                val ticker = backstack.arguments?.getString("ticker").orEmpty()
+                if (ticker.isNotBlank()) {
+                    StockDetailScreen(
+                        ticker = ticker,
+                        navController = navController,
+                        onInteractivePredict = { t ->
+                            if (t.isNotBlank()) navController.navigate("interactive_prediction/$t")
+                        }
+                    )
+                }
             }
             composable(
                 "interactive_prediction/{ticker}",
                 arguments = listOf(navArgument("ticker") { type = NavType.StringType })
             ) { backStackEntry ->
-                val ticker = backStackEntry.arguments?.getString("ticker") ?: ""
+                val ticker = backStackEntry.arguments?.getString("ticker").orEmpty()
                 InteractivePredictionScreen(
                     ticker = ticker,
                     onBack = { navController.popBackStack() }
@@ -129,8 +139,9 @@ fun AppNavigation() {
                 "stock_module/{moduleId}",
                 arguments = listOf(navArgument("moduleId") { type = NavType.StringType })
             ) { backstack ->
+                val moduleId = backstack.arguments?.getString("moduleId").orEmpty()
                 StockModulePlaceholder(
-                    moduleId = backstack.arguments?.getString("moduleId") ?: "",
+                    moduleId = moduleId,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -141,11 +152,11 @@ fun AppNavigation() {
 @Composable
 private fun StockModulePlaceholder(moduleId: String, onBack: () -> Unit) {
     val (title, subtitle, icon, gradColors, iconColor) = when (moduleId) {
-        "crypto"   -> PlaceholderData("Crypto",        "BTC, ETH & altcoin price signals",      Icons.Default.CurrencyBitcoin, listOf(Color(0xFF063C4B), Color(0xFF0A6A83), Color(0xFF10ACC9)), Color(0xFF67DFF0))
-        "earnings" -> PlaceholderData("Earnings",      "Beat or miss AI forecasts",              Icons.Default.CalendarMonth,   listOf(Color(0xFF0F4738), Color(0xFF157A5E), Color(0xFF10B981)), Color(0xFF6EE7B7))
-        "sectors"  -> PlaceholderData("Sectors",       "Sector rotation & performance maps",     Icons.Default.GridView,        listOf(Color(0xFF0E2040), Color(0xFF1A3D73), Color(0xFF2868BE)), Color(0xFF93C3F0))
-        "global"   -> PlaceholderData("Global Markets","International index forecasts",          Icons.Default.Public,          listOf(Color(0xFF143E26), Color(0xFF1B7A3D), Color(0xFF22C55E)), Color(0xFF86EFAC))
-        else       -> PlaceholderData(moduleId,        "Coming soon",                            Icons.Default.TrendingUp,      listOf(Color(0xFF0C3B6E), Color(0xFF1A69A2), Color(0xFF0EA5E9)), Color(0xFF7DD3F8))
+        "crypto"   -> PlaceholderData("Crypto",         "BTC, ETH & altcoin price signals",     Icons.Default.CurrencyBitcoin, listOf(Color(0xFF063C4B), Color(0xFF0A6A83), Color(0xFF10ACC9)), Color(0xFF67DFF0))
+        "earnings" -> PlaceholderData("Earnings",       "Beat or miss AI forecasts",             Icons.Default.CalendarMonth,   listOf(Color(0xFF0F4738), Color(0xFF157A5E), Color(0xFF10B981)), Color(0xFF6EE7B7))
+        "sectors"  -> PlaceholderData("Sectors",        "Sector rotation & performance maps",    Icons.Default.GridView,        listOf(Color(0xFF0E2040), Color(0xFF1A3D73), Color(0xFF2868BE)), Color(0xFF93C3F0))
+        "global"   -> PlaceholderData("Global Markets", "International index forecasts",         Icons.Default.Public,          listOf(Color(0xFF143E26), Color(0xFF1B7A3D), Color(0xFF22C55E)), Color(0xFF86EFAC))
+        else       -> PlaceholderData(moduleId,         "Coming soon",                           Icons.Default.TrendingUp,      listOf(Color(0xFF0C3B6E), Color(0xFF1A69A2), Color(0xFF0EA5E9)), Color(0xFF7DD3F8))
     }
 
     val gradient = Brush.linearGradient(
@@ -215,9 +226,14 @@ private fun StockModulePlaceholder(moduleId: String, onBack: () -> Unit) {
                 .align(Alignment.TopStart)
                 .statusBarsPadding()
                 .padding(start = 8.dp, top = 8.dp)
+                .semantics { contentDescription = "Go back" }
         ) {
-            Icon(Icons.Default.ChevronLeft, contentDescription = "Back", tint = Color.White)
-            Text("Home", color = Color.White)
+            Icon(
+                Icons.Default.ChevronLeft,
+                contentDescription = null,
+                tint = Color.White
+            )
+            Text("Home", color = Color.White, fontWeight = FontWeight.Medium)
         }
     }
 }

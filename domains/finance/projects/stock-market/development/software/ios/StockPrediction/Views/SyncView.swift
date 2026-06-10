@@ -60,10 +60,9 @@ struct SyncView: View {
                 Section {
                     if isSyncing {
                         VStack(alignment: .leading, spacing: 8) {
-                            HStack {
+                            HStack(spacing: 10) {
                                 ProgressView()
                                     .scaleEffect(0.85)
-                                Spacer().frame(width: 10)
                                 Text(syncProgress.isEmpty ? "Starting sync…" : syncProgress)
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
@@ -71,6 +70,7 @@ struct SyncView: View {
                             if tickersTotal > 0 {
                                 ProgressView(value: Double(tickersDone), total: Double(tickersTotal))
                                     .tint(.blue)
+                                    .animation(.easeInOut(duration: 0.3), value: tickersDone)
                                 Text("\(tickersDone) of \(tickersTotal) tickers")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -130,6 +130,7 @@ struct SyncView: View {
                 }
             }
             .navigationTitle("Sync")
+            .navigationBarTitleDisplayMode(.large)
             .onAppear {
                 apiKey = MarketDataSettings.apiKey(for: selectedSource)
             }

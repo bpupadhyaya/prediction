@@ -27,7 +27,8 @@ data class ModelUiState(
     val modelsDir: String = "",
     val activeModelId: String? = null,
     val downloadProgress: Map<String, Float> = emptyMap(),
-    val downloadStatus: Map<String, String> = emptyMap()  // "downloading" | "done" | "error"
+    val downloadStatus: Map<String, String> = emptyMap(),  // "downloading" | "done" | "error"
+    val errorMessage: String? = null
 )
 
 @HiltViewModel
@@ -79,7 +80,9 @@ class ModelsViewModel @Inject constructor(
                                 downloaded += n
                                 if (total > 0) {
                                     val prog = downloaded.toFloat() / total
-                                    withContext(Dispatchers.Main) { setDownloadState(model.id, "downloading", prog) }
+                                    withContext(Dispatchers.Main) {
+                                        setDownloadState(model.id, "downloading", prog)
+                                    }
                                 }
                             }
                         }
@@ -88,7 +91,10 @@ class ModelsViewModel @Inject constructor(
                 tmp.renameTo(modelFile(model))
                 withContext(Dispatchers.Main) { setDownloadState(model.id, "done", 1f) }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) { setDownloadState(model.id, "error", 0f) }
+                withContext(Dispatchers.Main) {
+                    setDownloadState(model.id, "error", 0f)
+                    _state.value = _state.value.copy(errorMessage = "Download failed: ${e.message}")
+                }
             }
         }
     }
@@ -110,7 +116,13 @@ class ModelsViewModel @Inject constructor(
         _state.value = _state.value.copy(activeModelId = model.id)
         val modelPath = modelFile(model).absolutePath
         viewModelScope.launch(Dispatchers.IO) {
-            llmEngine.loadModel(modelPath)
+            try {
+                llmEngine.loadModel(modelPath)
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    _state.value = _state.value.copy(errorMessage = "Failed to load model: ${e.message}")
+                }
+            }
         }
     }
 
@@ -118,6 +130,10 @@ class ModelsViewModel @Inject constructor(
         saveConfig(null)
         _state.value = _state.value.copy(activeModelId = null)
         llmEngine.unload()
+    }
+
+    fun clearError() {
+        _state.value = _state.value.copy(errorMessage = null)
     }
 
     private fun setDownloadState(id: String, status: String, progress: Float) {
@@ -131,8 +147,10 @@ class ModelsViewModel @Inject constructor(
     } catch (_: Exception) { null }
 
     private fun saveConfig(activeId: String?) {
-        val obj = JSONObject()
-        if (activeId != null) obj.put("active_model_id", activeId) else obj.put("active_model_id", JSONObject.NULL)
-        configFile.writeText(obj.toString())
+        try {
+            val obj = JSONObject()
+            if (activeId != null) obj.put("active_model_id", activeId) else obj.put("active_model_id", JSONObject.NULL)
+            configFile.writeText(obj.toString())
+        } catch (_: Exception) { /* ignore config write failures silently */ }
     }
 }

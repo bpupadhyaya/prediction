@@ -17,7 +17,7 @@ export const LLM_MODELS = [
   { id: 'Phi-3.5-mini-instruct-q4f16_1-MLC', label: 'Phi-3.5 Mini (2.4 GB)', description: 'Fast, good for research summaries', sizeGB: 2.4 },
   { id: 'gemma-2-2b-it-q4f16_1-MLC', label: 'Gemma 2 2B (1.5 GB)', description: 'Compact, efficient inference', sizeGB: 1.5 },
   { id: 'Llama-3.2-3B-Instruct-q4f16_1-MLC', label: 'Llama 3.2 3B (2.0 GB)', description: 'Strong reasoning, balanced size', sizeGB: 2.0 },
-];
+] as const;
 
 // Module-level singleton
 let engine: MLCEngine | null = null;
@@ -64,7 +64,7 @@ export async function downloadModel(
     await engine.reload(modelId);
     loadedModelId = modelId;
     onProgress(100, 'Model ready');
-  } catch (err) {
+  } catch (err: unknown) {
     // Reset engine on failure so the next attempt starts fresh
     engine = null;
     loadedModelId = null;
@@ -113,7 +113,7 @@ export async function chat(
       }
     }
     return fullText;
-  } catch (err) {
+  } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`LLM inference failed: ${msg}`);
   }
@@ -126,7 +126,7 @@ export async function chat(
 export async function removeModel(modelId: string): Promise<void> {
   try {
     await deleteModelAllInfoInCache(modelId);
-  } catch (err) {
+  } catch (err: unknown) {
     // Non-fatal — model may not have been cached
     console.warn('removeModel: could not delete cache for', modelId, err);
   }

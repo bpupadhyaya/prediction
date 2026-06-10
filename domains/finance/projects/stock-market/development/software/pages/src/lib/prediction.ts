@@ -32,7 +32,7 @@ export function computePrediction(states: Record<string, ParamState>): Predictio
   const probUp    = (normalizedScore + 1) / 2;
   const probDown  = 1 - probUp;
   const confidence = Math.abs(normalizedScore);
-  const direction = probUp > 0.52 ? 'up' : probUp < 0.48 ? 'down' : 'neutral';
+  const direction: 'up' | 'down' | 'neutral' = probUp > 0.52 ? 'up' : probUp < 0.48 ? 'down' : 'neutral';
 
   return { probUp, probDown, confidence, direction, paramsSet, weightedScore: normalizedScore };
 }

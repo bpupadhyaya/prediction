@@ -107,9 +107,12 @@ export async function predictOnnx(features: OnnxFeatures): Promise<OnnxPredictio
 
   // Extract output — first output tensor contains [probDown, probUp].
   const outputKey = Object.keys(results)[0];
+  if (!outputKey) {
+    throw new Error('ONNX model returned no output tensors.');
+  }
   const outputData = results[outputKey].data as Float32Array;
-  const probDown = outputData[0];
-  const probUp = outputData[1];
+  const probDown = outputData[0] ?? 0.5;
+  const probUp = outputData[1] ?? 0.5;
 
   const diff = Math.abs(probUp - probDown);
   const direction: 'up' | 'down' | 'neutral' =

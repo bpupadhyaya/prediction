@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.abs
 
 /**
  * ViewModel for the Interactive Prediction screen.
@@ -85,11 +86,9 @@ class InteractivePredictionViewModel @Inject constructor(
         // Auto-load the active LLM model if it is not already loaded
         if (!llmEngine.isReady) {
             viewModelScope.launch(Dispatchers.IO) {
-                val activeId = llmEngine.readActiveModelId()
-                if (activeId != null) {
-                    llmEngine.tryAutoLoad(activeId)
-                    _state.update { it.copy(isModelReady = llmEngine.isReady) }
-                }
+                val activeId = llmEngine.readActiveModelId() ?: return@launch
+                llmEngine.tryAutoLoad(activeId)
+                _state.update { it.copy(isModelReady = llmEngine.isReady) }
             }
         }
     }
@@ -153,10 +152,16 @@ class InteractivePredictionViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             _state.update { it.copy(isStreaming = true, llmResponse = "", errorMessage = null) }
 
-            val builder = StringBuilder()
-            llmEngine.chat(systemPrompt, question).collect { token ->
-                builder.append(token)
-                _state.update { it.copy(llmResponse = builder.toString()) }
+            try {
+                val builder = StringBuilder()
+                llmEngine.chat(systemPrompt, question).collect { token ->
+                    builder.append(token)
+                    _state.update { it.copy(llmResponse = builder.toString()) }
+                }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(errorMessage = "AI research failed: ${e.message}")
+                }
             }
 
             _state.update { it.copy(isStreaming = false) }
@@ -215,7 +220,7 @@ class InteractivePredictionViewModel @Inject constructor(
                 p < 0.48 -> "down"
                 else     -> "neutral"
             }
-            Triple(p, Math.abs(norm), d)
+            Triple(p, abs(norm), d)
         }
 
         _state.update {

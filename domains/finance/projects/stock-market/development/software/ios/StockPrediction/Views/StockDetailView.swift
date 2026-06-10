@@ -10,6 +10,7 @@ struct StockDetailView: View {
     @State private var stock: Stock?
     @State private var selectedHorizon = "1w"
     @State private var isWatchlisted = false
+    @State private var showInteractive = false
 
     var body: some View {
         ScrollView {
@@ -24,6 +25,8 @@ struct StockDetailView: View {
                     predictionCard(pred)
                 }
 
+                interactivePredictButton
+
                 Spacer()
             }
             .padding()
@@ -32,6 +35,35 @@ struct StockDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { watchlistButton }
         .task { await loadData() }
+        .sheet(isPresented: $showInteractive) {
+            NavigationStack {
+                InteractiveParameterView(ticker: ticker)
+                    .environmentObject(store)
+            }
+        }
+    }
+
+    private var interactivePredictButton: some View {
+        Button {
+            showInteractive = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "bolt.fill")
+                Text("Interactive Predict")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 13)
+            .background(
+                LinearGradient(
+                    colors: [Color(red: 0.231, green: 0.510, blue: 0.965),
+                             Color(red: 0.157, green: 0.376, blue: 0.784)],
+                    startPoint: .leading, endPoint: .trailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
     }
 
     private var watchlistButton: some ToolbarContent {

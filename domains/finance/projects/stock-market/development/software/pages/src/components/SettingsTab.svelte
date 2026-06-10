@@ -1,11 +1,18 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { loadSettings, saveSettings } from '../lib/store';
-  import { LLM_MODELS } from '../lib/webllm';
+  import { LLM_MODELS, downloadModel, removeModel, isModelLoaded, getLoadedModelId } from '../lib/webllm';
   import type { AppSettings } from '../lib/types';
 
   let settings: AppSettings = { fredApiKey: '', corsProxyEnabled: false, llmModelId: null, llmDownloaded: false };
   let saved = false;
+
+  // Download state
+  let downloading = false;
+  let downloadingModelId: string | null = null;
+  let downloadProgress = 0;
+  let downloadText = '';
+  let downloadError = '';
 
   onMount(async () => { settings = await loadSettings(); });
 
@@ -14,6 +21,48 @@
     saved = true;
     setTimeout(() => saved = false, 2000);
   }
+
+  async function handleDownload(modelId: string) {
+    downloadError = '';
+    downloading = true;
+    downloadingModelId = modelId;
+    downloadProgress = 0;
+    downloadText = 'Starting download…';
+    try {
+      await downloadModel(modelId, (progress, text) => {
+        downloadProgress = progress;
+        downloadText = text;
+      });
+      settings = { ...settings, llmModelId: modelId, llmDownloaded: true };
+      await saveSettings(settings);
+    } catch (err) {
+      downloadError = err instanceof Error ? err.message : String(err);
+    } finally {
+      downloading = false;
+      downloadingModelId = null;
+    }
+  }
+
+  async function handleRemove(modelId: string) {
+    downloadError = '';
+    try {
+      await removeModel(modelId);
+      if (settings.llmModelId === modelId) {
+        settings = { ...settings, llmModelId: null, llmDownloaded: false };
+        await saveSettings(settings);
+      }
+    } catch (err) {
+      downloadError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  function isCurrentModel(modelId: string): boolean {
+    return settings.llmModelId === modelId && settings.llmDownloaded;
+  }
+
+  function isActivelyLoaded(modelId: string): boolean {
+    return isModelLoaded() && getLoadedModelId() === modelId;
+  }
 </script>
 
 <div class="settings">
@@ -21,30 +70,65 @@
 
   <!-- LLM Model Manager -->
   <section>
-    <h3>🤖 AI Research Assistant (Phase 2)</h3>
+    <h3>🤖 AI Research Assistant</h3>
     <p class="phase-note">
-      WebLLM integration is coming in Phase 2. When available, you'll be able to download
-      a local LLM model that runs entirely in your browser — no data leaves your device.
+      Download a local LLM model to power the AI Research Assistant. Models run entirely in your
+      browser via WebGPU — no data leaves your device. Requires a GPU-capable browser (Chrome 113+
+      or Edge 113+).
     </p>
+
+    {#if downloadError}
+      <div class="download-error">{downloadError}</div>
+    {/if}
+
     <div class="model-list">
       {#each LLM_MODELS as model}
-        <div class="model-card">
+        <div class="model-card" class:model-card--active={isCurrentModel(model.id)}>
           <div class="model-info">
-            <div class="model-label">{model.label}</div>
+            <div class="model-label">
+              {model.label}
+              {#if isActivelyLoaded(model.id)}
+                <span class="badge-loaded">✓ Loaded</span>
+              {:else if isCurrentModel(model.id)}
+                <span class="badge-downloaded">✓ Downloaded</span>
+              {/if}
+            </div>
             <div class="model-desc">{model.description}</div>
             <div class="model-size">{model.sizeGB} GB · stored in browser cache (OPFS)</div>
+
+            {#if downloading && downloadingModelId === model.id}
+              <div class="progress-wrap">
+                <div class="progress-bar">
+                  <div class="progress-fill" style="width:{downloadProgress}%"></div>
+                </div>
+                <div class="progress-text">{downloadText} ({downloadProgress}%)</div>
+              </div>
+            {/if}
           </div>
+
           <div class="model-actions">
-            <button class="btn-download" disabled>⬇ Download (Phase 2)</button>
+            {#if isCurrentModel(model.id)}
+              <button class="btn-remove" on:click={() => handleRemove(model.id)}
+                disabled={downloading}>
+                Remove
+              </button>
+            {:else}
+              <button class="btn-download"
+                on:click={() => handleDownload(model.id)}
+                disabled={downloading}>
+                {downloading && downloadingModelId === model.id ? '⏳ Downloading…' : '⬇ Download'}
+              </button>
+            {/if}
           </div>
         </div>
       {/each}
     </div>
+
     <p class="storage-note">
-      <strong>Storage note:</strong> Models are stored in your browser's Origin Private File System (OPFS),
-      managed by the browser itself — not accessible as a regular folder on your computer.
-      Use the "Remove" button (available in Phase 2) to free the space, or clear site storage in
-      your browser settings (Settings → Privacy → Site data → stock-predictor).
+      <strong>Storage note:</strong> Models are stored in your browser's Origin Private File System
+      (OPFS), managed by the browser — not accessible as a regular folder on your computer.
+      Use the "Remove" button to free space, or clear site storage in your browser settings
+      (Settings → Privacy → Site data → stock-predictor).
     </p>
   </section>
 
@@ -81,12 +165,58 @@
   h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.6rem; }
   .phase-note { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.75rem; line-height: 1.6; }
   .model-list { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 0.75rem; }
-  .model-card { display: flex; align-items: center; gap: 1rem; background: rgba(42,45,58,0.3); border: 1px solid var(--border); border-radius: 8px; padding: 0.65rem 0.9rem; }
+  .model-card {
+    display: flex; align-items: flex-start; gap: 1rem;
+    background: rgba(42,45,58,0.3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.65rem 0.9rem;
+  }
+  .model-card--active {
+    border-color: rgba(52,211,153,0.3);
+    background: rgba(52,211,153,0.05);
+  }
   .model-info { flex: 1; }
-  .model-label { font-weight: 600; font-size: 0.85rem; }
+  .model-label { font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
   .model-desc  { font-size: 0.75rem; color: var(--muted); margin: 0.1rem 0; }
   .model-size  { font-size: 0.7rem; color: var(--muted); }
-  .btn-download { background: rgba(79,142,247,0.15); border: 1px solid rgba(79,142,247,0.2); color: var(--muted); padding: 0.3rem 0.8rem; border-radius: 6px; font-size: 0.8rem; cursor: not-allowed; }
+  .badge-loaded {
+    font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.45rem;
+    border-radius: 99px; background: rgba(52,211,153,0.15);
+    color: var(--accent2); border: 1px solid rgba(52,211,153,0.3);
+  }
+  .badge-downloaded {
+    font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.45rem;
+    border-radius: 99px; background: rgba(79,142,247,0.12);
+    color: var(--accent); border: 1px solid rgba(79,142,247,0.25);
+  }
+  .progress-wrap { margin-top: 0.5rem; }
+  .progress-bar {
+    height: 4px; background: rgba(79,142,247,0.15); border-radius: 2px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: var(--accent); border-radius: 2px;
+    transition: width 0.2s ease;
+  }
+  .progress-text { font-size: 0.68rem; color: var(--muted); margin-top: 0.25rem; }
+  .model-actions { display: flex; flex-direction: column; gap: 0.4rem; align-items: flex-end; flex-shrink: 0; padding-top: 0.1rem; }
+  .btn-download {
+    background: rgba(79,142,247,0.15); border: 1px solid rgba(79,142,247,0.3);
+    color: var(--accent); padding: 0.3rem 0.8rem; border-radius: 6px;
+    font-size: 0.8rem; cursor: pointer; white-space: nowrap;
+  }
+  .btn-download:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-download:not(:disabled):hover { background: rgba(79,142,247,0.25); }
+  .btn-remove {
+    background: none; border: 1px solid rgba(239,68,68,0.3);
+    color: var(--danger); padding: 0.3rem 0.8rem; border-radius: 6px;
+    font-size: 0.8rem; cursor: pointer; white-space: nowrap;
+  }
+  .btn-remove:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-remove:not(:disabled):hover { background: rgba(239,68,68,0.08); }
+  .download-error {
+    font-size: 0.76rem; color: var(--danger); background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.2); border-radius: 6px;
+    padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; line-height: 1.5;
+  }
   .storage-note { font-size: 0.74rem; color: var(--muted); line-height: 1.6; margin-top: 0.5rem; }
   .field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; }
   .field label { font-size: 0.82rem; font-weight: 600; }

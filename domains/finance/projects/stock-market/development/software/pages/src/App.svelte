@@ -20,7 +20,7 @@
   {#if activeTab === 'predict'}
     <PredictTab bind:ticker />
   {:else if activeTab === 'history'}
-    <HistoryTab {ticker} />
+    <HistoryTab />
   {:else}
     <SettingsTab />
   {/if}

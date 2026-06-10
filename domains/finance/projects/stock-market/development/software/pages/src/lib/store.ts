@@ -63,6 +63,17 @@ export async function loadSnapshots(ticker: string): Promise<PredictionSnapshot[
   return all.filter(s => s.ticker === ticker).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+export async function loadAllSnapshots(): Promise<PredictionSnapshot[]> {
+  const db = await getDB();
+  const all = await db.getAll('snapshots');
+  return all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function deleteSnapshot(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('snapshots', id);
+}
+
 export async function loadSettings(): Promise<AppSettings> {
   const db = await getDB();
   const row = await db.get('settings', 'main');

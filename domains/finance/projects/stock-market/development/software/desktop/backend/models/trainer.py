@@ -1085,7 +1085,7 @@ def _fit_eval(train_df: pd.DataFrame, test_df: pd.DataFrame) -> tuple:
 
     model = GradientBoostingClassifier(
         n_estimators=200, max_depth=4, learning_rate=0.05,
-        subsample=0.8, random_state=42,
+        subsample=0.8, max_features="sqrt", random_state=42,
     )
     model.fit(X_tr_s, y_tr)
     acc = accuracy_score(y_te, model.predict(X_te_s))
@@ -1120,7 +1120,7 @@ def _walk_forward_train(combined: pd.DataFrame) -> tuple:
     X_all_s = scaler.fit_transform(X_all)
     model = GradientBoostingClassifier(
         n_estimators=200, max_depth=4, learning_rate=0.05,
-        subsample=0.8, random_state=42,
+        subsample=0.8, max_features="sqrt", random_state=42,
     )
     model.fit(X_all_s, y_all)
     return model, scaler, avg_acc

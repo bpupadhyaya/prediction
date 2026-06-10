@@ -1,6 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks
 from backend.data.price_feed import refresh_ticker
-from backend.data.macro_feed import refresh_all_macro
+from backend.data.macro_feed import refresh_all_macro, initial_macro_load
 from backend.models.trainer import retrain_if_needed
 from backend.database.duckdb_client import get_conn
 import logging
@@ -9,6 +9,34 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 _refresh_status = {"running": False, "last_completed": None, "message": ""}
+_macro_init_status: dict = {"running": False, "last_result": None}
+
+
+@router.post("/macro-init")
+def trigger_macro_init(background_tasks: BackgroundTasks):
+    """Fetch 7 years of history for all 85+ FRED and 65+ YF series (one-time bootstrap)."""
+    if _macro_init_status["running"]:
+        return {"status": "already_running", "message": "Initial macro load already in progress"}
+    _macro_init_status["running"] = True
+    background_tasks.add_task(_run_macro_init)
+    return {"status": "started", "message": "Initial macro load started in background (fetches ~150 series × 7 years)"}
+
+
+@router.get("/macro-init/status")
+def macro_init_status():
+    return _macro_init_status
+
+
+def _run_macro_init():
+    try:
+        initial_macro_load()
+        _macro_init_status["last_result"] = {"status": "ok"}
+        logger.info("Initial macro load complete via API")
+    except Exception as e:
+        logger.error(f"Initial macro load failed: {e}", exc_info=True)
+        _macro_init_status["last_result"] = {"status": "error", "error": str(e)}
+    finally:
+        _macro_init_status["running"] = False
 
 
 @router.post("/refresh")

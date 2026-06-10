@@ -1,53 +1,59 @@
 package com.prediction.stockmarket.ui.prediction
 
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.prediction.stockmarket.data.repository.StockRepository
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import com.prediction.stockmarket.data.ParameterRepository
+import com.prediction.stockmarket.data.StockParameter
 import com.prediction.stockmarket.prediction.LLMInferenceEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.UUID
 import javax.inject.Inject
 
 /**
  * ViewModel for the Interactive Prediction screen.
  *
- * Manages a set of user-defined signals (name, domain, direction, weight),
- * computes a probability estimate from those signals using the same formula
- * as the web app, and streams LLM research responses via [LLMInferenceEngine].
+ * Loads all 656 pre-defined parameters from [ParameterRepository], persists per-ticker
+ * parameter states to [SharedPreferences], computes a weighted-signal probability
+ * estimate, and streams LLM research responses via [LLMInferenceEngine].
  */
 @HiltViewModel
 class InteractivePredictionViewModel @Inject constructor(
     private val llmEngine: LLMInferenceEngine,
-    private val repository: StockRepository
+    private val paramRepository: ParameterRepository,
+    private val prefs: SharedPreferences,
+    private val gson: Gson
 ) : ViewModel() {
 
     // -------------------------------------------------------------------------
     // Domain model
     // -------------------------------------------------------------------------
 
-    data class Signal(
-        val id: String = UUID.randomUUID().toString(),
-        val name: String,
-        val domain: String,        // e.g. "Macro", "Technical", …
-        val direction: String,     // "up" | "down" | "neutral"
-        val weight: Int            // 0-100
+    data class ParamState(
+        val weight: Int = 0,
+        val direction: String = "neutral"   // "up" | "down" | "neutral"
     )
 
     data class UiState(
         val ticker: String = "",
-        val signals: List<Signal> = emptyList(),
+        val parameters: List<StockParameter> = emptyList(),
+        val states: Map<String, ParamState> = emptyMap(),
         val probUp: Double = 0.5,
         val confidence: Double = 0.0,
-        val direction: String = "neutral",   // "up" | "down" | "neutral"
+        val direction: String = "neutral",  // "up" | "down" | "neutral"
+        val paramsSet: Int = 0,
+        val expandedParams: Set<String> = emptySet(),
         val llmResponse: String = "",
         val isStreaming: Boolean = false,
         val isModelReady: Boolean = false,
-        val sessionSaved: Boolean = false,
+        val saveMessage: String = "",
         val errorMessage: String? = null
     )
 
@@ -62,33 +68,60 @@ class InteractivePredictionViewModel @Inject constructor(
     // Public API
     // -------------------------------------------------------------------------
 
-    fun setTicker(ticker: String) {
-        _state.value = _state.value.copy(
-            ticker = ticker,
-            isModelReady = llmEngine.isReady
-        )
+    fun loadParameters(ticker: String) {
+        val params = paramRepository.parameters
+        val saved = loadSavedStates(ticker)
+        val states = saved ?: initStates(params)
+        _state.update {
+            it.copy(
+                ticker = ticker,
+                parameters = params,
+                states = states,
+                isModelReady = llmEngine.isReady
+            )
+        }
+        computePrediction()
     }
 
     fun refreshModelStatus() {
-        _state.value = _state.value.copy(isModelReady = llmEngine.isReady)
+        _state.update { it.copy(isModelReady = llmEngine.isReady) }
     }
 
-    fun addSignal(signal: Signal) {
-        val updated = _state.value.signals + signal
-        _state.value = _state.value.copy(signals = updated)
-        recompute(updated)
+    fun initStates(params: List<StockParameter> = paramRepository.parameters): Map<String, ParamState> =
+        params.associate { it.name to ParamState() }
+
+    fun setDirection(name: String, dir: String) {
+        _state.update { s ->
+            val newStates = s.states.toMutableMap()
+            newStates[name] = (newStates[name] ?: ParamState()).copy(direction = dir)
+            s.copy(states = newStates)
+        }
+        computePrediction()
+        saveStates()
     }
 
-    fun updateSignal(signal: Signal) {
-        val updated = _state.value.signals.map { if (it.id == signal.id) signal else it }
-        _state.value = _state.value.copy(signals = updated)
-        recompute(updated)
+    fun setWeight(name: String, weight: Int) {
+        _state.update { s ->
+            val newStates = s.states.toMutableMap()
+            newStates[name] = (newStates[name] ?: ParamState()).copy(weight = weight)
+            s.copy(states = newStates)
+        }
+        computePrediction()
+        saveStates()
     }
 
-    fun removeSignal(id: String) {
-        val updated = _state.value.signals.filter { it.id != id }
-        _state.value = _state.value.copy(signals = updated)
-        recompute(updated)
+    fun toggleExpand(name: String) {
+        _state.update { s ->
+            val exp = s.expandedParams.toMutableSet()
+            if (exp.contains(name)) exp.remove(name) else exp.add(name)
+            s.copy(expandedParams = exp)
+        }
+    }
+
+    fun reset() {
+        _state.update { it.copy(states = initStates()) }
+        computePrediction()
+        saveStates()
     }
 
     /**
@@ -97,9 +130,9 @@ class InteractivePredictionViewModel @Inject constructor(
      */
     fun askLLM(question: String) {
         if (!llmEngine.isReady) {
-            _state.value = _state.value.copy(
-                errorMessage = "No model loaded. Download and activate a model in the Models tab."
-            )
+            _state.update {
+                it.copy(errorMessage = "No model loaded. Download and activate a model in the Models tab.")
+            }
             return
         }
 
@@ -107,45 +140,32 @@ class InteractivePredictionViewModel @Inject constructor(
         val systemPrompt = buildSystemPrompt(ticker)
 
         viewModelScope.launch(Dispatchers.IO) {
-            _state.value = _state.value.copy(
-                isStreaming = true,
-                llmResponse = "",
-                errorMessage = null
-            )
+            _state.update { it.copy(isStreaming = true, llmResponse = "", errorMessage = null) }
 
             val builder = StringBuilder()
             llmEngine.chat(systemPrompt, question).collect { token ->
                 builder.append(token)
-                _state.value = _state.value.copy(llmResponse = builder.toString())
+                _state.update { it.copy(llmResponse = builder.toString()) }
             }
 
-            _state.value = _state.value.copy(isStreaming = false)
+            _state.update { it.copy(isStreaming = false) }
         }
     }
 
     /**
-     * Recompute the prediction from the current signal list.
-     * Also callable explicitly from the UI if needed.
-     */
-    fun computePrediction() {
-        recompute(_state.value.signals)
-    }
-
-    /**
-     * "Save" the current session.  For now clears the saved flag after a beat
-     * and shows a success acknowledgement.
+     * Save the current session and show a brief confirmation message.
      */
     fun saveSession() {
-        _state.value = _state.value.copy(sessionSaved = true, errorMessage = null)
-        // Reset the flag so repeated saves work
+        saveStates()
+        _state.update { it.copy(saveMessage = "Session saved", errorMessage = null) }
         viewModelScope.launch {
             kotlinx.coroutines.delay(2000)
-            _state.value = _state.value.copy(sessionSaved = false)
+            _state.update { it.copy(saveMessage = "") }
         }
     }
 
     fun clearError() {
-        _state.value = _state.value.copy(errorMessage = null)
+        _state.update { it.copy(errorMessage = null) }
     }
 
     // -------------------------------------------------------------------------
@@ -155,57 +175,78 @@ class InteractivePredictionViewModel @Inject constructor(
     /**
      * Prediction formula (mirrors the web app):
      *   dirValue: up = 1, down = -1, neutral = 0
-     *   normalizedScore = Σ(weight × dirValue) / Σ(weight)
+     *   normalizedScore = Σ(weight × dirValue) / Σ(weight)  [only non-neutral params]
      *   probUp           = (normalizedScore + 1) / 2
      *   confidence       = |normalizedScore|
      *   direction        = "up" if probUp > 0.52, "down" if probUp < 0.48, else "neutral"
      */
-    private fun recompute(signals: List<Signal>) {
-        if (signals.isEmpty()) {
-            _state.value = _state.value.copy(
-                probUp = 0.5,
-                confidence = 0.0,
-                direction = "neutral"
-            )
-            return
-        }
-
-        var weightedSum = 0.0
+    private fun computePrediction() {
+        val states = _state.value.states
         var totalWeight = 0.0
+        var weightedScore = 0.0
+        var paramsSet = 0
 
-        for (s in signals) {
-            val dirValue = when (s.direction) {
-                "up"   -> 1.0
-                "down" -> -1.0
-                else   -> 0.0
-            }
-            weightedSum += s.weight * dirValue
+        for ((_, s) in states) {
+            if (s.direction == "neutral") continue
+            val dv = if (s.direction == "up") 1.0 else -1.0
+            weightedScore += s.weight * dv
             totalWeight += s.weight
+            paramsSet++
         }
 
-        val normalizedScore = if (totalWeight > 0) weightedSum / totalWeight else 0.0
-        val probUp = (normalizedScore + 1.0) / 2.0
-        val confidence = Math.abs(normalizedScore)
-        val direction = when {
-            probUp > 0.52 -> "up"
-            probUp < 0.48 -> "down"
-            else          -> "neutral"
+        val (probUp, confidence, direction) = if (totalWeight == 0.0) {
+            Triple(0.5, 0.0, "neutral")
+        } else {
+            val norm = weightedScore / totalWeight
+            val p = (norm + 1.0) / 2.0
+            val d = when {
+                p > 0.52 -> "up"
+                p < 0.48 -> "down"
+                else     -> "neutral"
+            }
+            Triple(p, Math.abs(norm), d)
         }
 
-        _state.value = _state.value.copy(
-            probUp = probUp,
-            confidence = confidence,
-            direction = direction
-        )
+        _state.update {
+            it.copy(
+                probUp = probUp,
+                confidence = confidence,
+                direction = direction,
+                paramsSet = paramsSet
+            )
+        }
+    }
+
+    /** Persist current parameter states for [ticker] to SharedPreferences. */
+    private fun saveStates() {
+        val ticker = _state.value.ticker
+        if (ticker.isBlank()) return
+        val json = gson.toJson(_state.value.states)
+        prefs.edit().putString("ip-$ticker", json).apply()
+    }
+
+    /** Load previously persisted parameter states for [ticker], or null if none. */
+    @Suppress("UNCHECKED_CAST")
+    private fun loadSavedStates(ticker: String): Map<String, ParamState>? {
+        val json = prefs.getString("ip-$ticker", null) ?: return null
+        return try {
+            val type = object : TypeToken<Map<String, ParamState>>() {}.type
+            gson.fromJson<Map<String, ParamState>>(json, type)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun buildSystemPrompt(ticker: String): String {
-        val signals = _state.value.signals
-        val signalSummary = if (signals.isEmpty()) {
-            "No signals have been entered yet."
+        val states = _state.value.states
+        val activeParams = _state.value.parameters
+            .filter { p -> states[p.name]?.direction != "neutral" && states[p.name] != null }
+        val signalSummary = if (activeParams.isEmpty()) {
+            "No parameters have been set yet."
         } else {
-            signals.joinToString("\n") { s ->
-                "• ${s.name} (${s.domain}): ${s.direction.uppercase()}, weight ${s.weight}"
+            activeParams.joinToString("\n") { p ->
+                val s = states[p.name] ?: ParamState()
+                "• ${p.label} (${p.domainLabel}): ${s.direction.uppercase()}, weight ${s.weight}"
             }
         }
         val direction = _state.value.direction.uppercase()
@@ -219,8 +260,9 @@ class InteractivePredictionViewModel @Inject constructor(
             - Composite direction: $direction
             - Prob(UP): $prob
             - Confidence: $conf
+            - Parameters set: ${_state.value.paramsSet}
 
-            Active signals:
+            Active parameters:
             $signalSummary
 
             Provide concise, evidence-based analysis. Do not give buy/sell recommendations.

@@ -1,5 +1,6 @@
 package com.prediction.stockmarket.ui.prediction
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,28 +15,28 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.prediction.stockmarket.data.StockParameter
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Domain chip colors
+// Domain color helpers
 // ─────────────────────────────────────────────────────────────────────────────
-private val domainOptions = listOf(
-    "Macro", "Fundamental", "Technical", "Sentiment", "Cross-Asset", "Geopolitical"
-)
 
-private fun domainColor(domain: String): Color = when (domain) {
-    "Macro"         -> Color(0xFF0EA5E9)
-    "Fundamental"   -> Color(0xFF10B981)
-    "Technical"     -> Color(0xFF9B4DE7)
-    "Sentiment"     -> Color(0xFFF97316)
-    "Cross-Asset"   -> Color(0xFFE6B819)
-    "Geopolitical"  -> Color(0xFFEF4444)
-    else            -> Color(0xFF64748B)
+private fun domainAccentColor(domain: String): Color = when (domain) {
+    "macro"        -> Color(0xFF0EA5E9)
+    "fundamental"  -> Color(0xFF10B981)
+    "cross_asset"  -> Color(0xFFE6B819)
+    "technical"    -> Color(0xFF9B4DE7)
+    "sentiment"    -> Color(0xFFF97316)
+    "geopolitical" -> Color(0xFFEF4444)
+    else           -> Color(0xFF64748B)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -50,34 +51,19 @@ fun InteractivePredictionScreen(
     viewModel: InteractivePredictionViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    var showAddSheet by remember { mutableStateOf(false) }
-    var questionText by remember { mutableStateOf("") }
 
     LaunchedEffect(ticker) {
-        viewModel.setTicker(ticker)
+        viewModel.loadParameters(ticker)
         viewModel.refreshModelStatus()
-    }
-
-    // Show snackbar when session is saved
-    val snackbarHostState = remember { SnackbarHostState() }
-    LaunchedEffect(state.sessionSaved) {
-        if (state.sessionSaved) snackbarHostState.showSnackbar("Session saved")
-    }
-    LaunchedEffect(state.errorMessage) {
-        state.errorMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.clearError()
-        }
     }
 
     Scaffold(
         containerColor = Color(0xFF0B1526),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = if (ticker.isNotBlank()) "Predict: $ticker" else "Interactive Prediction",
+                        text = if (ticker.isNotBlank()) "$ticker — Interactive Predict" else "Interactive Prediction",
                         color = Color.White,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -94,177 +80,174 @@ fun InteractivePredictionScreen(
                     }
                 },
                 actions = {
+                    TextButton(onClick = { viewModel.reset() }) {
+                        Text("Reset", color = Color(0xFF94A3B8))
+                    }
                     TextButton(onClick = { viewModel.saveSession() }) {
-                        Text("Save", color = Color(0xFF0EA5E9), fontWeight = FontWeight.SemiBold)
+                        Text("Save", color = Color(0xFF0EA5E9), fontWeight = FontWeight.Bold)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF0D1F36)
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0D1F36))
             )
         }
     ) { padding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(bottom = 32.dp, top = 12.dp)
         ) {
-            // ── 1. Prediction summary card ──────────────────────────────────
-            item {
-                PredictionSummaryCard(
-                    direction = state.direction,
-                    probUp = state.probUp,
-                    confidence = state.confidence
+            // Sticky score header
+            ScoreHeaderCard(state = state)
+
+            // Save confirmation message
+            if (state.saveMessage.isNotEmpty()) {
+                Text(
+                    text = state.saveMessage,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    color = Color(0xFF4ADE80),
+                    fontSize = 12.sp
                 )
             }
 
-            // ── 2. Signals header row ───────────────────────────────────────
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        "Signals (${state.signals.size})",
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                    FilledTonalButton(
-                        onClick = { showAddSheet = true },
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = Color(0xFF142B47)
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "Add signal",
-                            tint = Color(0xFF7DD3F8),
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Add Signal", color = Color(0xFF7DD3F8), fontSize = 13.sp)
-                    }
-                }
+            // Error message
+            if (state.errorMessage != null) {
+                Text(
+                    text = state.errorMessage!!,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    color = Color(0xFFF87171),
+                    fontSize = 12.sp
+                )
             }
 
-            // ── 3. Signal cards ─────────────────────────────────────────────
-            if (state.signals.isEmpty()) {
-                item {
-                    EmptySignalsHint()
+            // Scrollable parameter groups + LLM section
+            if (state.parameters.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Color(0xFF0EA5E9))
                 }
             } else {
-                items(state.signals, key = { it.id }) { signal ->
-                    SignalCard(
-                        signal = signal,
-                        onUpdate = { viewModel.updateSignal(it) },
-                        onRemove = { viewModel.removeSignal(signal.id) }
-                    )
-                }
-            }
+                val grouped = state.parameters.groupBy { it.domain }
+                val domainOrder = listOf(
+                    "macro", "fundamental", "cross_asset", "technical", "sentiment", "geopolitical"
+                )
 
-            // ── 4. LLM Research section ─────────────────────────────────────
-            item {
-                LLMResearchSection(
-                    isModelReady = state.isModelReady,
-                    isStreaming = state.isStreaming,
-                    llmResponse = state.llmResponse,
-                    questionText = questionText,
-                    onQuestionChange = { questionText = it },
-                    onAskLLM = {
-                        if (questionText.isNotBlank()) {
-                            viewModel.askLLM(questionText)
-                            questionText = ""
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp),
+                    contentPadding = PaddingValues(bottom = 32.dp, top = 8.dp)
+                ) {
+                    for (domain in domainOrder) {
+                        val params = grouped[domain] ?: continue
+
+                        item(key = "header-$domain") {
+                            DomainGroupHeader(params = params, states = state.states)
+                        }
+
+                        items(params, key = { it.name }) { param ->
+                            val paramState = state.states[param.name] ?: InteractivePredictionViewModel.ParamState()
+                            val isExpanded = state.expandedParams.contains(param.name)
+                            ParameterRowItem(
+                                param = param,
+                                paramState = paramState,
+                                isExpanded = isExpanded,
+                                onExpand = { viewModel.toggleExpand(param.name) },
+                                onDirection = { dir -> viewModel.setDirection(param.name, dir) },
+                                onWeight = { w -> viewModel.setWeight(param.name, w) }
+                            )
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                thickness = 0.5.dp
+                            )
+                        }
+
+                        item(key = "spacer-$domain") {
+                            Spacer(Modifier.height(12.dp))
                         }
                     }
-                )
+
+                    // LLM research section at bottom
+                    item(key = "llm-section") {
+                        LLMResearchSection(state = state, viewModel = viewModel)
+                    }
+                    item(key = "bottom-spacer") {
+                        Spacer(Modifier.height(32.dp))
+                    }
+                }
             }
         }
-    }
-
-    // ── Add Signal bottom sheet ─────────────────────────────────────────────
-    if (showAddSheet) {
-        AddSignalSheet(
-            onDismiss = { showAddSheet = false },
-            onAdd = { signal ->
-                viewModel.addSignal(signal)
-                showAddSheet = false
-            }
-        )
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Prediction summary card
+// Score header card (sticky)
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun PredictionSummaryCard(
-    direction: String,
-    probUp: Double,
-    confidence: Double
-) {
-    val (bgColor, dirLabel, dirIcon) = when (direction) {
-        "up"   -> Triple(Color(0xFF0F4738), "▲ UP", Icons.Default.TrendingUp)
-        "down" -> Triple(Color(0xFF4A1010), "▼ DOWN", Icons.Default.TrendingDown)
-        else   -> Triple(Color(0xFF1E293B), "— NEUTRAL", Icons.Default.HorizontalRule)
+private fun ScoreHeaderCard(state: InteractivePredictionViewModel.UiState) {
+    val (bgColor, dirLabel) = when (state.direction) {
+        "up"   -> Color(0xFF0F4738) to "▲ UP"
+        "down" -> Color(0xFF4A1010) to "▼ DOWN"
+        else   -> Color(0xFF1E293B) to "— NEUTRAL"
     }
-    val dirTextColor = when (direction) {
+    val dirTextColor = when (state.direction) {
         "up"   -> Color(0xFF4ADE80)
         "down" -> Color(0xFFF87171)
         else   -> Color(0xFF94A3B8)
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1F36))
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
                 "Composite Prediction",
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.White.copy(alpha = 0.55f)
             )
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(bgColor, RoundedCornerShape(10.dp))
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(dirIcon, contentDescription = direction, tint = dirTextColor, modifier = Modifier.size(20.dp))
                 Text(
                     dirLabel,
                     color = dirTextColor,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.bodyLarge
                 )
+                Text(
+                    "${state.paramsSet} params set",
+                    color = dirTextColor.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                SummaryStatCell(
+                ScoreStatCell(
                     label = "Prob(UP)",
-                    value = "%.1f%%".format(probUp * 100),
+                    value = "%.1f%%".format(state.probUp * 100),
                     valueColor = Color(0xFF7DD3F8)
                 )
-                SummaryStatCell(
+                ScoreStatCell(
                     label = "Confidence",
-                    value = "%.1f%%".format(confidence * 100),
+                    value = "%.1f%%".format(state.confidence * 100),
                     valueColor = Color(0xFFCDA8FF)
                 )
             }
@@ -273,7 +256,7 @@ private fun PredictionSummaryCard(
 }
 
 @Composable
-private fun SummaryStatCell(label: String, value: String, valueColor: Color) {
+private fun ScoreStatCell(label: String, value: String, valueColor: Color) {
     Column {
         Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = valueColor)
         Text(label, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.5f))
@@ -281,175 +264,245 @@ private fun SummaryStatCell(label: String, value: String, valueColor: Color) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Signal card (inline editing)
+// Domain group header
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun SignalCard(
-    signal: InteractivePredictionViewModel.Signal,
-    onUpdate: (InteractivePredictionViewModel.Signal) -> Unit,
-    onRemove: () -> Unit
+private fun DomainGroupHeader(
+    params: List<StockParameter>,
+    states: Map<String, InteractivePredictionViewModel.ParamState>
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1F36))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Header row: name + domain chip + delete
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = signal.name,
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    DomainChip(signal.domain)
-                }
-                IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
-                }
-            }
-
-            // Direction toggle
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                listOf("up", "neutral", "down").forEach { dir ->
-                    val selected = signal.direction == dir
-                    val (bgSel, fgSel, label) = when (dir) {
-                        "up"      -> Triple(Color(0xFF166534), Color(0xFF4ADE80), "UP")
-                        "down"    -> Triple(Color(0xFF7F1D1D), Color(0xFFF87171), "DOWN")
-                        else      -> Triple(Color(0xFF1E293B), Color(0xFF94A3B8), "NEUTRAL")
-                    }
-                    OutlinedButton(
-                        onClick = { onUpdate(signal.copy(direction = dir)) },
-                        modifier = Modifier.weight(1f).height(32.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 4.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (selected) bgSel else Color.Transparent,
-                            contentColor = if (selected) fgSel else Color.White.copy(alpha = 0.4f)
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (selected) fgSel.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.15f)
-                        )
-                    ) {
-                        Text(label, fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-                    }
-                }
-            }
-
-            // Weight slider
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text("Weight", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.55f))
-                Slider(
-                    value = signal.weight.toFloat(),
-                    onValueChange = { onUpdate(signal.copy(weight = it.toInt())) },
-                    valueRange = 0f..100f,
-                    steps = 0,
-                    modifier = Modifier.weight(1f),
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color(0xFF0EA5E9),
-                        activeTrackColor = Color(0xFF0EA5E9),
-                        inactiveTrackColor = Color(0xFF1E3A5F)
-                    )
-                )
-                Text(
-                    "${signal.weight}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF7DD3F8),
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.width(26.dp)
-                )
-            }
-        }
+    val netScore = params.sumOf { p ->
+        val s = states[p.name] ?: return@sumOf 0.0
+        if (s.direction == "neutral") 0.0
+        else s.weight.toDouble() * (if (s.direction == "up") 1.0 else -1.0)
     }
-}
+    val netLabel = when {
+        netScore > 0 -> "▲ net bullish"
+        netScore < 0 -> "▼ net bearish"
+        else         -> "— neutral"
+    }
+    val netColor = when {
+        netScore > 0 -> Color(0xFF34D399)
+        netScore < 0 -> Color(0xFFF87171)
+        else         -> Color(0xFF94A3B8)
+    }
+    val accentColor = if (params.isNotEmpty()) domainAccentColor(params[0].domain) else Color.Gray
 
-@Composable
-private fun DomainChip(domain: String) {
-    Surface(
-        shape = RoundedCornerShape(50.dp),
-        color = domainColor(domain).copy(alpha = 0.18f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF0E1E38))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .height(16.dp)
+                .background(accentColor, RoundedCornerShape(2.dp))
+        )
+        Spacer(Modifier.width(8.dp))
         Text(
-            text = domain,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+            text = if (params.isNotEmpty()) params[0].domainLabel else "",
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            "${params.size} params",
             style = MaterialTheme.typography.labelSmall,
-            color = domainColor(domain),
-            fontWeight = FontWeight.Medium
+            color = Color(0xFF64748B),
+            modifier = Modifier.padding(end = 8.dp)
+        )
+        Text(
+            netLabel,
+            style = MaterialTheme.typography.labelSmall,
+            color = netColor,
+            fontWeight = FontWeight.Bold
         )
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Empty state hint
+// Parameter row item
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun EmptySignalsHint() {
-    Box(
+private fun ParameterRowItem(
+    param: StockParameter,
+    paramState: InteractivePredictionViewModel.ParamState,
+    isExpanded: Boolean,
+    onExpand: () -> Unit,
+    onDirection: (String) -> Unit,
+    onWeight: (Int) -> Unit
+) {
+    val upActive = paramState.direction == "up"
+    val downActive = paramState.direction == "down"
+    val isSet = paramState.direction != "neutral"
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF0D1F36), RoundedCornerShape(12.dp))
-            .padding(20.dp),
-        contentAlignment = Alignment.Center
+            .alpha(if (isSet) 1f else 0.65f)
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 5.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.AddChart, contentDescription = null, tint = Color.White.copy(alpha = 0.25f), modifier = Modifier.size(36.dp))
-            Text(
-                "No signals yet",
-                color = Color.White.copy(alpha = 0.4f),
-                style = MaterialTheme.typography.bodyMedium
+            // Expand chevron
+            IconButton(onClick = onExpand, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ChevronRight,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    modifier = Modifier.size(14.dp),
+                    tint = Color(0xFF64748B)
+                )
+            }
+
+            // Parameter name + label
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    param.name,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    param.label,
+                    fontSize = 10.sp,
+                    color = Color(0xFF94A3B8),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            // Weight slider + value
+            Slider(
+                value = paramState.weight.toFloat(),
+                onValueChange = { onWeight(it.toInt()) },
+                valueRange = 0f..100f,
+                modifier = Modifier.width(80.dp),
+                colors = SliderDefaults.colors(
+                    thumbColor = Color(0xFF4F8EF7),
+                    activeTrackColor = Color(0xFF4F8EF7),
+                    inactiveTrackColor = Color(0xFF1E3A5F)
+                )
             )
             Text(
-                "Tap Add Signal to build your prediction model",
-                color = Color.White.copy(alpha = 0.25f),
-                style = MaterialTheme.typography.bodySmall
+                "${paramState.weight}",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                color = Color(0xFF4F8EF7),
+                modifier = Modifier.width(26.dp),
+                fontWeight = FontWeight.SemiBold
             )
+
+            Spacer(Modifier.width(4.dp))
+
+            // Direction buttons
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                OutlinedButton(
+                    onClick = { onDirection(if (upActive) "neutral" else "up") },
+                    modifier = Modifier.height(28.dp),
+                    border = BorderStroke(1.dp, if (upActive) Color(0xFF34D399) else Color(0xFF334155)),
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (upActive) Color(0xFF0F4738) else Color.Transparent
+                    )
+                ) {
+                    Text("▲", color = if (upActive) Color(0xFF34D399) else Color(0xFF64748B), fontSize = 11.sp)
+                }
+                OutlinedButton(
+                    onClick = { onDirection(if (downActive) "neutral" else "down") },
+                    modifier = Modifier.height(28.dp),
+                    border = BorderStroke(1.dp, if (downActive) Color(0xFFF87171) else Color(0xFF334155)),
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (downActive) Color(0xFF4A1010) else Color.Transparent
+                    )
+                ) {
+                    Text("▼", color = if (downActive) Color(0xFFF87171) else Color(0xFF64748B), fontSize = 11.sp)
+                }
+            }
+        }
+
+        // Expanded definition panel — two columns side by side using Row + Box divider
+        if (isExpanded) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0B1526))
+                    .padding(vertical = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 10.dp)
+                ) {
+                    Text(
+                        "IN PLAIN ENGLISH",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF34D399),
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        param.layman,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        color = Color.White.copy(alpha = 0.85f)
+                    )
+                }
+                // Vertical divider via Box (VerticalDivider requires Material3 1.3+)
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .background(Color(0xFF334155))
+                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 10.dp)
+                ) {
+                    Text(
+                        "TECHNICAL",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF4F8EF7),
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        param.technical,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        color = Color.White.copy(alpha = 0.85f)
+                    )
+                }
+            }
         }
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LLM Research section
+// LLM Research section (at bottom of list)
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun LLMResearchSection(
-    isModelReady: Boolean,
-    isStreaming: Boolean,
-    llmResponse: String,
-    questionText: String,
-    onQuestionChange: (String) -> Unit,
-    onAskLLM: () -> Unit
+    state: InteractivePredictionViewModel.UiState,
+    viewModel: InteractivePredictionViewModel
 ) {
+    var questionText by remember { mutableStateOf("") }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -465,7 +518,12 @@ private fun LLMResearchSection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFFCDA8FF), modifier = Modifier.size(16.dp))
+                Icon(
+                    Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = Color(0xFFCDA8FF),
+                    modifier = Modifier.size(16.dp)
+                )
                 Text(
                     "AI Research",
                     color = Color.White,
@@ -474,8 +532,7 @@ private fun LLMResearchSection(
                 )
             }
 
-            if (!isModelReady) {
-                // No model loaded — prompt user to download one
+            if (!state.isModelReady) {
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = Color(0xFF1E293B)
@@ -501,14 +558,13 @@ private fun LLMResearchSection(
                     }
                 }
             } else {
-                // Question input
                 OutlinedTextField(
                     value = questionText,
-                    onValueChange = onQuestionChange,
+                    onValueChange = { questionText = it },
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = {
                         Text(
-                            "Ask about this stock, signals, or market context…",
+                            "Ask about this stock, parameters, or market context…",
                             color = Color.White.copy(alpha = 0.3f),
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -527,8 +583,13 @@ private fun LLMResearchSection(
                 )
 
                 Button(
-                    onClick = onAskLLM,
-                    enabled = questionText.isNotBlank() && !isStreaming,
+                    onClick = {
+                        if (questionText.isNotBlank()) {
+                            viewModel.askLLM(questionText)
+                            questionText = ""
+                        }
+                    },
+                    enabled = questionText.isNotBlank() && !state.isStreaming,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -536,7 +597,7 @@ private fun LLMResearchSection(
                         disabledContainerColor = Color(0xFF0EA5E9).copy(alpha = 0.35f)
                     )
                 ) {
-                    if (isStreaming) {
+                    if (state.isStreaming) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp,
@@ -545,14 +606,18 @@ private fun LLMResearchSection(
                         Spacer(Modifier.width(8.dp))
                         Text("Generating…", color = Color.White)
                     } else {
-                        Icon(Icons.Default.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Icon(
+                            Icons.Default.Send,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
                         Spacer(Modifier.width(8.dp))
                         Text("Ask AI", color = Color.White, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
-                // Response area
-                if (llmResponse.isNotBlank() || isStreaming) {
+                if (state.llmResponse.isNotBlank() || state.isStreaming) {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -560,203 +625,23 @@ private fun LLMResearchSection(
                         shape = RoundedCornerShape(10.dp),
                         color = Color(0xFF0B1526)
                     ) {
-                        Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(12.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .verticalScroll(rememberScrollState())
+                                .padding(12.dp)
+                        ) {
                             Text(
-                                text = llmResponse.ifBlank { "…" },
+                                text = state.llmResponse.ifBlank { "…" },
                                 color = Color.White.copy(alpha = 0.85f),
                                 style = MaterialTheme.typography.bodySmall,
                                 lineHeight = 20.sp
                             )
-                            if (isStreaming) {
+                            if (state.isStreaming) {
                                 Text("▍", color = Color(0xFF0EA5E9))
                             }
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Add Signal bottom sheet
-// ─────────────────────────────────────────────────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AddSignalSheet(
-    onDismiss: () -> Unit,
-    onAdd: (InteractivePredictionViewModel.Signal) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var domain by remember { mutableStateOf(domainOptions[0]) }
-    var direction by remember { mutableStateOf("neutral") }
-    var weight by remember { mutableStateOf(50) }
-    var expandedDomain by remember { mutableStateOf(false) }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0D1F36),
-        tonalElevation = 0.dp
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Text(
-                "Add Signal",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            // Signal name
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Signal name", color = Color.White.copy(alpha = 0.5f)) },
-                placeholder = { Text("e.g. Fed rate cut, RSI divergence", color = Color.White.copy(alpha = 0.3f)) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedContainerColor = Color(0xFF0B1526),
-                    unfocusedContainerColor = Color(0xFF0B1526),
-                    focusedBorderColor = Color(0xFF0EA5E9),
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                    cursorColor = Color(0xFF0EA5E9)
-                ),
-                shape = RoundedCornerShape(10.dp),
-                singleLine = true
-            )
-
-            // Domain dropdown
-            ExposedDropdownMenuBox(
-                expanded = expandedDomain,
-                onExpandedChange = { expandedDomain = it }
-            ) {
-                OutlinedTextField(
-                    value = domain,
-                    onValueChange = {},
-                    readOnly = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(),
-                    label = { Text("Domain", color = Color.White.copy(alpha = 0.5f)) },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedDomain) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedContainerColor = Color(0xFF0B1526),
-                        unfocusedContainerColor = Color(0xFF0B1526),
-                        focusedBorderColor = Color(0xFF0EA5E9),
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.15f)
-                    ),
-                    shape = RoundedCornerShape(10.dp)
-                )
-                ExposedDropdownMenu(
-                    expanded = expandedDomain,
-                    onDismissRequest = { expandedDomain = false },
-                    containerColor = Color(0xFF142B47)
-                ) {
-                    domainOptions.forEach { opt ->
-                        DropdownMenuItem(
-                            text = { Text(opt, color = Color.White) },
-                            onClick = {
-                                domain = opt
-                                expandedDomain = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Direction selector
-            Text("Direction", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.6f))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf("up", "neutral", "down").forEach { dir ->
-                    val selected = direction == dir
-                    val (bgSel, fgSel, label) = when (dir) {
-                        "up"   -> Triple(Color(0xFF166534), Color(0xFF4ADE80), "UP")
-                        "down" -> Triple(Color(0xFF7F1D1D), Color(0xFFF87171), "DOWN")
-                        else   -> Triple(Color(0xFF1E293B), Color(0xFF94A3B8), "NEUTRAL")
-                    }
-                    OutlinedButton(
-                        onClick = { direction = dir },
-                        modifier = Modifier.weight(1f).height(38.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 4.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (selected) bgSel else Color.Transparent,
-                            contentColor = if (selected) fgSel else Color.White.copy(alpha = 0.4f)
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (selected) fgSel.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.15f)
-                        )
-                    ) {
-                        Text(label, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-                    }
-                }
-            }
-
-            // Weight slider
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text("Weight", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.6f))
-                Slider(
-                    value = weight.toFloat(),
-                    onValueChange = { weight = it.toInt() },
-                    valueRange = 0f..100f,
-                    modifier = Modifier.weight(1f),
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color(0xFF0EA5E9),
-                        activeTrackColor = Color(0xFF0EA5E9),
-                        inactiveTrackColor = Color(0xFF1E3A5F)
-                    )
-                )
-                Text(
-                    "$weight",
-                    color = Color(0xFF7DD3F8),
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.width(30.dp)
-                )
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            // Add button
-            Button(
-                onClick = {
-                    if (name.isNotBlank()) {
-                        onAdd(
-                            InteractivePredictionViewModel.Signal(
-                                name = name.trim(),
-                                domain = domain,
-                                direction = direction,
-                                weight = weight
-                            )
-                        )
-                    }
-                },
-                enabled = name.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF0EA5E9),
-                    disabledContainerColor = Color(0xFF0EA5E9).copy(alpha = 0.3f)
-                )
-            ) {
-                Text("Add Signal", fontWeight = FontWeight.SemiBold, color = Color.White)
             }
         }
     }

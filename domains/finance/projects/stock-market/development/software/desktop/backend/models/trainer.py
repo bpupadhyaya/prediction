@@ -977,12 +977,17 @@ def prepare_all_training_data(horizon_days: int) -> pd.DataFrame:
 
         # ── Extended fundamentals ─────────────────────────────────────────
         ext = extended_fund_map.get(ticker, {})
+        # Batch-add missing fundamental columns first to avoid fragmentation
+        missing_fund = [c for c in FUNDAMENTAL_COLS if c not in feat.columns]
+        if missing_fund:
+            feat = pd.concat(
+                [feat, pd.DataFrame(0.0, index=feat.index, columns=missing_fund)],
+                axis=1,
+            )
         for fcol in FUNDAMENTAL_COLS:
             val = ext.get(fcol, None)
             if val is not None and np.isfinite(val):
                 feat[fcol] = float(val)
-            elif fcol not in feat.columns:
-                feat[fcol] = 0.0
             else:
                 feat[fcol] = feat[fcol].fillna(0.0)
 
@@ -995,10 +1000,16 @@ def prepare_all_training_data(horizon_days: int) -> pd.DataFrame:
             )
 
         # Ensure all macro/cross_asset/sentiment/geopolitical columns exist
-        for col in MACRO_COLS + CROSS_ASSET_COLS + SENTIMENT_COLS + GEOPOLITICAL_COLS:
-            if col not in feat.columns:
-                feat[col] = 0.0
-            else:
+        # Batch-assign missing columns to avoid DataFrame fragmentation
+        all_macro_cols = MACRO_COLS + CROSS_ASSET_COLS + SENTIMENT_COLS + GEOPOLITICAL_COLS
+        missing_macro = [c for c in all_macro_cols if c not in feat.columns]
+        if missing_macro:
+            feat = pd.concat(
+                [feat, pd.DataFrame(0.0, index=feat.index, columns=missing_macro)],
+                axis=1,
+            )
+        for col in all_macro_cols:
+            if col in feat.columns:
                 feat[col] = feat[col].fillna(0.0)
 
         # ── Regime columns ────────────────────────────────────────────────
@@ -1058,13 +1069,17 @@ def prepare_all_training_data(horizon_days: int) -> pd.DataFrame:
             combined[dst] = 0.5
 
     # ── Fill and clip all feature columns ─────────────────────────────────────
-    for col in FEATURE_COLS:
-        if col in combined.columns:
-            combined[col] = (combined[col]
-                             .replace([np.inf, -np.inf], np.nan)
-                             .fillna(0.0))
-        else:
-            combined[col] = 0.0
+    # Batch-add any still-missing feature columns before in-place ops
+    missing_feat = [c for c in FEATURE_COLS if c not in combined.columns]
+    if missing_feat:
+        combined = pd.concat(
+            [combined, pd.DataFrame(0.0, index=combined.index, columns=missing_feat)],
+            axis=1,
+        )
+    existing_feat = [c for c in FEATURE_COLS if c in combined.columns]
+    combined[existing_feat] = (combined[existing_feat]
+                               .replace([np.inf, -np.inf], np.nan)
+                               .fillna(0.0))
 
     combined = combined.dropna(subset=["return_5d", "rsi", "target"])
     return combined

@@ -98,8 +98,9 @@ End your response with a line: SUGGESTION: Direction=UP|DOWN, Weight=<number>`;
   }
 </script>
 
-{#if param}
 <svelte:window on:keydown={handleKeydown} />
+
+{#if param}
 <div class="overlay" on:click|self={onClose} role="dialog" aria-modal="true" aria-label="Research assistant for {param.name}">
   <div class="modal">
     <div class="modal-header">

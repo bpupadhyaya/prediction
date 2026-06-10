@@ -11,7 +11,7 @@
 
   export let ticker: string;
 
-  let states: Record<string, ParamState> = {};
+  let states: Record<string, ParamState> = initStates();
   let settings: AppSettings = { fredApiKey: '', corsProxyEnabled: false, llmModelId: null, llmDownloaded: false };
   let researchParam: Parameter | null = null;
   let saveMsg = '';

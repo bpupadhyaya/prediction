@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Parameter, ParamState, Direction } from '../lib/types';
   export let param: Parameter;
-  export let state: ParamState;
+  export let state: ParamState = { weight: 50, direction: 'neutral', value: null };
   export let onResearch: (p: Parameter) => void;
 
   function setDirection(d: Direction) {

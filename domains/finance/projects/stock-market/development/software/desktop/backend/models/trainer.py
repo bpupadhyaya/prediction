@@ -1218,10 +1218,11 @@ def _update_accuracy_log(horizon: str, accuracy: float) -> None:
 
 # ── Public training API ───────────────────────────────────────────────────────
 
-def train_model(horizon: str = "1w") -> float:
+def train_model(horizon: str = "1w", combined: pd.DataFrame | None = None) -> float:
     horizon_days = HORIZON_DAYS.get(horizon, 5)
     logger.info(f"Training global {horizon} model ({horizon_days}d target)...")
-    combined = prepare_all_training_data(horizon_days)
+    if combined is None:
+        combined = prepare_all_training_data(horizon_days)
     if combined.empty:
         logger.warning(f"No training data for {horizon}")
         return 0.0
@@ -1232,9 +1233,10 @@ def train_model(horizon: str = "1w") -> float:
     return avg_acc
 
 
-def train_regime_models(horizon: str = "1w") -> dict[str, float]:
+def train_regime_models(horizon: str = "1w", combined: pd.DataFrame | None = None) -> dict[str, float]:
     horizon_days = HORIZON_DAYS.get(horizon, 5)
-    combined = prepare_all_training_data(horizon_days)
+    if combined is None:
+        combined = prepare_all_training_data(horizon_days)
     if combined.empty:
         return {}
 
@@ -1253,9 +1255,10 @@ def train_regime_models(horizon: str = "1w") -> dict[str, float]:
     return results
 
 
-def train_sector_models(horizon: str = "1w") -> dict[str, float]:
+def train_sector_models(horizon: str = "1w", combined: pd.DataFrame | None = None) -> dict[str, float]:
     horizon_days = HORIZON_DAYS.get(horizon, 5)
-    combined = prepare_all_training_data(horizon_days)
+    if combined is None:
+        combined = prepare_all_training_data(horizon_days)
     if combined.empty:
         return {}
     results = {}
@@ -1276,11 +1279,14 @@ def train_sector_models(horizon: str = "1w") -> dict[str, float]:
 def train_all_models() -> float:
     all_accs = []
     for horizon in HORIZON_DAYS:
-        acc = train_model(horizon)
+        horizon_days = HORIZON_DAYS[horizon]
+        logger.info(f"Preparing training data for horizon={horizon} ({horizon_days}d)...")
+        combined = prepare_all_training_data(horizon_days)
+        acc = train_model(horizon, combined=combined)
         all_accs.append(acc)
-        regime_accs = train_regime_models(horizon)
+        regime_accs = train_regime_models(horizon, combined=combined)
         all_accs.extend(regime_accs.values())
-        sector_accs = train_sector_models(horizon)
+        sector_accs = train_sector_models(horizon, combined=combined)
         all_accs.extend(sector_accs.values())
     avg = float(np.mean(all_accs)) if all_accs else 0.0
     logger.info(f"All models trained — overall avg acc: {avg:.4f}")

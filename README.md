@@ -19,7 +19,7 @@ Eight core domains spanning the full human lifespan:
 | [Early Life](domains/early-life/) | Genetic risk, developmental milestones, allergy susceptibility, cognitive indicators |
 | [Health](domains/health/) | Disease risk, life expectancy, mental health, pharmacogenomics, fertility |
 | [Education](domains/education/) | Academic performance, learning disabilities, career aptitude, college admission |
-| [Finance](domains/finance/) | Income trajectory, financial distress, retirement readiness, entrepreneurship |
+| [Finance](domains/finance/) | Income trajectory, financial distress, retirement readiness, entrepreneurship — **[Stock Market Predictor ↗](https://equalinformation.com/prediction/stock-prediction/)** |
 | [Social & Behavioral](domains/social-behavioral/) | Relationship compatibility, addiction risk, social mobility, mental health episodes |
 | [Safety & Environment](domains/safety-environment/) | Accident risk, natural disasters, climate impact, pollution-health effects |
 | [Aging](domains/aging/) | Cognitive decline, mobility loss, caregiver dependency, end-of-life planning |

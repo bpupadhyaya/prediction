@@ -52,7 +52,11 @@
   let _saveTimer: number;
 
   async function handleSave() {
-    const today = new Date().toISOString().slice(0, 10);
+    const now  = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+    const filename = `${ticker}_snapshot_${today}_${timeStr}.json`;
+
     const snap: PredictionSnapshot = {
       id: `${ticker}-${Date.now()}`,
       ticker,
@@ -62,13 +66,57 @@
       probUp: result.probUp,
       confidence: result.confidence,
       notes: '',
-      createdAt: new Date().toISOString(),
+      createdAt: now.toISOString(),
     };
-    const result2 = await saveSnapshot(snap);
-    saveMsg = result2 === 'replaced'
-      ? '✓ Saved to History tab (replaced oldest — max 2/day). Stored in this browser only.'
-      : '✓ Saved to History tab. Stored in this browser only — use Export for a permanent file.';
-    setTimeout(() => saveMsg = '', 5000);
+
+    const content = JSON.stringify({
+      ticker,
+      date: today,
+      savedAt: snap.createdAt,
+      prediction: { probUp: snap.probUp, confidence: snap.confidence },
+      parameterStates: snap.states,
+    }, null, 2);
+
+    // Try File System Access API (Chrome/Edge) — opens native Save dialog
+    let savedToFile = false;
+    let savedFilename = filename;
+    if ('showSaveFilePicker' in window) {
+      try {
+        const fh = await (window as any).showSaveFilePicker({
+          suggestedName: filename,
+          startIn: 'downloads',
+          types: [{ description: 'Prediction Snapshot', accept: { 'application/json': ['.json'] } }],
+        });
+        const w = await fh.createWritable();
+        await w.write(content);
+        await w.close();
+        savedToFile = true;
+        savedFilename = fh.name ?? filename;
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return; // user cancelled — do nothing
+        // other error: fall through to download fallback
+      }
+    }
+
+    // Fallback for Firefox/Safari — downloads directly to OS default Downloads
+    if (!savedToFile) {
+      const blob = new Blob([content], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Also persist to IndexedDB for History tab
+    const dbResult = await saveSnapshot(snap);
+
+    saveMsg = savedToFile
+      ? `✓ Saved as "${savedFilename}" to chosen folder. Also in History tab.`
+      : `✓ Saved as "${filename}" to your Downloads folder. Also in History tab.`;
+    if (dbResult === 'replaced') saveMsg += ' (oldest snapshot for today replaced — max 2/day)';
+    setTimeout(() => saveMsg = '', 6000);
   }
 
   function handleReset() {

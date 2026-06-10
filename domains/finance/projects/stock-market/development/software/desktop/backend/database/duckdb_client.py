@@ -159,6 +159,25 @@ def init_db() -> None:
         )
     """)
 
+    # ── Interactive predictions (user-driven session saves) ───────────────────
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS interactive_predictions (
+            id            VARCHAR PRIMARY KEY,
+            ticker        VARCHAR NOT NULL,
+            session_date  DATE NOT NULL,
+            created_at    TIMESTAMP NOT NULL,
+            user_signals  JSON NOT NULL,
+            signals_count INTEGER NOT NULL,
+            prob_up       DOUBLE NOT NULL,
+            confidence    DOUBLE NOT NULL,
+            direction     VARCHAR NOT NULL,
+            notes         TEXT DEFAULT '',
+            source        VARCHAR DEFAULT 'web'
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_ip_ticker ON interactive_predictions(ticker)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_ip_date   ON interactive_predictions(session_date)")
+
     # ── Migrations: add new columns to existing tables ────────────────────────
     _safe_alter(conn, "ALTER TABLE fundamentals ADD COLUMN short_ratio DOUBLE DEFAULT 0")
     _safe_alter(conn, "ALTER TABLE fundamentals ADD COLUMN short_pct_float DOUBLE DEFAULT 0")

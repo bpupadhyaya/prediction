@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database.duckdb_client import init_db
 from backend.api import stocks, predict, portfolio, sync, models_api, guidance
+from backend.api.interactive import router as interactive_router
 from backend.data.scheduler import start_scheduler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -91,6 +92,7 @@ app.include_router(portfolio.router,  prefix="/api/portfolio", tags=["portfolio"
 app.include_router(sync.router,       prefix="/api/sync",      tags=["sync"])
 app.include_router(models_api.router, prefix="/api/models",    tags=["models"])
 app.include_router(guidance.router,   prefix="/api/guidance",  tags=["guidance"])
+app.include_router(interactive_router)
 
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
 if os.path.exists(frontend_dir):

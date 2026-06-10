@@ -1,4 +1,4 @@
-name: Deploy Interactive Predictor to GitHub Pages
+name: Deploy Prediction to GitHub Pages
 
 on:
   push:
@@ -35,14 +35,22 @@ jobs:
         working-directory: domains/finance/projects/stock-market/development/software/pages
         run: npm ci
 
-      - name: Build
+      - name: Build stock-prediction app
         working-directory: domains/finance/projects/stock-market/development/software/pages
         run: npm run build
+
+      - name: Assemble artifact
+        run: |
+          mkdir -p artifact/stock-prediction
+          # Home page at /prediction/ root
+          cp domains/finance/projects/stock-market/development/software/pages/home.html artifact/index.html
+          # Stock market app at /prediction/stock-prediction/
+          cp -r domains/finance/projects/stock-market/development/software/pages/dist/* artifact/stock-prediction/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: domains/finance/projects/stock-market/development/software/pages/dist
+          path: artifact
 
   deploy:
     environment:

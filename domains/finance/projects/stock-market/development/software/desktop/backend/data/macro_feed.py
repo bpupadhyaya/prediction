@@ -349,13 +349,14 @@ def load_macro_timeseries() -> pd.DataFrame:
     if raw.empty:
         return pd.DataFrame()
 
-    raw["date"] = pd.to_datetime(raw["date"])
+    raw["date"] = pd.to_datetime(raw["date"]).astype("datetime64[us]")
     wide = raw.pivot_table(index="date", columns="series_id", values="value", aggfunc="last")
     wide = wide.reset_index().sort_values("date")
 
-    date_range = pd.date_range(wide["date"].min(), wide["date"].max(), freq="D")
+    date_range = pd.date_range(wide["date"].min(), wide["date"].max(), freq="D", unit="us")
     wide = wide.set_index("date").reindex(date_range).ffill().reset_index()
     wide = wide.rename(columns={"index": "date"})
+    wide["date"] = wide["date"].astype("datetime64[us]")
 
     def col(name):
         return wide[name] if name in wide.columns else pd.Series(np.nan, index=wide.index)

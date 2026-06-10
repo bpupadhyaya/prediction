@@ -191,6 +191,12 @@ def init_db() -> None:
     _seed_signal_weights(conn)
 
     conn.commit()
+    # Checkpoint so ALTER TABLE migrations are written to the main db file
+    # (avoids WAL replay failures with DEFAULT now() / function expressions)
+    try:
+        conn.execute("CHECKPOINT")
+    except Exception:
+        pass
 
 
 def _safe_alter(conn, sql: str) -> None:

@@ -1,6 +1,10 @@
-from fastapi import APIRouter, HTTPException
+import asyncio
+import logging
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from backend.models.predictor import predict_ticker
 from backend.config import PREDICTION_HORIZONS
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -151,3 +155,47 @@ def get_hot_predictions():
         traded.append(entry)
 
     return {"traded": traded, "pre_ipo": _PRE_IPO}
+
+
+# ── Retrain ───────────────────────────────────────────────────────────────────
+
+_retrain_status: dict = {"running": False, "last_result": None}
+
+
+def _run_retrain():
+    from backend.models.trainer import train_all_models
+    from backend.models.exporter import export as export_onnx
+    try:
+        _retrain_status["running"] = True
+        avg_acc = train_all_models()
+        onnx_path = None
+        try:
+            onnx_path = str(export_onnx(verify=True))
+        except Exception as e:
+            logger.warning(f"ONNX export failed (non-fatal): {e}")
+        _retrain_status["last_result"] = {
+            "status": "ok",
+            "avg_directional_accuracy": round(avg_acc, 4),
+            "onnx_exported": onnx_path is not None,
+            "onnx_path": onnx_path,
+        }
+        logger.info(f"Retrain complete — avg accuracy: {avg_acc:.4f}")
+    except Exception as e:
+        _retrain_status["last_result"] = {"status": "error", "error": str(e)}
+        logger.error(f"Retrain failed: {e}", exc_info=True)
+    finally:
+        _retrain_status["running"] = False
+
+
+@router.post("/retrain")
+def retrain_models(background_tasks: BackgroundTasks):
+    """Retrain all GBM models on expanded feature set and re-export ONNX."""
+    if _retrain_status["running"]:
+        return {"status": "already_running"}
+    background_tasks.add_task(_run_retrain)
+    return {"status": "started"}
+
+
+@router.get("/retrain/status")
+def retrain_status():
+    return _retrain_status

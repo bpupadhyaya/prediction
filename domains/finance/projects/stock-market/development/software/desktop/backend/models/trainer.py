@@ -327,7 +327,7 @@ def prepare_all_training_data(horizon_days: int) -> pd.DataFrame:
         SELECT ticker, CAST(date AS VARCHAR) as date, open, high, low, close, volume
         FROM prices ORDER BY ticker, date
     """).df()
-    price_df["date"] = pd.to_datetime(price_df["date"])
+    price_df["date"] = pd.to_datetime(price_df["date"]).astype("datetime64[us]")
 
     sectors = conn.execute("""
         SELECT ticker, COALESCE(sector, 'Unknown') as sector FROM stocks
@@ -348,12 +348,17 @@ def prepare_all_training_data(horizon_days: int) -> pd.DataFrame:
         for _, r in fund_snap.iterrows()
     }
 
-    # Extended fundamentals from yfinance (best-effort; cached per run)
+    # Extended fundamentals from yfinance (best-effort; 60-second total budget)
     extended_fund_map: dict[str, dict] = {}
     try:
+        import time as _time
         import yfinance as yf
         _all_tickers = price_df["ticker"].unique().tolist()
+        _budget_end = _time.monotonic() + 60.0  # max 60 s total
         for _tk in _all_tickers:
+            if _time.monotonic() > _budget_end:
+                logger.debug("Extended fundamentals budget exhausted — skipping remaining tickers")
+                break
             try:
                 _info = yf.Ticker(_tk).fast_info
                 extended_fund_map[_tk] = {
@@ -370,7 +375,7 @@ def prepare_all_training_data(horizon_days: int) -> pd.DataFrame:
                     "revenue_growth":         None,
                     "earnings_growth":        None,
                     "fcf_yield":              None,
-                    "dividend_yield":         getattr(_info, "three_month_average_price", None) and None,
+                    "dividend_yield":         None,
                     "beta":                   None,
                     "insider_ownership":      None,
                     "institutional_ownership": None,
@@ -384,7 +389,7 @@ def prepare_all_training_data(horizon_days: int) -> pd.DataFrame:
         SELECT ticker, earnings_date, earnings_surprise
         FROM earnings_history ORDER BY ticker, earnings_date
     """).df()
-    hist_surp["earnings_date"] = pd.to_datetime(hist_surp["earnings_date"])
+    hist_surp["earnings_date"] = pd.to_datetime(hist_surp["earnings_date"]).astype("datetime64[us]")
 
     all_feat = []
     for ticker, group in price_df.groupby("ticker"):

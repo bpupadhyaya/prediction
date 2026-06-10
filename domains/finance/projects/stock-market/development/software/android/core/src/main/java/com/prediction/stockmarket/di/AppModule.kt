@@ -8,6 +8,7 @@ import com.prediction.stockmarket.data.database.*
 import com.prediction.stockmarket.data.sync.MarketDataSourceManager
 import com.prediction.stockmarket.data.sync.StooqFetcher
 import com.prediction.stockmarket.data.sync.YahooFinanceFetcher
+import com.prediction.stockmarket.prediction.LLMInferenceEngine
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -57,4 +58,9 @@ object AppModule {
     @Provides @Singleton
     fun provideStooqFetcher(client: OkHttpClient): StooqFetcher =
         StooqFetcher(client)
+
+    @Provides
+    @Singleton
+    fun provideLLMInferenceEngine(@ApplicationContext context: Context): LLMInferenceEngine =
+        LLMInferenceEngine(context)
 }

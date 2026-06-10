@@ -2,9 +2,11 @@ package com.prediction.stockmarket.ui.stock
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
@@ -12,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -22,6 +25,7 @@ import com.prediction.stockmarket.data.database.PredictionEntity
 fun StockDetailScreen(
     ticker: String,
     navController: NavController,
+    onInteractivePredict: (String) -> Unit = {},
     viewModel: StockDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -63,6 +67,29 @@ fun StockDetailScreen(
 
             uiState.prediction?.let { pred ->
                 PredictionCard(pred, viewModel::onHorizonChange)
+            }
+
+            // Interactive prediction entry point
+            Button(
+                onClick = { onInteractivePredict(ticker) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF142B47)
+                )
+            ) {
+                Icon(
+                    Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = Color(0xFF7DD3F8),
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Interactive Predict",
+                    color = Color(0xFF7DD3F8),
+                    fontWeight = FontWeight.SemiBold
+                )
             }
 
             Text(

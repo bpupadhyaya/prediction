@@ -27,6 +27,7 @@ import com.prediction.stockmarket.ui.stock.StockDetailScreen
 import com.prediction.stockmarket.ui.portfolio.PortfolioScreen
 import com.prediction.stockmarket.ui.watchlist.WatchlistScreen
 import com.prediction.stockmarket.ui.prediction.StockPredictionHomeScreen
+import com.prediction.stockmarket.ui.prediction.InteractivePredictionScreen
 import com.prediction.stockmarket.ui.prediction.marketSectionIds
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -105,9 +106,23 @@ fun AppNavigation() {
                 "stock/{ticker}",
                 arguments = listOf(navArgument("ticker") { type = NavType.StringType })
             ) { backstack ->
+                val ticker = backstack.arguments?.getString("ticker") ?: ""
                 StockDetailScreen(
-                    ticker = backstack.arguments?.getString("ticker") ?: "",
-                    navController = navController
+                    ticker = ticker,
+                    navController = navController,
+                    onInteractivePredict = { t ->
+                        navController.navigate("interactive_prediction/$t")
+                    }
+                )
+            }
+            composable(
+                "interactive_prediction/{ticker}",
+                arguments = listOf(navArgument("ticker") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val ticker = backStackEntry.arguments?.getString("ticker") ?: ""
+                InteractivePredictionScreen(
+                    ticker = ticker,
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable(

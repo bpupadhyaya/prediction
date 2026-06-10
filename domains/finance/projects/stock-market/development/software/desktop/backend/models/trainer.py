@@ -642,16 +642,14 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         df[rk] = 0.5  # neutral placeholder
 
     # ── Placeholders for market-wide breadth (filled from macro feed) ──────
-    for col_name in ["advance_decline_line", "pct_above_ma50", "pct_above_ma200",
-                     "new_highs_lows", "mcclellan_oscillator", "trin_arms_index",
-                     "put_call_ratio", "index_put_call_ratio", "gamma_exposure_gex",
-                     "bid_ask_spread_rel", "vpin_signal", "volume_profile_poc",
-                     "order_book_imbalance", "footprint_imbalance_score"]:
-        df[col_name] = 0.0
-
-    # ── Relative strength vs index/sector (filled from macro feed) ─────────
-    df["rs_vs_index"] = 0.0
-    df["rs_vs_sector"] = 0.0
+    _placeholder_cols = ["advance_decline_line", "pct_above_ma50", "pct_above_ma200",
+                         "new_highs_lows", "mcclellan_oscillator", "trin_arms_index",
+                         "put_call_ratio", "index_put_call_ratio", "gamma_exposure_gex",
+                         "bid_ask_spread_rel", "vpin_signal", "volume_profile_poc",
+                         "order_book_imbalance", "footprint_imbalance_score",
+                         "rs_vs_index", "rs_vs_sector"]
+    _new_placeholder = pd.DataFrame(0.0, index=df.index, columns=_placeholder_cols)
+    df = pd.concat([df, _new_placeholder], axis=1)
 
     # ── Advanced indicators via ta library ─────────────────────────────────
     if _TA_AVAILABLE:

@@ -64,9 +64,11 @@
       notes: '',
       createdAt: new Date().toISOString(),
     };
-    await saveSnapshot(snap);
-    saveMsg = '✓ Snapshot saved';
-    setTimeout(() => saveMsg = '', 2500);
+    const result2 = await saveSnapshot(snap);
+    saveMsg = result2 === 'replaced'
+      ? '✓ Saved to History tab (replaced oldest — max 2/day). Stored in this browser only.'
+      : '✓ Saved to History tab. Stored in this browser only — use Export for a permanent file.';
+    setTimeout(() => saveMsg = '', 5000);
   }
 
   function handleReset() {
@@ -91,8 +93,8 @@
     on:keydown={e => e.key === 'Enter' && handleTickerSubmit()}
   />
   <button on:click={handleTickerSubmit}>Load</button>
-  {#if saveMsg}<span class="save-msg">{saveMsg}</span>{/if}
 </div>
+{#if saveMsg}<div class="save-msg">{saveMsg}</div>{/if}
 
 <!-- Live score header -->
 <ScoreHeader
@@ -142,5 +144,9 @@
     background: var(--accent); border: none; color: #fff;
     padding: 0.4rem 1rem; border-radius: 6px; font-size: 0.9rem;
   }
-  .save-msg { font-size: 0.8rem; color: var(--accent2); margin-left: 0.5rem; }
+  .save-msg {
+    font-size: 0.78rem; color: var(--accent2);
+    background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.25);
+    border-radius: 6px; padding: 0.4rem 0.85rem; margin-bottom: 0.75rem;
+  }
 </style>

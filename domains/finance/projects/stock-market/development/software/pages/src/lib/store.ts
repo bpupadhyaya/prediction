@@ -43,16 +43,18 @@ export async function saveParamStates(ticker: string, states: Record<string, Par
   await db.put('paramStates', { ticker, states, updatedAt: new Date().toISOString() });
 }
 
-export async function saveSnapshot(snap: PredictionSnapshot): Promise<void> {
+export async function saveSnapshot(snap: PredictionSnapshot): Promise<'saved' | 'replaced'> {
   const db = await getDB();
   // Enforce max 2 per ticker per day
   const existing = await db.getAllFromIndex('snapshots', 'by-ticker-date', [snap.ticker, snap.date]);
+  let replaced = false;
   if (existing.length >= 2) {
-    // Replace the oldest
     existing.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     await db.delete('snapshots', existing[0].id);
+    replaced = true;
   }
   await db.put('snapshots', snap);
+  return replaced ? 'replaced' : 'saved';
 }
 
 export async function loadSnapshots(ticker: string): Promise<PredictionSnapshot[]> {

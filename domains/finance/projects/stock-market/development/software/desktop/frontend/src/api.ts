@@ -77,4 +77,14 @@ export const api = {
 
   syncStatus: () =>
     get<{ running: boolean; last_completed: string | null; message: string }>("/sync/status"),
+
+  saveInteractiveSnapshot: (payload: {
+    ticker: string;
+    prob_up: number;
+    confidence: number;
+    direction: string;
+    user_signals: Array<{ name: string; domain: string; direction: string; weight: number; value: number | null }>;
+    source: string;
+  }) =>
+    post<{ status: string }>("/interactive/predictions", payload),
 };

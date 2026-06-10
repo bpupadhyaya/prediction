@@ -100,8 +100,12 @@
     canvas { width: 100% !important; }
     .disclaimer { color: var(--muted); font-size: 0.75rem; margin-top: 2rem; text-align: center; }
     .accuracy-badge { background: rgba(79,142,247,0.15); color: var(--accent); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
-    #view-home, #view-stock, #view-portfolio, #view-models, #view-guidance { display: none; }
-    #view-home.active, #view-stock.active, #view-portfolio.active, #view-models.active, #view-guidance.active { display: block; }
+    #view-home, #view-stock, #view-portfolio, #view-models, #view-guidance, #view-interactive { display: none; }
+    #view-home.active, #view-stock.active, #view-portfolio.active, #view-models.active, #view-guidance.active, #view-interactive.active { display: block; }
+    .ticker-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
+    .ticker-bar input { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 0.75rem; border-radius: 8px; font-size: 0.95rem; width: 200px; }
+    .ticker-bar button { background: var(--accent); border: none; color: #fff; padding: 0.5rem 1.1rem; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
+    #ip-save-msg { background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.3); color: var(--accent2); padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem; margin-bottom: 1rem; }
     .portfolio-form textarea {
       width: 100%; background: var(--surface); border: 1px solid var(--border);
       color: var(--text); padding: 0.75rem; border-radius: 8px; font-family: monospace;
@@ -359,6 +363,7 @@
       <button onclick="showView('portfolio')">Portfolio</button>
       <button onclick="showView('guidance')">Guidance</button>
       <button onclick="showView('models')">Models</button>
+      <button onclick="showView('interactive')">Interactive</button>
     </nav>
   </header>
 
@@ -491,6 +496,28 @@
       <div class="hw-bar" id="hw-bar">Loading hardware info...</div>
       <div id="active-model-bar" style="margin-bottom:1.25rem;"></div>
       <div id="model-catalog">Loading catalog...</div>
+    </div>
+
+    <!-- ── Interactive ───────────────────────────────────────────────────────── -->
+    <div id="view-interactive">
+      <h2 style="margin-bottom:0.25rem">Interactive Parameter Studio</h2>
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.25rem">
+        Set weights and directions for any of the 656 parameters and get a live probability score.
+        Your settings are saved per-ticker in localStorage.
+      </p>
+
+      <div class="ticker-bar">
+        <input id="ip-ticker" type="text" placeholder="Ticker (e.g. AAPL)" value="AAPL" style="text-transform:uppercase">
+        <button onclick="ipLoadTicker()">Load</button>
+      </div>
+
+      <div id="ip-score-header" class="card" style="display:flex;align-items:center;gap:1.5rem;padding:1rem 1.5rem;flex-wrap:wrap;margin-bottom:1rem">
+        <span style="color:var(--muted);font-size:0.9rem">Load a ticker to begin</span>
+      </div>
+
+      <div id="ip-save-msg" style="display:none"></div>
+
+      <div id="ip-groups"></div>
     </div>
 
     <p class="disclaimer">
@@ -722,13 +749,14 @@
     };
 
     // ── Navigation ─────────────────────────────────────────────────────────────
-    const _VIEWS = ["home", "stock", "portfolio", "guidance", "models"];
+    const _VIEWS = ["home", "stock", "portfolio", "guidance", "models", "interactive"];
     function showView(view) {
       document.querySelectorAll("[id^=view-]").forEach(el => el.classList.remove("active"));
       document.querySelectorAll("nav button").forEach((b, i) => b.classList.toggle("active", _VIEWS[i] === view));
       document.getElementById("view-" + view).classList.add("active");
-      if (view === "models")    loadModelCatalog();
-      if (view === "guidance")  loadGuidanceView();
+      if (view === "models")      loadModelCatalog();
+      if (view === "guidance")    loadGuidanceView();
+      if (view === "interactive") ipOnViewSwitch();
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
@@ -2029,6 +2057,267 @@
             </table>
           </div>
         </div>`;
+    }
+
+    // ── Interactive Parameter Studio ────────────────────────────────────────────
+    let PARAMETERS = [];
+    let ipStates = {};
+    let ipTicker = 'AAPL';
+    let ipExpandedParams = new Set();
+    let _ipSaveTimer = null;
+
+    const DOMAIN_ORDER = ['macro','fundamental','cross_asset','technical','sentiment','geopolitical'];
+
+    async function _ipLoadParameters() {
+      if (PARAMETERS.length > 0) return;
+      try {
+        const res = await fetch('/src/parameters.json');
+        if (!res.ok) throw new Error('Failed to load parameters.json');
+        PARAMETERS = await res.json();
+      } catch (e) {
+        console.error('Interactive: could not load parameters.json', e);
+      }
+    }
+
+    function ipInitStates() {
+      ipStates = {};
+      for (const p of PARAMETERS) {
+        ipStates[p.name] = { weight: 0, direction: 'neutral', value: null };
+      }
+    }
+
+    function ipCompute() {
+      let totalWeight = 0, weightedScore = 0, paramsSet = 0;
+      for (const s of Object.values(ipStates)) {
+        if (s.direction === 'neutral') continue;
+        const dv = s.direction === 'up' ? 1 : -1;
+        weightedScore += s.weight * dv;
+        totalWeight += s.weight;
+        paramsSet++;
+      }
+      if (totalWeight === 0) return { probUp: 0.5, probDown: 0.5, confidence: 0, direction: 'neutral', paramsSet: 0 };
+      const norm = weightedScore / totalWeight;
+      const probUp = (norm + 1) / 2;
+      return { probUp, probDown: 1 - probUp, confidence: Math.abs(norm), direction: probUp > 0.52 ? 'up' : probUp < 0.48 ? 'down' : 'neutral', paramsSet };
+    }
+
+    function ipRenderHeader() {
+      const r = ipCompute();
+      const dirColor = r.direction === 'up' ? 'var(--accent2)' : r.direction === 'down' ? 'var(--danger)' : 'var(--muted)';
+      const dirLabel = r.direction === 'up' ? '&#9650; UP' : r.direction === 'down' ? '&#9660; DOWN' : '&mdash; NEUTRAL';
+      document.getElementById('ip-score-header').innerHTML = `
+        <span style="font-weight:700;font-size:1.1rem">${ipTicker}</span>
+        <span style="color:${dirColor};font-weight:800;font-size:1.2rem">${dirLabel}</span>
+        <span style="color:${dirColor}">${(r.confidence*100).toFixed(1)}% confidence</span>
+        <span style="color:var(--muted);font-size:.85rem">Prob(UP) = ${(r.probUp*100).toFixed(1)}%</span>
+        <span style="color:var(--muted);font-size:.85rem">${r.paramsSet} params set</span>
+        <div style="margin-left:auto;display:flex;gap:.5rem">
+          <button onclick="ipReset()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:.35rem .9rem;border-radius:6px;cursor:pointer">&#8634; Reset</button>
+          <button onclick="ipSave()" style="background:var(--accent2);border:none;color:#0f1117;padding:.35rem 1rem;border-radius:6px;cursor:pointer;font-weight:700">&#128190; Save Snapshot</button>
+        </div>`;
+    }
+
+    function ipRenderGroups() {
+      const params = PARAMETERS;
+      const grouped = new Map();
+      for (const p of params) {
+        if (!grouped.has(p.domain)) grouped.set(p.domain, []);
+        grouped.get(p.domain).push(p);
+      }
+
+      let html = '';
+      for (const domain of DOMAIN_ORDER) {
+        const group = grouped.get(domain);
+        if (!group) continue;
+        const netScore = group.reduce((sum, p) => {
+          const s = ipStates[p.name];
+          if (!s || s.direction === 'neutral') return sum;
+          return sum + s.weight * (s.direction === 'up' ? 1 : -1);
+        }, 0);
+        const netLabel = netScore > 0 ? '&#9650; net bullish' : netScore < 0 ? '&#9660; net bearish' : '&mdash; neutral';
+        const netColor = netScore > 0 ? 'var(--accent2)' : netScore < 0 ? 'var(--danger)' : 'var(--muted)';
+
+        html += `<div class="card" style="margin-bottom:1rem;padding:0;overflow:hidden">
+          <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem .9rem;background:rgba(30,34,50,.9);border-bottom:1px solid var(--border)">
+            <span style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em">${group[0].domainLabel}</span>
+            <span style="font-size:.72rem;color:var(--muted)">${group.length} params</span>
+            <span style="margin-left:auto;font-size:.75rem;font-weight:600;color:${netColor}">${netLabel}</span>
+          </div>
+          <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+            <thead><tr style="border-bottom:1px solid var(--border)">
+              <th style="text-align:left;color:var(--muted);font-weight:500;font-size:.72rem;padding:.35rem .5rem">Parameter</th>
+              <th style="text-align:left;color:var(--muted);font-weight:500;font-size:.72rem;padding:.35rem .5rem">Current Value</th>
+              <th style="text-align:left;color:var(--muted);font-weight:500;font-size:.72rem;padding:.35rem .5rem">Weight (0&ndash;100)</th>
+              <th style="text-align:left;color:var(--muted);font-weight:500;font-size:.72rem;padding:.35rem .5rem">Direction</th>
+            </tr></thead>
+            <tbody>`;
+
+        for (const p of group) {
+          const s = ipStates[p.name] || { weight: 0, direction: 'neutral', value: null };
+          const upActive = s.direction === 'up';
+          const downActive = s.direction === 'down';
+          const expanded = ipExpandedParams.has(p.name);
+          const safeN = p.name.replace(/[^a-zA-Z0-9_]/g, '_');
+          html += `<tr style="border-bottom:1px solid rgba(42,45,58,.5);opacity:${s.direction==='neutral'?.7:1}" id="ip-row-${safeN}">
+            <td style="padding:.45rem .5rem;min-width:200px">
+              <div style="display:flex;align-items:center;gap:.4rem">
+                <button onclick="ipToggleExpand('${p.name}')" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:.1rem .3rem;font-size:.6rem;transition:transform .18s;transform:rotate(${expanded?90:0}deg)" id="ip-chev-${safeN}">&#9654;</button>
+                <div>
+                  <div style="font-family:monospace;font-size:.78rem">${p.name}</div>
+                  <div style="font-size:.67rem;color:var(--muted)">${p.label}</div>
+                </div>
+              </div>
+            </td>
+            <td style="padding:.45rem .5rem;white-space:nowrap">
+              <input type="number" value="${s.value !== null ? s.value : p.defaultValue}" step="any"
+                style="width:80px;font-size:.78rem;padding:.2rem .4rem;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:4px"
+                onchange="ipSetValue('${p.name}', this.value)">
+              <span style="font-size:.65rem;color:var(--muted);margin-left:.25rem">${p.unit}</span>
+            </td>
+            <td style="padding:.45rem .5rem;min-width:150px">
+              <div style="display:flex;align-items:center;gap:.4rem">
+                <input type="range" min="0" max="100" value="${s.weight}"
+                  style="flex:1;accent-color:var(--accent);cursor:pointer"
+                  oninput="ipSetWeight('${p.name}', this.value); document.getElementById('ip-wv-${safeN}').textContent=this.value">
+                <span id="ip-wv-${safeN}" style="font-size:.78rem;font-family:monospace;color:var(--accent);min-width:24px;text-align:right">${s.weight}</span>
+              </div>
+            </td>
+            <td style="padding:.45rem .5rem;white-space:nowrap">
+              <div style="display:flex;gap:.3rem">
+                <button onclick="ipSetDir('${p.name}','${upActive?'neutral':'up'}')"
+                  style="font-size:.72rem;padding:.2rem .5rem;border-radius:4px;border:1px solid ${upActive?'var(--accent2)':'var(--border)'};background:${upActive?'rgba(52,211,153,.15)':'none'};color:${upActive?'var(--accent2)':'var(--muted)'};cursor:pointer">&#9650; UP</button>
+                <button onclick="ipSetDir('${p.name}','${downActive?'neutral':'down'}')"
+                  style="font-size:.72rem;padding:.2rem .5rem;border-radius:4px;border:1px solid ${downActive?'var(--danger)':'var(--border)'};background:${downActive?'rgba(248,113,113,.15)':'none'};color:${downActive?'var(--danger)':'var(--muted)'};cursor:pointer">&#9660; DOWN</button>
+              </div>
+            </td>
+          </tr>`;
+          if (expanded) {
+            html += `<tr style="border-bottom:2px solid rgba(79,142,247,.2)">
+              <td colspan="4" style="padding:0">
+                <div style="display:grid;grid-template-columns:1fr 1fr;background:rgba(15,17,23,.75)">
+                  <div style="padding:.8rem 1.1rem;border-right:1px solid rgba(42,45,58,.5)">
+                    <span style="display:block;font-size:.62rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--accent2);margin-bottom:.4rem">IN PLAIN ENGLISH</span>
+                    <p style="font-size:.79rem;color:var(--text);line-height:1.6;margin:0">${p.layman}</p>
+                  </div>
+                  <div style="padding:.8rem 1.1rem">
+                    <span style="display:block;font-size:.62rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);margin-bottom:.4rem">TECHNICAL</span>
+                    <p style="font-size:.79rem;color:var(--text);line-height:1.6;margin:0">${p.technical}</p>
+                  </div>
+                </div>
+              </td>
+            </tr>`;
+          }
+        }
+        html += `</tbody></table></div></div>`;
+      }
+      document.getElementById('ip-groups').innerHTML = html;
+    }
+
+    function ipSetDir(name, dir) {
+      if (!ipStates[name]) ipStates[name] = { weight: 0, direction: 'neutral', value: null };
+      ipStates[name] = { ...ipStates[name], direction: dir };
+      ipSaveDebounce();
+      ipRenderHeader();
+      ipRenderGroups();
+    }
+
+    function ipSetWeight(name, val) {
+      if (!ipStates[name]) ipStates[name] = { weight: 0, direction: 'neutral', value: null };
+      ipStates[name] = { ...ipStates[name], weight: Number(val) };
+      ipSaveDebounce();
+      ipRenderHeader();
+    }
+
+    function ipSetValue(name, val) {
+      if (!ipStates[name]) ipStates[name] = { weight: 0, direction: 'neutral', value: null };
+      ipStates[name] = { ...ipStates[name], value: Number(val) };
+      ipSaveDebounce();
+    }
+
+    function ipToggleExpand(name) {
+      if (ipExpandedParams.has(name)) ipExpandedParams.delete(name);
+      else ipExpandedParams.add(name);
+      ipRenderGroups();
+    }
+
+    function ipSaveDebounce() {
+      clearTimeout(_ipSaveTimer);
+      _ipSaveTimer = setTimeout(ipPersist, 800);
+    }
+
+    function ipPersist() {
+      localStorage.setItem('ip-states-' + ipTicker, JSON.stringify(ipStates));
+    }
+
+    function ipLoadTicker() {
+      const input = document.getElementById('ip-ticker');
+      ipTicker = input.value.trim().toUpperCase() || 'AAPL';
+      input.value = ipTicker;
+      const saved = localStorage.getItem('ip-states-' + ipTicker);
+      if (saved) {
+        try { ipStates = JSON.parse(saved); } catch { ipInitStates(); }
+      } else {
+        ipInitStates();
+      }
+      ipRenderHeader();
+      ipRenderGroups();
+    }
+
+    function ipReset() {
+      if (!confirm('Reset all weights and directions for ' + ipTicker + '?')) return;
+      ipInitStates();
+      localStorage.removeItem('ip-states-' + ipTicker);
+      ipRenderHeader();
+      ipRenderGroups();
+    }
+
+    async function ipSave() {
+      const r = ipCompute();
+      const userSignals = Object.entries(ipStates)
+        .filter(([, s]) => s.direction !== 'neutral')
+        .map(([name, s]) => {
+          const param = PARAMETERS.find(p => p.name === name);
+          return { name, domain: param ? param.domain : '', direction: s.direction, weight: s.weight, value: s.value };
+        });
+      const payload = {
+        ticker: ipTicker,
+        prob_up: r.probUp,
+        confidence: r.confidence,
+        direction: r.direction,
+        user_signals: userSignals,
+        source: 'desktop'
+      };
+      try {
+        await apiFetch('/interactive/predictions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const msg = document.getElementById('ip-save-msg');
+        msg.textContent = '&#10003; Saved snapshot for ' + ipTicker + ' — ' + r.paramsSet + ' signals, direction ' + r.direction.toUpperCase();
+        msg.style.display = 'block';
+        setTimeout(() => { msg.style.display = 'none'; }, 5000);
+      } catch (e) {
+        alert('Save failed: ' + e.message);
+      }
+    }
+
+    async function ipOnViewSwitch() {
+      if (PARAMETERS.length === 0) {
+        await _ipLoadParameters();
+      }
+      if (Object.keys(ipStates).length === 0 && PARAMETERS.length > 0) {
+        ipInitStates();
+        const saved = localStorage.getItem('ip-states-' + ipTicker);
+        if (saved) {
+          try { ipStates = JSON.parse(saved); } catch { /* use fresh states */ }
+        }
+      }
+      if (PARAMETERS.length > 0) {
+        ipRenderHeader();
+        ipRenderGroups();
+      }
     }
 
     // ── Init ────────────────────────────────────────────────────────────────────

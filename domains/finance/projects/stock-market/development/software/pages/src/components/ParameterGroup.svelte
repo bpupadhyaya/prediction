@@ -39,7 +39,7 @@
         <tr>
           <th>Parameter</th>
           <th>Current Value</th>
-          <th>Weight (1–100)</th>
+          <th>Weight (0–100)</th>
           <th>Direction</th>
           <th>Research</th>
         </tr>

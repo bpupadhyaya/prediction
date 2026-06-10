@@ -1,9 +1,26 @@
 import Foundation
+import llama
 
-// TODO: Replace with real llama.cpp or MLX Swift inference when available
-// This manager provides a structured heuristic response that mimics streaming,
-// ready to be swapped for real on-device inference once llama.cpp / MLX Swift
-// is integrated into the project.
+// MARK: - Errors
+
+enum LLMError: Error, LocalizedError {
+    case noModelLoaded
+    case modelLoadFailed(String)
+    case inferenceError(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .noModelLoaded:
+            return "No LLM model loaded. Download a model in the Models tab."
+        case .modelLoadFailed(let msg):
+            return "Failed to load model: \(msg)"
+        case .inferenceError(let msg):
+            return "Inference error: \(msg)"
+        }
+    }
+}
+
+// MARK: - LLMInferenceManager
 
 @MainActor
 final class LLMInferenceManager: ObservableObject {
@@ -12,45 +29,116 @@ final class LLMInferenceManager: ObservableObject {
     @Published var isInferring = false
     @Published var lastError: String? = nil
 
-    private init() {}
+    private var llamaModel: OpaquePointer? = nil
+    private var llamaContext: OpaquePointer? = nil
+    private var currentModelPath: String? = nil
+
+    private init() {
+        llama_backend_init()
+    }
+
+    deinit {
+        // Release model resources on deallocation.
+        // This is intentionally not @MainActor — deinit runs when the last
+        // reference is released, which may happen off the main actor. The
+        // pointer operations are safe regardless of the calling thread.
+        if let ctx = llamaContext { llama_free(ctx) }
+        if let model = llamaModel { llama_model_free(model) }
+        llama_backend_free()
+    }
 
     // MARK: - Readiness
 
-    /// True when a model file exists on disk and is marked active.
+    /// True when the active model file exists on disk and is currently loaded.
     var isReady: Bool {
-        guard let modelId = LLMDownloadManager.shared.activeModelId else { return false }
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        // The download manager stores files by their hfFile name; look up the matching catalog entry.
-        if let model = llmCatalog.first(where: { $0.id == modelId }) {
-            let path = docs.appendingPathComponent("LLMModels/\(model.hfFile)")
-            return FileManager.default.fileExists(atPath: path.path)
-        }
-        return false
+        guard let modelId = LLMDownloadManager.shared.activeModelId,
+              let model = llmCatalog.first(where: { $0.id == modelId }) else { return false }
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let path = docs.appendingPathComponent("LLMModels/\(model.hfFile)").path
+        return FileManager.default.fileExists(atPath: path) && llamaModel != nil
     }
 
     /// The currently active model identifier, or nil if none selected.
-    var activeModelId: String? {
-        LLMDownloadManager.shared.activeModelId
+    var activeModelId: String? { LLMDownloadManager.shared.activeModelId }
+
+    // MARK: - Model Lifecycle
+
+    /// Load a GGUF model from the given file-system path.
+    /// Unloads any previously loaded model first.
+    func loadModel(path: String) throws {
+        unloadModel()
+
+        var modelParams = llama_model_default_params()
+        modelParams.n_gpu_layers = 0  // CPU-only; Metal GPU layers may be enabled in a future pass
+
+        guard let model = llama_model_load_from_file(path, modelParams) else {
+            throw LLMError.modelLoadFailed("llama_model_load_from_file returned nil for path: \(path)")
+        }
+
+        var ctxParams = llama_context_default_params()
+        ctxParams.n_ctx = 2048
+        ctxParams.n_batch = 512
+
+        guard let ctx = llama_init_from_model(model, ctxParams) else {
+            llama_model_free(model)
+            throw LLMError.modelLoadFailed("llama_init_from_model returned nil")
+        }
+
+        self.llamaModel = model
+        self.llamaContext = ctx
+        self.currentModelPath = path
     }
 
-    // MARK: - Chat
+    /// Release model and context from memory.
+    func unloadModel() {
+        if let ctx = llamaContext { llama_free(ctx) }
+        if let model = llamaModel { llama_model_free(model) }
+        llamaContext = nil
+        llamaModel = nil
+        currentModelPath = nil
+    }
 
-    /// Streams a response from the on-device LLM (or heuristic stub if no model loaded).
+    // MARK: - Private Helpers
+
+    /// Ensures the active model is loaded; reloads only when the path changes.
+    private func ensureModelLoaded() throws {
+        guard let modelId = LLMDownloadManager.shared.activeModelId,
+              let catalogEntry = llmCatalog.first(where: { $0.id == modelId }) else {
+            throw LLMError.noModelLoaded
+        }
+
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let path = docs.appendingPathComponent("LLMModels/\(catalogEntry.hfFile)").path
+
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw LLMError.noModelLoaded
+        }
+
+        if currentModelPath != path {
+            try loadModel(path: path)
+        }
+    }
+
+    // MARK: - Inference
+
+    /// Streams a response from the on-device LLM using llama.cpp.
     ///
     /// - Parameters:
     ///   - systemPrompt: Role/context description for the model.
     ///   - userMessage: The user's question or request.
-    ///   - onToken: Called on the main actor with each token as it is "generated".
-    /// - Returns: The full concatenated response.
+    ///   - onToken: Called on the main actor with each decoded token fragment.
+    /// - Returns: The full concatenated response string.
     ///
-    /// Throws `LLMError.noModelLoaded` when `isReady` is false.
+    /// Throws `LLMError.noModelLoaded` when no model is ready, or
+    /// `LLMError.inferenceError` for llama.cpp failures.
     func chat(
         systemPrompt: String,
         userMessage: String,
         onToken: @escaping (String) -> Void
     ) async throws -> String {
-        guard isReady else {
-            lastError = "No LLM model loaded. Download a model in the Models tab."
+        try ensureModelLoaded()
+
+        guard let model = llamaModel, let ctx = llamaContext else {
             throw LLMError.noModelLoaded
         }
 
@@ -58,162 +146,86 @@ final class LLMInferenceManager: ObservableObject {
         lastError = nil
         defer { isInferring = false }
 
-        // TODO: Replace the block below with a real llama.cpp server call or
-        // MLX Swift session once the dependency is added to the project.
-        // Example integration point:
-        //   let session = LlamaSession(modelPath: resolvedModelPath())
-        //   for try await token in session.generate(system: systemPrompt, user: userMessage) {
-        //       onToken(token)
-        //   }
+        // Build prompt in ChatML format (compatible with most GGUF instruction models).
+        let prompt = "<|system|>\n\(systemPrompt)\n<|user|>\n\(userMessage)\n<|assistant|>\n"
 
-        let response = buildHeuristicResponse(systemPrompt: systemPrompt, userMessage: userMessage)
-        let words = response.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
+        // Capture raw pointers for use inside the detached task (non-Sendable).
+        let modelPtr = model
+        let ctxPtr = ctx
 
-        for word in words {
-            let chunk = word + " "
-            onToken(chunk)
-            // Simulate token generation latency (30–80 ms per token)
-            try await Task.sleep(nanoseconds: UInt64.random(in: 30_000_000 ... 80_000_000))
-        }
+        return try await Task.detached(priority: .userInitiated) {
+            // Tokenize the full prompt.
+            let promptBytes = Array(prompt.utf8)
+            let promptLen = Int32(promptBytes.count)
+            let maxTokens = promptLen + 4
+            var tokens = [llama_token](repeating: 0, count: Int(maxTokens))
 
-        return response
-    }
+            let nTokens = llama_tokenize(
+                modelPtr,
+                prompt,
+                promptLen,
+                &tokens,
+                maxTokens,
+                /*add_special=*/ true,
+                /*parse_special=*/ true
+            )
 
-    // MARK: - Heuristic Response Builder
+            guard nTokens > 0 else {
+                throw LLMError.inferenceError("Tokenization produced no tokens")
+            }
 
-    /// Produces a structured financial analysis based on keywords in the user message.
-    /// This is intentionally deterministic so it works without a real model.
-    private func buildHeuristicResponse(systemPrompt: String, userMessage: String) -> String {
-        let lower = userMessage.lowercased()
-        let modelName = llmCatalog.first(where: { $0.id == activeModelId })?.name ?? "on-device model"
+            // Clear the KV cache and decode the prompt.
+            llama_kv_cache_clear(ctxPtr)
 
-        // Detect ticker mentions (1–5 uppercase letters appearing in the original message)
-        let tickerPattern = try? NSRegularExpression(pattern: "\\b[A-Z]{1,5}\\b")
-        let range = NSRange(userMessage.startIndex..., in: userMessage)
-        let tickers = tickerPattern?
-            .matches(in: userMessage, range: range)
-            .compactMap { Range($0.range, in: userMessage).map { String(userMessage[$0]) } }
-            .filter { $0 != "I" && $0 != "A" } ?? []
+            var promptTokens = Array(tokens[0..<Int(nTokens)])
+            var batch = llama_batch_get_one(&promptTokens, nTokens, 0, 0)
+            guard llama_decode(ctxPtr, batch) == 0 else {
+                throw LLMError.inferenceError("llama_decode failed on prompt batch")
+            }
 
-        let tickerStr = tickers.isEmpty ? "the asset" : tickers.joined(separator: ", ")
+            // Build the sampler chain: temperature → top-k → distribution sampler.
+            var sparams = llama_sampler_chain_default_params()
+            let sampler = llama_sampler_chain_init(sparams)
+            llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.8))
+            llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40))
+            llama_sampler_chain_add(
+                sampler,
+                llama_sampler_init_dist(UInt32.random(in: 0..<UInt32.max))
+            )
+            defer { llama_sampler_free(sampler) }
 
-        if lower.contains("risk") || lower.contains("downside") {
-            return """
-            [Analysis by \(modelName) — heuristic mode]
+            var fullResponse = ""
+            var nPos = nTokens
+            let maxNewTokens = 512
 
-            Risk Assessment for \(tickerStr):
+            for _ in 0..<maxNewTokens {
+                let newToken = llama_sampler_sample(sampler, ctxPtr, -1)
+                llama_sampler_accept(sampler, newToken)
 
-            Key downside risks to consider:
-            • Macro headwinds: Rising interest rates compress equity multiples, especially for growth names. Monitor Fed meeting outcomes closely.
-            • Sector rotation: Institutional flows can shift quickly from momentum plays to defensive sectors during uncertainty.
-            • Earnings quality: Watch for revenue beats paired with margin compression — a common red flag masked by top-line growth.
-            • Liquidity risk: Thinly traded names can gap significantly on volume spikes. Check 20-day average volume vs. current.
+                // Stop on end-of-generation token.
+                if llama_token_is_eog(modelPtr, newToken) { break }
 
-            Risk management suggestion: Size positions using 1.5× ATR stop-loss levels. Keep single-name exposure below 5% of total portfolio in elevated VIX environments.
+                // Decode the token id to a UTF-8 string fragment.
+                var piece = [CChar](repeating: 0, count: 256)
+                let nPiece = llama_token_to_piece(modelPtr, newToken, &piece, 256, 0, true)
+                if nPiece > 0 {
+                    let fragment = String(cString: piece)
+                    if !fragment.isEmpty {
+                        fullResponse += fragment
+                        let tokenStr = fragment
+                        // Deliver token to the caller on the main actor.
+                        Task { @MainActor in onToken(tokenStr) }
+                    }
+                }
 
-            Disclaimer: This is a heuristic analysis, not financial advice. Replace this with real LLM inference for production use.
-            """
-        } else if lower.contains("bull") || lower.contains("long") || lower.contains("buy") {
-            return """
-            [Analysis by \(modelName) — heuristic mode]
+                // Feed the generated token back for the next decode step.
+                var nextToken = newToken
+                batch = llama_batch_get_one(&nextToken, 1, nPos, 0)
+                nPos += 1
+                if llama_decode(ctxPtr, batch) != 0 { break }
+            }
 
-            Bull Case for \(tickerStr):
-
-            Supporting factors for an upside scenario:
-            • Earnings momentum: Sequential EPS growth above 10% for 2+ quarters typically attracts institutional accumulation.
-            • Technical structure: A base forming near the 50-week SMA with contracting volume suggests distribution has subsided.
-            • Sentiment clearing: Low short interest reduction and options put/call ratio normalization can precede a re-rating.
-            • Catalyst pipeline: Upcoming product launches, regulatory approvals, or buyback announcements often serve as price catalysts.
-
-            Bull target framework: Estimate fair value using a blended P/E + EV/EBITDA multiple on next-twelve-months consensus. Add a 15–20% premium for quality compounders.
-
-            Disclaimer: This is a heuristic analysis, not financial advice. Replace this with real LLM inference for production use.
-            """
-        } else if lower.contains("bear") || lower.contains("short") || lower.contains("sell") {
-            return """
-            [Analysis by \(modelName) — heuristic mode]
-
-            Bear Case for \(tickerStr):
-
-            Factors that may weigh on price:
-            • Valuation stretch: When forward P/E exceeds the 5-year average by more than 30%, mean-reversion risk rises materially.
-            • Insider selling: Clustered insider disposals within 6 months of a price peak have historically preceded corrections of 20%+.
-            • Deteriorating fundamentals: Declining gross margins, rising days-sales-outstanding, and decelerating ARR are early warning signs.
-            • Competitive disruption: New entrants with structurally lower cost bases can compress legacy pricing power over 12–24 months.
-
-            Short thesis note: Ensure borrow availability and cost are acceptable. Hard-to-borrow names can incur fees that erode alpha.
-
-            Disclaimer: This is a heuristic analysis, not financial advice. Replace this with real LLM inference for production use.
-            """
-        } else if lower.contains("predict") || lower.contains("forecast") || lower.contains("outlook") {
-            return """
-            [Analysis by \(modelName) — heuristic mode]
-
-            Outlook for \(tickerStr):
-
-            Near-term (1–4 weeks):
-            The primary driver will be macro data releases (CPI, NFP, Fed commentary). Expect elevated intraday volatility. Position sizing should reflect this.
-
-            Medium-term (1–3 months):
-            Earnings season and guidance revisions will dominate. Stocks that beat on both revenue and EPS while raising guidance tend to outperform their sector by 8–12% in the subsequent quarter.
-
-            Long-term (6–12 months):
-            Secular growth themes (AI infrastructure, energy transition, healthcare innovation) continue to attract capital despite rate headwinds. Identify whether \(tickerStr) has durable competitive advantages within these themes.
-
-            Key watch items: Fed pivot signals, credit spread widening, USD strength vs. EM basket.
-
-            Disclaimer: This is a heuristic analysis, not financial advice. Replace this with real LLM inference for production use.
-            """
-        } else {
-            // Generic financial research response
-            return """
-            [Analysis by \(modelName) — heuristic mode]
-
-            Research Summary for \(tickerStr):
-
-            To answer your question about "\(userMessage.prefix(80))...":
-
-            Fundamental view:
-            Evaluate the business using the following lens: revenue growth trajectory, operating leverage, balance sheet strength (net debt/EBITDA < 2×), and free cash flow yield vs. 10-year Treasury.
-
-            Technical context:
-            Price relative to 200-day SMA, volume trend, and RSI(14) provide a quick read on momentum. Divergence between price and RSI often precedes inflection points.
-
-            Signal aggregation approach (aligned with your interactive parameter model):
-            Weight macro signals at 30%, fundamental signals at 35%, technical at 25%, and sentiment at 10%. Adjust weights based on the current market regime (risk-on vs. risk-off).
-
-            Suggested next steps:
-            1. Review the latest 10-Q / earnings call transcript for management tone.
-            2. Compare consensus EPS estimates vs. the implied growth baked into the current multiple.
-            3. Set a price alert at the nearest technical support/resistance level.
-
-            Disclaimer: This is a heuristic analysis, not financial advice. Replace this with real LLM inference for production use.
-            """
-        }
-    }
-
-    // MARK: - Private Helpers
-
-    private func resolvedModelPath() -> String? {
-        guard let modelId = activeModelId,
-              let model = llmCatalog.first(where: { $0.id == modelId }) else { return nil }
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return docs.appendingPathComponent("LLMModels/\(model.hfFile)").path
-    }
-}
-
-// MARK: - Errors
-
-enum LLMError: LocalizedError {
-    case noModelLoaded
-    case inferenceFailure(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .noModelLoaded:
-            return "No LLM model loaded. Download a model in the Models tab."
-        case .inferenceFailure(let msg):
-            return "Inference failed: \(msg)"
-        }
+            return fullResponse
+        }.value
     }
 }

@@ -144,6 +144,8 @@ def init_db() -> None:
             actual_return DOUBLE,
             was_correct  BOOLEAN,
             resolved_at  TIMESTAMP DEFAULT now(),
+            source_type  VARCHAR DEFAULT 'model',
+            source_id    VARCHAR,
             PRIMARY KEY (ticker, horizon, predicted_at)
         )
     """)
@@ -182,6 +184,8 @@ def init_db() -> None:
     _safe_alter(conn, "ALTER TABLE fundamentals ADD COLUMN short_ratio DOUBLE DEFAULT 0")
     _safe_alter(conn, "ALTER TABLE fundamentals ADD COLUMN short_pct_float DOUBLE DEFAULT 0")
     _safe_alter(conn, "ALTER TABLE predictions ADD COLUMN regime_label VARCHAR")
+    _safe_alter(conn, "ALTER TABLE prediction_outcomes ADD COLUMN source_type VARCHAR DEFAULT 'model'")
+    _safe_alter(conn, "ALTER TABLE prediction_outcomes ADD COLUMN source_id VARCHAR")
 
     # ── Seed signal_weights with default domains ──────────────────────────────
     _seed_signal_weights(conn)

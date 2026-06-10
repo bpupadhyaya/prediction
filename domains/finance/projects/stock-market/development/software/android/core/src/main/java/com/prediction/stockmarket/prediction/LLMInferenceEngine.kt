@@ -2,33 +2,25 @@ package com.prediction.stockmarket.prediction
 
 import android.content.Context
 import android.util.Log
+import com.google.mediapipe.tasks.genai.llminference.LlmInference
+import com.google.mediapipe.tasks.genai.llminference.LlmInference.LlmInferenceOptions
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import org.json.JSONObject
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
 private const val TAG = "LLMInferenceEngine"
 
-/**
- * MediaPipe LLM Inference Engine wrapper.
- *
- * Uses MediaPipe Tasks GenAI (com.google.mediapipe:tasks-genai:0.10.14).
- * If the API surface changes between MediaPipe releases, adjust the options builder calls below
- * (marked with TODO comments) and recompile.
- *
- * TODO: Verify API compatibility with tasks-genai 0.10.14 before production release.
- *       The LlmInference class API can change between minor versions.
- */
 @Singleton
 class LLMInferenceEngine @Inject constructor(
     private val context: Context
 ) {
-    // Kept as Any? so the class compiles even when MediaPipe API import paths shift.
-    // The actual runtime type is com.google.mediapipe.tasks.genai.llminference.LlmInference
-    private var llmInference: Any? = null
+    private var llmInference: LlmInference? = null
     private var loadedModelPath: String? = null
 
     /** True when a model is loaded and ready to serve requests. */
@@ -38,51 +30,28 @@ class LLMInferenceEngine @Inject constructor(
      * Load a GGUF model from the given absolute [modelPath].
      * Returns [Result.success] on success or [Result.failure] with the underlying exception.
      *
-     * TODO: If LlmInferenceOptions.Builder method names differ in your version of tasks-genai,
-     *       update the builder chain below (setMaxTokens → setMaxNewTokens, etc.).
+     * If the model format is incompatible (e.g. UnsupportedOperationException for certain GGUF
+     * variants), the error is captured and returned as a failure so callers can fall back gracefully.
      */
     fun loadModel(modelPath: String): Result<Unit> {
         return try {
-            // Unload any previously loaded model first
             unload()
-
-            // Reflectively invoke MediaPipe to keep this file compilable even if API paths shift.
-            // Preferred direct import (uncomment when API is stable):
-            //
-            // val options = LlmInference.LlmInferenceOptions.builder()
-            //     .setModelPath(modelPath)
-            //     .setMaxTokens(1024)
-            //     .setTopK(40)
-            //     .setTemperature(0.8f)
-            //     .setRandomSeed(101)
-            //     .build()
-            // llmInference = LlmInference.createFromOptions(context, options)
-
-            val optionsClass = Class.forName(
-                "com.google.mediapipe.tasks.genai.llminference.LlmInference\$LlmInferenceOptions"
-            )
-            val builderMethod = optionsClass.getMethod("builder")
-            val builder = builderMethod.invoke(null)
-
-            // Chain builder calls via reflection
-            val builderClass = builder.javaClass
-            builderClass.getMethod("setModelPath", String::class.java).invoke(builder, modelPath)
-            builderClass.getMethod("setMaxTokens", Int::class.java).invoke(builder, 1024)
-            builderClass.getMethod("setTopK", Int::class.java).invoke(builder, 40)
-            builderClass.getMethod("setTemperature", Float::class.java).invoke(builder, 0.8f)
-            builderClass.getMethod("setRandomSeed", Int::class.java).invoke(builder, 101)
-            val options = builderClass.getMethod("build").invoke(builder)
-
-            val inferenceClass = Class.forName(
-                "com.google.mediapipe.tasks.genai.llminference.LlmInference"
-            )
-            llmInference = inferenceClass
-                .getMethod("createFromOptions", Context::class.java, optionsClass)
-                .invoke(null, context, options)
-
+            val options = LlmInferenceOptions.builder()
+                .setModelPath(modelPath)
+                .setMaxTokens(1024)
+                .setTopK(40)
+                .setTemperature(0.8f)
+                .setRandomSeed(101)
+                .build()
+            llmInference = LlmInference.createFromOptions(context, options)
             loadedModelPath = modelPath
-            Log.i(TAG, "Model loaded: $modelPath")
+            Log.i(TAG, "Model loaded from $modelPath")
             Result.success(Unit)
+        } catch (e: UnsupportedOperationException) {
+            Log.e(TAG, "Model format incompatible (GGUF variant not supported): ${e.message}")
+            llmInference = null
+            loadedModelPath = null
+            Result.failure(e)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load model: ${e.message}", e)
             llmInference = null
@@ -95,79 +64,40 @@ class LLMInferenceEngine @Inject constructor(
      * Stream a chat response token-by-token using MediaPipe's async generation API.
      *
      * Emits partial tokens as they arrive; the flow completes when generation finishes.
-     * If the engine is not ready, emits a single informational message and completes.
-     *
-     * TODO: Adjust the listener interface name if tasks-genai changes
-     *       PartialResultListener → LlmInferenceResultListener or similar.
+     * If the engine is not ready, emits a single informational error message and completes.
      */
-    fun chat(systemPrompt: String, userMessage: String): Flow<String> {
+    fun chat(systemPrompt: String, userMessage: String): Flow<String> = callbackFlow {
         val inference = llmInference
         if (inference == null) {
-            return flow {
-                emit("[Model not loaded. Download and activate a model in the Models tab.]")
-            }
+            trySend("[Error: No model loaded. Download and activate a model in the Models tab.]")
+            close()
+            return@callbackFlow
         }
 
-        // Build a simple instruction-style prompt compatible with most GGUF chat models.
         val prompt = buildPrompt(systemPrompt, userMessage)
 
-        return callbackFlow {
-            try {
-                // Attempt streaming via reflection — works for tasks-genai 0.10.14.
-                //
-                // Direct equivalent (uncomment when import paths are confirmed):
-                // inference.generateResponseAsync(prompt) { partialResult, done ->
-                //     trySend(partialResult)
-                //     if (done) close()
-                // }
-
-                val listenerClass = try {
-                    Class.forName(
-                        "com.google.mediapipe.tasks.genai.llminference.LlmInference\$LlmInferenceResultListener"
-                    )
-                } catch (_: ClassNotFoundException) {
-                    // Fallback listener name used in some minor versions
-                    Class.forName(
-                        "com.google.mediapipe.tasks.genai.llminference.LlmInference\$PartialResultListener"
-                    )
+        try {
+            inference.generateResponseAsync(prompt) { partialResult, done ->
+                if (!partialResult.isNullOrEmpty()) {
+                    trySend(partialResult)
                 }
-
-                val listenerProxy = java.lang.reflect.Proxy.newProxyInstance(
-                    listenerClass.classLoader,
-                    arrayOf(listenerClass)
-                ) { _, _, args ->
-                    if (args != null) {
-                        val partialResult = args.getOrNull(0) as? String ?: ""
-                        val done = args.getOrNull(1) as? Boolean ?: false
-                        if (partialResult.isNotEmpty()) trySend(partialResult)
-                        if (done) close()
-                    }
-                    null
-                }
-
-                val inferenceClass = inference.javaClass
-                inferenceClass
-                    .getMethod("generateResponseAsync", String::class.java, listenerClass)
-                    .invoke(inference, prompt, listenerProxy)
-            } catch (e: Exception) {
-                Log.e(TAG, "Streaming generation failed: ${e.message}", e)
-                // Fall back to a stub analytical response so the UI is not left blank.
-                trySend(buildFallbackResponse(userMessage))
-                close()
+                if (done) close()
             }
-
-            awaitClose { /* no cleanup needed; MediaPipe manages its own lifecycle */ }
+        } catch (e: Exception) {
+            Log.e(TAG, "Inference error: ${e.message}", e)
+            trySend("\n[Inference error: ${e.message}]")
+            close(e)
         }
-    }
+
+        awaitClose { /* MediaPipe manages its own inference lifecycle */ }
+    }.flowOn(Dispatchers.IO)
 
     /** Release the currently loaded model and free native resources. */
     fun unload() {
         try {
-            llmInference?.let { inference ->
-                inference.javaClass.getMethod("close").invoke(inference)
-            }
+            llmInference?.close()
         } catch (e: Exception) {
-            Log.w(TAG, "Error unloading model: ${e.message}")
+            Log.w(TAG, "Error closing model: ${e.message}")
         } finally {
             llmInference = null
             loadedModelPath = null
@@ -183,33 +113,33 @@ class LLMInferenceEngine @Inject constructor(
         return if (f.exists()) f.absolutePath else null
     }
 
+    /**
+     * Attempt to auto-load the model identified by [activeModelId].
+     * Returns true if the model was successfully loaded, false otherwise.
+     */
+    suspend fun tryAutoLoad(activeModelId: String?): Boolean {
+        if (activeModelId == null) return false
+        val path = getModelPath(activeModelId) ?: return false
+        return loadModel(path).isSuccess
+    }
+
+    /**
+     * Reads the active model ID from the llm_config.json file stored in filesDir.
+     * Returns null if no active model has been configured or the file is missing/corrupt.
+     */
+    fun readActiveModelId(): String? {
+        return try {
+            val configFile = File(context.filesDir, "llm_config.json")
+            JSONObject(configFile.readText()).optString("active_model_id").takeIf { it.isNotEmpty() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private fun buildPrompt(systemPrompt: String, userMessage: String): String {
-        // Generic instruction format understood by Llama / Mistral / Phi chat models.
-        return if (systemPrompt.isBlank()) {
-            "<s>[INST] $userMessage [/INST]"
-        } else {
-            "<s>[INST] <<SYS>>\n$systemPrompt\n<</SYS>>\n\n$userMessage [/INST]"
-        }
-    }
-
-    private fun buildFallbackResponse(question: String): String {
-        // Minimal stub so the UI shows something useful when the engine errors at runtime.
-        return """
-            [Analytical stub — LLM runtime error]
-
-            Question: $question
-
-            Without the LLM runtime, here is a framework for analysis:
-            • Review macro environment (interest rates, Fed policy, inflation trend)
-            • Assess fundamental signals (P/E vs sector, EPS growth, revenue trend)
-            • Check technical momentum (RSI, 50/200-day MA, volume profile)
-            • Weigh sentiment signals (options flow, short interest, analyst revisions)
-
-            Adjust signal weights in the Interactive Prediction panel above and recompute.
-        """.trimIndent()
-    }
+    private fun buildPrompt(system: String, user: String): String =
+        "<|system|>\n$system\n<|user|>\n$user\n<|assistant|>\n"
 }

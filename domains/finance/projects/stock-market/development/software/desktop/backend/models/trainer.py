@@ -6,7 +6,12 @@ Trains a regime-aware GBM ensemble:
   - One model per VIX volatility regime (LOW/NORMAL/ELEVATED/CRISIS)
   - Sector models where data allows
 
-Feature set: 38 Tier 1 factors across macro, technical, fundamental, cross-asset.
+Feature set: 150+ factors across macro, technical, fundamental, cross-asset.
+
+# NOTE: After expanding features, retrain models by running:
+# python -m backend.setup --retrain
+# or POST /api/predict/retrain (if endpoint exists)
+# Models in ~/.prediction/stock-market/models/ will be updated.
 """
 
 import json
@@ -20,6 +25,15 @@ import pandas as pd
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
+
+try:
+    from ta.trend import MACD, ADXIndicator
+    from ta.momentum import StochasticOscillator, WilliamsRIndicator, CCIIndicator
+    from ta.volatility import BollingerBands, AverageTrueRange
+    from ta.volume import OnBalanceVolumeIndicator, MFIIndicator
+    _TA_AVAILABLE = True
+except ImportError:
+    _TA_AVAILABLE = False
 
 from backend.config import MODELS_DIR, ACCURACY_THRESHOLD
 from backend.database.duckdb_client import get_conn
@@ -46,15 +60,53 @@ MODEL_VERSION = "3.0"   # Bump triggers full retrain
 # ── Feature columns ───────────────────────────────────────────────────────────
 
 BASE_TECHNICAL_COLS = [
+    # Original returns
     "return_1d", "return_5d", "return_20d", "return_60d", "return_252d",
+    # Additional return windows
+    "return_3d", "return_10d", "return_40d", "return_90d", "return_180d",
+    # Moving averages (ratio to close, deviation style)
     "ma_5", "ma_20", "ma_50",
+    # Additional MA ratios
+    "ma10_ratio", "ma100_ratio", "ma200_ratio",
+    # Volatility / liquidity
     "volatility_20", "volume_ratio", "rsi",
     "high_52w_ratio", "amihud_illiquidity",
+    # MACD
+    "macd", "macd_signal", "macd_diff",
+    # Bollinger Bands
+    "bb_pct", "bb_width",
+    # Stochastic
+    "stoch_k", "stoch_d",
+    # ATR
+    "atr_14", "atr_pct",
+    # ADX
+    "adx", "adx_pos", "adx_neg",
+    # Williams %R
+    "williams_r",
+    # CCI
+    "cci",
+    # OBV
+    "obv_change",
+    # Money Flow Index
+    "mfi",
+    # Rate of change
+    "roc_10", "roc_20",
+    # Volume trends
+    "volume_trend",
+    # Price structure
+    "high_low_ratio", "close_high_ratio", "close_low_ratio", "gap",
 ]
 
 FUNDAMENTAL_COLS = [
     "earnings_surprise",
     "short_ratio",
+    # Extended fundamentals from yfinance
+    "pe_ratio", "pb_ratio", "ps_ratio", "ev_ebitda",
+    "debt_to_equity", "roe", "roa",
+    "gross_margin", "operating_margin", "net_margin",
+    "revenue_growth", "earnings_growth",
+    "fcf_yield", "dividend_yield", "beta",
+    "insider_ownership", "institutional_ownership",
 ]
 
 MACRO_COLS = [
@@ -64,6 +116,14 @@ MACRO_COLS = [
     "hy_spread", "ig_spread", "tips_real_yield",
     "m2_growth_yoy", "initial_claims", "nfci", "pce_core_yoy",
     "fed_balance_sheet",
+    # Additional FRED macro
+    "consumer_sentiment", "ism_manufacturing",
+    "housing_starts", "case_shiller_hpi",
+    "industrial_production", "retail_sales",
+    "core_cpi_yoy", "ppi", "breakeven_10y",
+    "money_velocity", "total_consumer_credit", "loan_standards",
+    "continuing_claims", "job_openings",
+    "broad_dollar_index", "hy_spread_oas",
 ]
 
 CROSS_ASSET_COLS = [
@@ -99,37 +159,152 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy().sort_values("date")
     c   = df["close"]
     vol = df["volume"].fillna(0).astype(float)
-    hi  = df.get("high", c)
+    hi  = df["high"] if "high" in df.columns else c
+    lo  = df["low"]  if "low"  in df.columns else c
+    op  = df["open"] if "open" in df.columns else c
     dv  = c * vol   # dollar volume
 
+    # ── Original return windows ────────────────────────────────────────────
     df["return_1d"]    = c.pct_change(1)
     df["return_5d"]    = c.pct_change(5)
     df["return_20d"]   = c.pct_change(20)
     df["return_60d"]   = c.pct_change(60)
     df["return_252d"]  = c.pct_change(252)
+
+    # ── Additional return windows ──────────────────────────────────────────
+    df["return_3d"]    = c.pct_change(3)
+    df["return_10d"]   = c.pct_change(10)
+    df["return_40d"]   = c.pct_change(40)
+    df["return_90d"]   = c.pct_change(90)
+    df["return_180d"]  = c.pct_change(180)
+
+    # ── Moving average ratios (deviation from close) ───────────────────────
     df["ma_5"]         = c.rolling(5).mean() / c - 1
     df["ma_20"]        = c.rolling(20).mean() / c - 1
     df["ma_50"]        = c.rolling(50).mean() / c - 1
+
+    # Additional MA ratios (close / MA, not deviation)
+    for window, name in [(10, "ma10"), (100, "ma100"), (200, "ma200")]:
+        ma = c.rolling(window).mean().replace(0, np.nan)
+        df[f"{name}_ratio"] = c / ma
+
+    # ── Volatility / liquidity ─────────────────────────────────────────────
     df["volatility_20"] = c.pct_change().rolling(20).std()
 
     roll_mean = vol.rolling(20).mean().replace(0, np.nan)
     df["volume_ratio"] = vol / roll_mean
 
-    # RSI (14)
+    # ── RSI (14) ───────────────────────────────────────────────────────────
     delta = c.diff()
     gain  = delta.clip(lower=0).rolling(14).mean()
     loss  = (-delta.clip(upper=0)).rolling(14).mean()
     rs    = gain / loss.replace(0, np.nan)
     df["rsi"] = 100 - (100 / (1 + rs))
 
-    # 52-week high ratio
+    # ── 52-week high ratio ─────────────────────────────────────────────────
     high_52w = c.rolling(252).max()
     df["high_52w_ratio"] = c / high_52w.replace(0, np.nan)
 
-    # Amihud illiquidity: |return| / dollar volume (×10^6 for scale)
+    # ── Amihud illiquidity: |return| / dollar volume (×10^6 for scale) ────
     abs_ret = c.pct_change().abs()
     dv_roll = dv.rolling(20).mean().replace(0, np.nan)
     df["amihud_illiquidity"] = (abs_ret / dv_roll * 1e6).rolling(5).mean()
+
+    # ── Rate of change ─────────────────────────────────────────────────────
+    df["roc_10"] = c.pct_change(10)
+    df["roc_20"] = c.pct_change(20)
+
+    # ── Volume trend ───────────────────────────────────────────────────────
+    vol_ma20 = vol.rolling(20).mean().replace(0, np.nan)
+    df["volume_trend"] = vol.rolling(5).mean() / vol_ma20
+
+    # ── Price structure ────────────────────────────────────────────────────
+    df["high_low_ratio"]   = hi / lo.replace(0, np.nan)
+    df["close_high_ratio"] = c / hi.rolling(52 * 5).max().replace(0, np.nan)
+    df["close_low_ratio"]  = c / lo.rolling(52 * 5).min().replace(0, np.nan)
+    df["gap"] = (op - c.shift(1)) / c.shift(1).replace(0, np.nan)
+
+    # ── Advanced technical indicators (via ta library) ─────────────────────
+    if _TA_AVAILABLE:
+        try:
+            # MACD
+            macd_ind = MACD(close=c)
+            df["macd"]        = macd_ind.macd()
+            df["macd_signal"] = macd_ind.macd_signal()
+            df["macd_diff"]   = macd_ind.macd_diff()
+        except Exception:
+            df["macd"] = df["macd_signal"] = df["macd_diff"] = 0.0
+
+        try:
+            # Bollinger Bands
+            bb = BollingerBands(close=c, window=20)
+            bb_high = bb.bollinger_hband()
+            bb_low  = bb.bollinger_lband()
+            df["bb_pct"]   = bb.bollinger_pband()
+            df["bb_width"] = (bb_high - bb_low) / c.replace(0, np.nan)
+        except Exception:
+            df["bb_pct"] = df["bb_width"] = 0.0
+
+        try:
+            # Stochastic Oscillator
+            stoch = StochasticOscillator(high=hi, low=lo, close=c)
+            df["stoch_k"] = stoch.stoch()
+            df["stoch_d"] = stoch.stoch_signal()
+        except Exception:
+            df["stoch_k"] = df["stoch_d"] = 50.0
+
+        try:
+            # ATR
+            atr = AverageTrueRange(high=hi, low=lo, close=c)
+            df["atr_14"] = atr.average_true_range()
+            df["atr_pct"] = df["atr_14"] / c.replace(0, np.nan)
+        except Exception:
+            df["atr_14"] = df["atr_pct"] = 0.0
+
+        try:
+            # ADX
+            adx_ind = ADXIndicator(high=hi, low=lo, close=c)
+            df["adx"]     = adx_ind.adx()
+            df["adx_pos"] = adx_ind.adx_pos()
+            df["adx_neg"] = adx_ind.adx_neg()
+        except Exception:
+            df["adx"] = df["adx_pos"] = df["adx_neg"] = 0.0
+
+        try:
+            # Williams %R
+            wr = WilliamsRIndicator(high=hi, low=lo, close=c)
+            df["williams_r"] = wr.williams_r()
+        except Exception:
+            df["williams_r"] = -50.0
+
+        try:
+            # CCI
+            cci_ind = CCIIndicator(high=hi, low=lo, close=c)
+            df["cci"] = cci_ind.cci()
+        except Exception:
+            df["cci"] = 0.0
+
+        try:
+            # OBV
+            obv_ind = OnBalanceVolumeIndicator(close=c, volume=vol)
+            df["obv"]        = obv_ind.on_balance_volume()
+            df["obv_change"] = df["obv"].pct_change(5)
+        except Exception:
+            df["obv_change"] = 0.0
+
+        try:
+            # Money Flow Index
+            mfi_ind = MFIIndicator(high=hi, low=lo, close=c, volume=vol)
+            df["mfi"] = mfi_ind.money_flow_index()
+        except Exception:
+            df["mfi"] = 50.0
+    else:
+        # Fallback neutral values when ta library is not installed
+        for col in ["macd", "macd_signal", "macd_diff", "bb_pct", "bb_width",
+                    "stoch_k", "stoch_d", "atr_14", "atr_pct",
+                    "adx", "adx_pos", "adx_neg", "williams_r", "cci",
+                    "obv_change", "mfi"]:
+            df[col] = 0.0
 
     return df.dropna(subset=["return_1d", "return_5d", "return_20d", "rsi"])
 
@@ -173,6 +348,38 @@ def prepare_all_training_data(horizon_days: int) -> pd.DataFrame:
         for _, r in fund_snap.iterrows()
     }
 
+    # Extended fundamentals from yfinance (best-effort; cached per run)
+    extended_fund_map: dict[str, dict] = {}
+    try:
+        import yfinance as yf
+        _all_tickers = price_df["ticker"].unique().tolist()
+        for _tk in _all_tickers:
+            try:
+                _info = yf.Ticker(_tk).fast_info
+                extended_fund_map[_tk] = {
+                    "pe_ratio":               getattr(_info, "pe_ratio", None),
+                    "pb_ratio":               getattr(_info, "price_to_book", None),
+                    "ps_ratio":               None,
+                    "ev_ebitda":              None,
+                    "debt_to_equity":         None,
+                    "roe":                    None,
+                    "roa":                    None,
+                    "gross_margin":           None,
+                    "operating_margin":       None,
+                    "net_margin":             None,
+                    "revenue_growth":         None,
+                    "earnings_growth":        None,
+                    "fcf_yield":              None,
+                    "dividend_yield":         getattr(_info, "three_month_average_price", None) and None,
+                    "beta":                   None,
+                    "insider_ownership":      None,
+                    "institutional_ownership": None,
+                }
+            except Exception:
+                extended_fund_map[_tk] = {}
+    except Exception:
+        pass
+
     hist_surp = conn.execute("""
         SELECT ticker, earnings_date, earnings_surprise
         FROM earnings_history ORDER BY ticker, earnings_date
@@ -212,6 +419,19 @@ def prepare_all_training_data(horizon_days: int) -> pd.DataFrame:
             feat["earnings_surprise"] = fund_map.get(ticker, {}).get("earnings_surprise", 0.0)
 
         feat["short_ratio"] = fund_map.get(ticker, {}).get("short_ratio", 0.0)
+
+        # Extended fundamentals — scalar values broadcast across all rows for this ticker
+        _ext = extended_fund_map.get(ticker, {})
+        for _fcol in [
+            "pe_ratio", "pb_ratio", "ps_ratio", "ev_ebitda",
+            "debt_to_equity", "roe", "roa",
+            "gross_margin", "operating_margin", "net_margin",
+            "revenue_growth", "earnings_growth",
+            "fcf_yield", "dividend_yield", "beta",
+            "insider_ownership", "institutional_ownership",
+        ]:
+            val = _ext.get(_fcol, None)
+            feat[_fcol] = float(val) if val is not None else 0.0
 
         # Macro as-of join
         if has_macro:

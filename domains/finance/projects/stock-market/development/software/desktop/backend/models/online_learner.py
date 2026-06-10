@@ -191,6 +191,150 @@ def update_domain_weights() -> dict[str, float]:
     return updated
 
 
+def resolve_interactive_outcomes() -> int:
+    """
+    For each interactive_predictions row older than its implied horizon
+    (estimate: session_date + 7 days for weekly, use 7 days default),
+    look up actual price return from DuckDB prices table, determine
+    if direction was correct, and insert into prediction_outcomes.
+    Returns number of outcomes resolved.
+    """
+    conn = get_conn()
+    # Find unresolved interactive predictions older than 7 days
+    unresolved = conn.execute("""
+        SELECT ip.id, ip.ticker, ip.session_date, ip.direction, ip.prob_up,
+               ip.confidence, ip.created_at
+        FROM interactive_predictions ip
+        WHERE ip.session_date <= CURRENT_DATE - INTERVAL 7 DAY
+          AND ip.id NOT IN (
+              SELECT source_id FROM prediction_outcomes WHERE source_type = 'interactive'
+                  AND source_id IS NOT NULL
+          )
+        LIMIT 100
+    """).fetchdf()
+
+    resolved = 0
+    for _, row in unresolved.iterrows():
+        try:
+            session_date = pd.to_datetime(row['session_date']).date()
+            end_date = session_date + timedelta(days=14)
+            # Get price at prediction date and ~7 trading days later
+            prices = conn.execute("""
+                SELECT date, close FROM prices
+                WHERE ticker = ? AND date BETWEEN ? AND ?
+                ORDER BY date
+            """, [row['ticker'], str(session_date), str(end_date)]).fetchdf()
+
+            if len(prices) < 2:
+                continue
+
+            entry_price = float(prices.iloc[0]['close'])
+            exit_price  = float(prices.iloc[-1]['close'])
+            if entry_price == 0:
+                continue
+            actual_return = (exit_price - entry_price) / entry_price
+
+            actual_direction = 'up' if actual_return > 0.002 else ('down' if actual_return < -0.002 else 'neutral')
+            was_correct = (row['direction'] == actual_direction)
+
+            conn.execute("""
+                INSERT OR IGNORE INTO prediction_outcomes
+                    (ticker, horizon, predicted_at, direction, probability,
+                     regime_label, actual_return, was_correct, resolved_at,
+                     source_type, source_id)
+                VALUES (?, '1w', ?, ?, ?, 'interactive', ?, ?, now(), 'interactive', ?)
+            """, [row['ticker'], row['created_at'], row['direction'],
+                  float(row['prob_up']), float(actual_return), bool(was_correct), str(row['id'])])
+            conn.commit()
+            resolved += 1
+        except Exception as e:
+            logger.debug(f"Could not resolve interactive outcome {row['id']}: {e}")
+
+    if resolved:
+        logger.info(f"Resolved {resolved} interactive prediction outcomes")
+    return resolved
+
+
+def update_interactive_accuracy_weights() -> dict:
+    """
+    Analyze interactive prediction accuracy by domain over last 90 days.
+    Update signal_weights table based on interactive prediction performance.
+    Returns accuracy stats dict keyed by domain.
+    """
+    import json as _json
+
+    conn = get_conn()
+
+    try:
+        results = conn.execute("""
+            SELECT po.was_correct, ip.user_signals
+            FROM prediction_outcomes po
+            JOIN interactive_predictions ip ON po.source_id = ip.id
+            WHERE po.source_type = 'interactive'
+              AND po.resolved_at >= (now() - INTERVAL 90 DAY)
+        """).fetchdf()
+
+        if results.empty:
+            return {}
+
+        domain_stats: dict[str, dict] = {}
+        for _, row in results.iterrows():
+            try:
+                raw = row['user_signals']
+                signals = _json.loads(raw) if isinstance(raw, str) else raw
+                if not isinstance(signals, list):
+                    continue
+                for signal in signals:
+                    domain = signal.get('domain', 'unknown')
+                    if domain not in domain_stats:
+                        domain_stats[domain] = {'correct': 0, 'total': 0}
+                    domain_stats[domain]['total'] += 1
+                    if row['was_correct']:
+                        domain_stats[domain]['correct'] += 1
+            except Exception:
+                continue
+
+        # Update weights for domains with enough data
+        for domain, stats in domain_stats.items():
+            if stats['total'] < _MIN_OUTCOMES_FOR_UPDATE:
+                continue
+            accuracy = stats['correct'] / stats['total']
+            try:
+                current = conn.execute(
+                    "SELECT weight_multiplier FROM signal_weights WHERE domain = ?", [domain]
+                ).fetchone()
+                current_weight = float(current[0]) if current else 1.0
+
+                if accuracy > 0.55:
+                    new_weight = min(_MAX_WEIGHT, current_weight * (1 + _LR * (accuracy - 0.5)))
+                elif accuracy < 0.45:
+                    new_weight = max(_MIN_WEIGHT, current_weight * (1 - _LR * (0.5 - accuracy)))
+                else:
+                    new_weight = current_weight
+
+                conn.execute("""
+                    INSERT INTO signal_weights (domain, weight_multiplier, correct_count, total_count, last_updated)
+                    VALUES (?, ?, ?, ?, now())
+                    ON CONFLICT (domain) DO UPDATE SET
+                        weight_multiplier = excluded.weight_multiplier,
+                        correct_count     = excluded.correct_count,
+                        total_count       = excluded.total_count,
+                        last_updated      = excluded.last_updated
+                """, [domain, round(new_weight, 4), stats['correct'], stats['total']])
+                conn.commit()
+            except Exception as e:
+                logger.debug(f"Could not update weight for domain {domain}: {e}")
+
+        return {
+            d: {'accuracy': round(s['correct'] / s['total'], 4), 'n': s['total']}
+            for d, s in domain_stats.items()
+            if s['total'] > 0
+        }
+    except Exception as e:
+        logger.warning(f"update_interactive_accuracy_weights failed: {e}")
+        return {}
+
+
 def get_domain_weights() -> dict[str, float]:
     """Return current domain weight multipliers."""
     conn = get_conn()

@@ -52,7 +52,9 @@ def run_initial_data_load() -> None:
 
 def start_scheduler() -> None:
     from apscheduler.schedulers.background import BackgroundScheduler
+    from backend.models.online_learner import resolve_interactive_outcomes
     scheduler = BackgroundScheduler()
     scheduler.add_job(run_daily_refresh, "cron", hour=22, minute=0)
+    scheduler.add_job(resolve_interactive_outcomes, "cron", hour=2, minute=30, id="resolve_interactive")
     scheduler.start()
-    logger.info("Scheduler started — daily refresh at 22:00 UTC")
+    logger.info("Scheduler started — daily refresh at 22:00 UTC, interactive outcome resolution at 02:30 UTC")

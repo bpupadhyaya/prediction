@@ -8,7 +8,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
 
 targets:
@@ -29,8 +29,11 @@ targets:
         DEVELOPMENT_TEAM: XDC8C9HH9K
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
+        INFOPLIST_KEY_NSCameraUsageDescription: ""
     dependencies:
       - package: GRDB
+      - package: llama.cpp
+        product: llama
     info:
       path: StockPrediction/App/Info.plist
       properties:
@@ -66,3 +69,6 @@ packages:
   GRDB:
     url: https://github.com/groue/GRDB.swift
     from: "6.27.0"
+  llama.cpp:
+    url: https://github.com/ggml-org/llama.cpp
+    branch: master

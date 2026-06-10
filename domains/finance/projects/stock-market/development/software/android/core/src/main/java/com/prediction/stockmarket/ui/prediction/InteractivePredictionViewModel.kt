@@ -81,6 +81,17 @@ class InteractivePredictionViewModel @Inject constructor(
             )
         }
         computePrediction()
+
+        // Auto-load the active LLM model if it is not already loaded
+        if (!llmEngine.isReady) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val activeId = llmEngine.readActiveModelId()
+                if (activeId != null) {
+                    llmEngine.tryAutoLoad(activeId)
+                    _state.update { it.copy(isModelReady = llmEngine.isReady) }
+                }
+            }
+        }
     }
 
     fun refreshModelStatus() {

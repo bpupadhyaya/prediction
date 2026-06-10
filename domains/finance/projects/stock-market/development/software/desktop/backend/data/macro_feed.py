@@ -33,6 +33,29 @@ _FRED_SERIES: dict[str, str] = {
     "NFCI":         "NFCI",          # Chicago Fed National Financial Conditions Index
     "PCEPILFE":     "PCEPILFE",      # PCE Core Price Index (level — compute YoY)
     "WALCL":        "WALCL",         # Fed balance sheet (millions)
+    # ── Additional macro series ────────────────────────────────────────────
+    # Consumer / Sentiment
+    "UMCSENT":      "UMCSENT",       # UMich Consumer Sentiment
+    "NAPM":         "NAPM",          # ISM Manufacturing PMI
+    # Housing
+    "HOUST":        "HOUST",         # Housing Starts
+    "CSUSHPINSA":   "CSUSHPINSA",    # Case-Shiller Home Price Index
+    # Activity
+    "INDPRO":       "INDPRO",        # Industrial Production Index
+    "RSXFS":        "RSXFS",         # Retail Sales excl. Food Services
+    # Inflation
+    "CPILFESL":     "CPILFESL",      # Core CPI (level — compute YoY)
+    "PPIACO":       "PPIACO",        # PPI All Commodities
+    "T10YIE":       "T10YIE",        # 10-Year Breakeven Inflation
+    # Money / Credit
+    "M2V":          "M2V",           # M2 Velocity of Money
+    "TOTCI":        "TOTCI",         # Total Consumer Credit Outstanding
+    "DRSDCILM":     "DRSDCILM",      # C&I Loan Standards (net % tightening)
+    # Labor
+    "CCSA":         "CCSA",          # Continuing Jobless Claims
+    "JTSJOL":       "JTSJOL",        # JOLTS Job Openings
+    # International / Credit risk
+    "DTWEXBGS":     "DTWEXBGS",      # Broad Dollar Index (goods)
 }
 
 # ── Yahoo Finance series ──────────────────────────────────────────────────────
@@ -230,6 +253,37 @@ def _compute_derived(conn) -> None:
         d_df["series_id"] = "DXY_RET20"
         upsert_macro(d_df[["series_id", "date", "value"]])
 
+    # Core CPI YoY (monthly, 12-period pct change)
+    cpi_core = load_series("CPILFESL")
+    if not cpi_core.empty and len(cpi_core) > 12:
+        cpi_core = cpi_core.set_index("date").sort_index()
+        cpi_core["yoy"] = cpi_core["value"].pct_change(12) * 100
+        cpi_df = cpi_core["yoy"].dropna().reset_index()
+        cpi_df.columns = ["date", "value"]
+        cpi_df["series_id"] = "CORE_CPI_YOY"
+        upsert_macro(cpi_df[["series_id", "date", "value"]])
+        logger.info(f"Computed CORE_CPI_YOY ({len(cpi_df)} rows)")
+
+    # Industrial Production: 12-month YoY change
+    indpro = load_series("INDPRO")
+    if not indpro.empty and len(indpro) > 12:
+        indpro = indpro.set_index("date").sort_index()
+        indpro["yoy"] = indpro["value"].pct_change(12) * 100
+        ip_df = indpro["yoy"].dropna().reset_index()
+        ip_df.columns = ["date", "value"]
+        ip_df["series_id"] = "INDPRO_YOY"
+        upsert_macro(ip_df[["series_id", "date", "value"]])
+
+    # Retail Sales: 12-month YoY change
+    rsxfs = load_series("RSXFS")
+    if not rsxfs.empty and len(rsxfs) > 12:
+        rsxfs = rsxfs.set_index("date").sort_index()
+        rsxfs["yoy"] = rsxfs["value"].pct_change(12) * 100
+        rs_df = rsxfs["yoy"].dropna().reset_index()
+        rs_df.columns = ["date", "value"]
+        rs_df["series_id"] = "RETAIL_SALES_YOY"
+        upsert_macro(rs_df[["series_id", "date", "value"]])
+
 
 # ── Public load functions ─────────────────────────────────────────────────────
 
@@ -275,6 +329,14 @@ def load_macro_timeseries() -> pd.DataFrame:
         "DXY", "DXY_RET20", "GOLD_EQUITY_RATIO",
         "COPPER_RET20", "USDJPY_RET5", "OIL_RET20",
         "BTC_SPX_CORR_30D", "VVIX",
+        # Additional macro series
+        "UMCSENT", "NAPM",
+        "HOUST", "CSUSHPINSA",
+        "INDPRO_YOY", "RETAIL_SALES_YOY",
+        "CORE_CPI_YOY", "PPIACO", "T10YIE",
+        "M2V", "TOTCI", "DRSDCILM",
+        "CCSA", "JTSJOL",
+        "DTWEXBGS",
     ]
     placeholders = ",".join("?" * len(wanted))
     raw = conn.execute(f"""
@@ -318,6 +380,23 @@ def load_macro_timeseries() -> pd.DataFrame:
     btc_corr = col("BTC_SPX_CORR_30D").fillna(0.0)
     vvix = col("VVIX").fillna(90.0)
 
+    # Additional macro series
+    umcsent      = col("UMCSENT").fillna(80.0)
+    ism_mfg      = col("NAPM").fillna(50.0)
+    housing_st   = col("HOUST").fillna(1400.0)
+    cs_hpi       = col("CSUSHPINSA").fillna(200.0)
+    indpro_yoy   = col("INDPRO_YOY").fillna(0.0)
+    retail_yoy   = col("RETAIL_SALES_YOY").fillna(0.0)
+    core_cpi_yoy = col("CORE_CPI_YOY").fillna(2.0)
+    ppi          = col("PPIACO").fillna(200.0)
+    breakeven_10y = col("T10YIE").fillna(2.3)
+    m2_velocity  = col("M2V").fillna(1.2)
+    cons_credit  = col("TOTCI").fillna(4000.0)
+    loan_stds    = col("DRSDCILM").fillna(0.0)
+    cont_claims  = col("CCSA").fillna(1700.0)
+    job_openings = col("JTSJOL").fillna(7000.0)
+    broad_dollar = col("DTWEXBGS").fillna(110.0)
+
     result = pd.DataFrame({
         "date": wide["date"],
         # Core macro
@@ -343,6 +422,23 @@ def load_macro_timeseries() -> pd.DataFrame:
         "oil_ret20":       oil_ret.values,
         "btc_spx_corr":    btc_corr.values,
         "vvix":            vvix.values,
+        # Additional macro factors
+        "consumer_sentiment":    umcsent.values,
+        "ism_manufacturing":     ism_mfg.values,
+        "housing_starts":        housing_st.values,
+        "case_shiller_hpi":      cs_hpi.values,
+        "industrial_production": indpro_yoy.values,
+        "retail_sales":          retail_yoy.values,
+        "core_cpi_yoy":          core_cpi_yoy.values,
+        "ppi":                   ppi.values,
+        "breakeven_10y":         breakeven_10y.values,
+        "money_velocity":        m2_velocity.values,
+        "total_consumer_credit": cons_credit.values,
+        "loan_standards":        loan_stds.values,
+        "continuing_claims":     cont_claims.values,
+        "job_openings":          job_openings.values,
+        "broad_dollar_index":    broad_dollar.values,
+        "hy_spread_oas":         hy.values,  # BAMLH0A0HYM2 already fetched above
     })
 
     return result
@@ -402,4 +498,21 @@ def get_macro_context() -> dict:
         "oil_ret20":       oil_ret,
         "btc_spx_corr":    btc_corr,
         "vvix":            vvix,
+        # Additional macro context
+        "consumer_sentiment":    latest("UMCSENT", 80.0),
+        "ism_manufacturing":     latest("NAPM", 50.0),
+        "housing_starts":        latest("HOUST", 1400.0),
+        "case_shiller_hpi":      latest("CSUSHPINSA", 200.0),
+        "industrial_production": latest("INDPRO_YOY", 0.0),
+        "retail_sales":          latest("RETAIL_SALES_YOY", 0.0),
+        "core_cpi_yoy":          latest("CORE_CPI_YOY", 2.0),
+        "ppi":                   latest("PPIACO", 200.0),
+        "breakeven_10y":         latest("T10YIE", 2.3),
+        "money_velocity":        latest("M2V", 1.2),
+        "total_consumer_credit": latest("TOTCI", 4000.0),
+        "loan_standards":        latest("DRSDCILM", 0.0),
+        "continuing_claims":     latest("CCSA", 1700.0),
+        "job_openings":          latest("JTSJOL", 7000.0),
+        "broad_dollar_index":    latest("DTWEXBGS", 110.0),
+        "hy_spread_oas":         hy,
     }

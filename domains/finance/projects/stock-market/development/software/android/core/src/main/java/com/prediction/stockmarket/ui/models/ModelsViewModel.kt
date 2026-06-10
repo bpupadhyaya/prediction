@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.prediction.stockmarket.prediction.LLMInferenceEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,7 +33,8 @@ data class ModelUiState(
 @HiltViewModel
 class ModelsViewModel @Inject constructor(
     application: Application,
-    private val httpClient: OkHttpClient
+    private val httpClient: OkHttpClient,
+    private val llmEngine: LLMInferenceEngine
 ) : AndroidViewModel(application) {
 
     private val modelsDir = File(application.filesDir, "llm_models").also { it.mkdirs() }
@@ -95,18 +97,27 @@ class ModelsViewModel @Inject constructor(
         modelFile(model).delete()
         val newStatus = _state.value.downloadStatus.toMutableMap().also { it.remove(model.id) }
         var newActive = _state.value.activeModelId
-        if (newActive == model.id) { newActive = null; saveConfig(null) }
+        if (newActive == model.id) {
+            newActive = null
+            saveConfig(null)
+            llmEngine.unload()
+        }
         _state.value = _state.value.copy(downloadStatus = newStatus, activeModelId = newActive)
     }
 
     fun activate(model: LLMModel) {
         saveConfig(model.id)
         _state.value = _state.value.copy(activeModelId = model.id)
+        val modelPath = modelFile(model).absolutePath
+        viewModelScope.launch(Dispatchers.IO) {
+            llmEngine.loadModel(modelPath)
+        }
     }
 
     fun deactivate() {
         saveConfig(null)
         _state.value = _state.value.copy(activeModelId = null)
+        llmEngine.unload()
     }
 
     private fun setDownloadState(id: String, status: String, progress: Float) {

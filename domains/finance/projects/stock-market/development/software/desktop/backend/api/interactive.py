@@ -193,6 +193,18 @@ def delete_interactive_prediction(id: str) -> dict:
     return {"message": "Interactive prediction deleted", "id": id}
 
 
+@router.post("/resolve-outcomes")
+async def resolve_outcomes_endpoint() -> dict:
+    """
+    Resolve any outstanding interactive predictions whose horizon has elapsed,
+    determine correctness vs. actual prices, and update domain signal weights.
+    """
+    from backend.models.online_learner import resolve_interactive_outcomes, update_interactive_accuracy_weights
+    resolved = resolve_interactive_outcomes()
+    accuracy = update_interactive_accuracy_weights()
+    return {"resolved": resolved, "domain_accuracy": accuracy}
+
+
 @router.get("/stats")
 def get_interactive_stats(ticker: Optional[str] = None) -> dict:
     """

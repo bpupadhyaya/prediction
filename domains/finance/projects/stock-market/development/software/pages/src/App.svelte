@@ -2,8 +2,9 @@
   import PredictTab from './components/PredictTab.svelte';
   import HistoryTab from './components/HistoryTab.svelte';
   import SettingsTab from './components/SettingsTab.svelte';
+  import OnnxPredictionCard from './components/OnnxPredictionCard.svelte';
 
-  let activeTab: 'predict' | 'history' | 'settings' = 'predict';
+  let activeTab: 'predict' | 'model' | 'history' | 'settings' = 'predict';
   let ticker = 'AAPL';
 </script>
 
@@ -11,6 +12,7 @@
   <div class="brand">📈 Interactive Stock Predictor</div>
   <nav>
     <button class:active={activeTab === 'predict'}  on:click={() => activeTab = 'predict'}>Predict</button>
+    <button class:active={activeTab === 'model'}    on:click={() => activeTab = 'model'}>Model</button>
     <button class:active={activeTab === 'history'}  on:click={() => activeTab = 'history'}>History</button>
     <button class:active={activeTab === 'settings'} on:click={() => activeTab = 'settings'}>Settings</button>
   </nav>
@@ -19,6 +21,8 @@
 <main>
   {#if activeTab === 'predict'}
     <PredictTab bind:ticker />
+  {:else if activeTab === 'model'}
+    <OnnxPredictionCard {ticker} />
   {:else if activeTab === 'history'}
     <HistoryTab />
   {:else}

@@ -15,6 +15,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@mlc-ai/web-llm'],
+    exclude: ['@mlc-ai/web-llm', 'onnxruntime-web'],
   },
 });

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Parameter, ParamState, Direction } from '../lib/types';
   export let param: Parameter;
-  export let state: ParamState = { weight: 50, direction: 'neutral', value: null };
+  export let state: ParamState = { weight: 0, direction: 'neutral', value: null };
   export let onResearch: (p: Parameter) => void;
   export let expanded = false;
 
@@ -50,7 +50,7 @@
   </td>
   <td class="weight-cell">
     <div class="weight-row">
-      <input type="range" min="1" max="100" value={state.weight}
+      <input type="range" min="0" max="100" value={state.weight}
         on:input={setWeight} class="weight-slider"
       />
       <span class="weight-val">{state.weight}</span>

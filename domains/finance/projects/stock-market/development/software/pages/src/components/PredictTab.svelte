@@ -23,7 +23,7 @@
   function initStates(): Record<string, ParamState> {
     const s: Record<string, ParamState> = {};
     for (const p of PARAMETERS) {
-      s[p.name] = { weight: 50, direction: 'neutral', value: null };
+      s[p.name] = { weight: 0, direction: 'neutral', value: null };
     }
     return s;
   }

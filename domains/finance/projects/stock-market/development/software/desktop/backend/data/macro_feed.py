@@ -553,6 +553,7 @@ def initial_macro_load() -> None:
         df = _fetch_yf(series_id, yf_ticker, days)
         upsert_macro(df)
         logger.info(f"  YF {series_id}: {len(df)} rows")
+    _load_alt_sources(days)
     _compute_derived(get_conn())
     logger.info("Initial macro load complete")
 
@@ -565,8 +566,19 @@ def refresh_all_macro() -> None:
     for series_id, yf_ticker in _YF_SERIES.items():
         df = _fetch_yf(series_id, yf_ticker, days)
         upsert_macro(df)
+    _load_alt_sources(365 * 5)   # COT is weekly — keep a long backfill window
     _compute_derived(get_conn())
     logger.info("Macro refresh complete")
+
+
+def _load_alt_sources(days: int) -> None:
+    """Load non-FRED/non-YF Tier-1 sources (CFTC COT, etc.). Best-effort —
+    failures degrade to zero-default columns and never break the macro load."""
+    try:
+        from backend.data.cftc_feed import load_cot
+        load_cot(days)
+    except Exception as e:
+        logger.warning(f"CFTC COT load skipped: {e}")
 
 
 # ── Training timeseries loader ────────────────────────────────────────────────
@@ -598,6 +610,8 @@ def load_macro_timeseries() -> pd.DataFrame:
         "WAAABULL", "WAAABEAR",
         "GEOUSPRISK", "USEPUINDXD", "EMVTRADEPOL", "STLFSI2",
         "GFDEGDQ188S", "FYSGDA188S",
+        # CFTC COT positioning (Tier-1, real)
+        "CFTC_SP500_LEV_NET_PCT", "CFTC_SP500_ASSET_MGR_NET_PCT", "CFTC_SP500_OI",
         # Derived series
         "T10Y2Y", "FEDFUNDS",
         "M2_GROWTH_YOY", "PCE_CORE_YOY", "PCE_HEADLINE_YOY",
@@ -900,6 +914,10 @@ def load_macro_timeseries() -> pd.DataFrame:
         "variance_risk_premium": col("VARIANCE_RISK_PREMIUM", 3.0).values,
         "vix_contango_m1m2":    (col("VIX3M", 20.0) / vix.replace(0, np.nan)).values,
         "skew_index":           col("SKEW",            125.0).values,
+
+        # ── Sentiment: CFTC COT positioning (Tier-1, real) ────────────────────
+        "cftc_speculative_positioning": col("CFTC_SP500_LEV_NET_PCT", 0.0).values,
+        "cftc_asset_manager_positioning": col("CFTC_SP500_ASSET_MGR_NET_PCT", 0.0).values,
 
         # ── Sentiment: Warren Buffett indicator ───────────────────────────────
         "warren_buffett_indicator": col("BUFFETT_INDICATOR_PROXY", 0.0).values,

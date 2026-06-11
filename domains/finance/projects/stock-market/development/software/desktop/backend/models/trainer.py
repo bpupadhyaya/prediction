@@ -939,6 +939,13 @@ def prepare_all_training_data(horizon_days: int) -> pd.DataFrame:
     all_tickers = price_df["ticker"].unique().tolist()
     extended_fund_map = _fetch_extended_fundamentals(all_tickers, budget_sec=120.0)
 
+    # Insider activity (SEC EDGAR Form 4) — populated by the nightly refresh.
+    try:
+        from backend.data.insider_feed import load_insider_map
+        insider_map = load_insider_map()
+    except Exception:
+        insider_map = {}
+
     all_feat = []
     for ticker, group in price_df.groupby("ticker"):
         feat = build_features(group)
@@ -972,6 +979,13 @@ def prepare_all_training_data(horizon_days: int) -> pd.DataFrame:
             feat["earnings_surprise"] = fund_map.get(ticker, {}).get("earnings_surprise", 0.0)
 
         feat["short_ratio"] = fund_map.get(ticker, {}).get("short_ratio", 0.0)
+
+        # ── Insider activity (SEC EDGAR Form 4) ───────────────────────────
+        ins = insider_map.get(ticker, {})
+        feat["insider_net_buy_score"]    = ins.get("insider_net_buy_score", 0.0)
+        feat["form4_sentiment_score"]    = ins.get("form4_sentiment_score", 0.0)
+        feat["insider_buy_cluster_30d"]  = ins.get("insider_buy_cluster_30d", 0.0)
+        feat["insider_sell_cluster_30d"] = ins.get("insider_sell_cluster_30d", 0.0)
 
         # ── Extended fundamentals ─────────────────────────────────────────
         ext = extended_fund_map.get(ticker, {})

@@ -200,12 +200,18 @@ def refresh_ticker(ticker: str, full: bool = False) -> bool:
 
 
 def refresh_ticker_fundamentals(ticker: str) -> None:
-    """Refresh fundamentals + earnings history for one ticker."""
+    """Refresh fundamentals + earnings history + insider activity for one ticker."""
     fund = fetch_fundamentals(ticker)
     if fund:
         upsert_fundamentals(fund)
     hist = fetch_earnings_history(ticker)
     upsert_earnings_history(hist)
+    # SEC EDGAR Form 4 insider activity (best-effort — never blocks the refresh).
+    try:
+        from backend.data.insider_feed import refresh_insider_signal
+        refresh_insider_signal(ticker)
+    except Exception:
+        pass
 
 
 def _fetch_prices_single(ticker: str, start: datetime) -> pd.DataFrame:

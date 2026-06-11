@@ -254,6 +254,18 @@ def init_db() -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_vsrc_channel ON video_sources(channel_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_vsrc_published ON video_sources(published_at)")
 
+    # ── Insider activity (SEC EDGAR Form 4, per ticker) ───────────────────────
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS insider_signals (
+            ticker                  VARCHAR PRIMARY KEY,
+            insider_net_buy_score   DOUBLE DEFAULT 0,
+            form4_sentiment_score   DOUBLE DEFAULT 0,
+            insider_buy_cluster_30d DOUBLE DEFAULT 0,
+            insider_sell_cluster_30d DOUBLE DEFAULT 0,
+            updated_at              TIMESTAMP DEFAULT now()
+        )
+    """)
+
     # ── Migrations: add new columns to existing tables ────────────────────────
     _safe_alter(conn, "ALTER TABLE fundamentals ADD COLUMN short_ratio DOUBLE DEFAULT 0")
     _safe_alter(conn, "ALTER TABLE fundamentals ADD COLUMN short_pct_float DOUBLE DEFAULT 0")

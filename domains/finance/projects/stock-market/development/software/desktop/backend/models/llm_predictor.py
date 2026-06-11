@@ -95,6 +95,34 @@ def unload_llm() -> None:
     _cache["llm"] = None
 
 
+def get_active_model_id() -> str | None:
+    """Active LLM model id from llm_config.json, or None if none selected."""
+    from backend.config import LLM_CONFIG_PATH
+    try:
+        if LLM_CONFIG_PATH.exists():
+            return json.loads(LLM_CONFIG_PATH.read_text()).get("active_model_id")
+    except Exception:
+        pass
+    return None
+
+
+def _run_llm_inference(system_prompt: str, user_msg: str, max_tokens: int = 512) -> str:
+    """
+    Run a single text completion with the active local LLM and return raw text.
+
+    Shared entry point for the text/video intelligence extractors. Raises if no
+    model is active or installed — callers are expected to fall back to a
+    heuristic so the feature degrades gracefully without a downloaded model.
+    """
+    model_id = get_active_model_id()
+    if not model_id:
+        raise RuntimeError("No active LLM model selected (download + activate one in the Models tab).")
+    llm = get_llm(model_id)
+    prompt = f"{system_prompt}\n\n{user_msg}\n"
+    response = llm(prompt, max_tokens=max_tokens, temperature=0.1, stop=["```"])
+    return response["choices"][0]["text"].strip()
+
+
 # ─── Cross-sectional rank helper ───────────────────────────────────────────────
 def _peer_ranks(ticker: str) -> tuple[float, float]:
     """Return (rsi_rank, momentum_rank) percentiles vs current S&P 500 peers."""

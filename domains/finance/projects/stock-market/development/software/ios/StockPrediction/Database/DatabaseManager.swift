@@ -65,6 +65,48 @@ final class DatabaseManager {
             }
         }
 
+        migrator.registerMigration("v2") { db in
+            try db.create(table: "video_sources", ifNotExists: true) { t in
+                t.column("id", .text).primaryKey()
+                t.column("url", .text).notNull().unique()
+                t.column("videoId", .text).notNull()
+                t.column("title", .text).notNull()
+                t.column("channelName", .text).notNull()
+                t.column("channelId", .text)
+                t.column("speakerName", .text)
+                t.column("publishedAt", .text)
+                t.column("durationSec", .integer)
+                t.column("viewCount", .integer)
+                t.column("status", .text).notNull().defaults(to: "pending")
+                t.column("errorMsg", .text)
+                t.column("transcriptModel", .text)
+                t.column("fullText", .text)
+                t.column("createdAt", .datetime).notNull()
+            }
+            try db.create(table: "video_signals", ifNotExists: true) { t in
+                t.column("id", .text).primaryKey()
+                t.column("videoId", .text).notNull()
+                t.column("ticker", .text)
+                t.column("parameterName", .text).notNull()
+                t.column("domain", .text).notNull()
+                t.column("direction", .text).notNull()
+                t.column("weight", .integer).notNull()
+                t.column("confidence", .double).notNull()
+                t.column("keyQuote", .text)
+                t.column("extractedAt", .datetime).notNull()
+            }
+            try db.create(table: "channel_tracks", ifNotExists: true) { t in
+                t.column("channelId", .text).primaryKey()
+                t.column("channelName", .text).notNull()
+                t.column("speakerName", .text)
+                t.column("autoProcess", .boolean).notNull().defaults(to: true)
+                t.column("timeRangeYears", .integer).notNull().defaults(to: 5)
+                t.column("createdAt", .datetime).notNull()
+            }
+            try db.create(index: "video_signals_videoId", on: "video_signals", columns: ["videoId"], ifNotExists: true)
+            try db.create(index: "video_signals_ticker", on: "video_signals", columns: ["ticker"], ifNotExists: true)
+        }
+
         try migrator.migrate(dbQueue)
     }
 
@@ -181,6 +223,104 @@ final class DatabaseManager {
     func removeHolding(ticker: String) throws {
         try dbQueue.write { db in
             try PortfolioHolding.filter(Column("ticker") == ticker.uppercased()).deleteAll(db)
+        }
+    }
+
+    // MARK: - Video Sources
+
+    func saveVideoSource(_ v: VideoSourceRecord) throws {
+        try dbQueue.write { db in
+            var record = v
+            try record.save(db)
+        }
+    }
+
+    func updateVideoSourceStatus(id: String, status: String, errorMsg: String?, fullText: String?) throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                     UPDATE video_sources
+                     SET status = :status, errorMsg = :errorMsg, fullText = :fullText
+                     WHERE id = :id
+                     """,
+                arguments: ["status": status, "errorMsg": errorMsg, "fullText": fullText, "id": id]
+            )
+        }
+    }
+
+    func getVideoSources(limit: Int = 20) throws -> [VideoSourceRecord] {
+        try dbQueue.read { db in
+            try VideoSourceRecord
+                .order(Column("createdAt").desc)
+                .limit(limit)
+                .fetchAll(db)
+        }
+    }
+
+    // MARK: - Video Signals
+
+    func saveVideoSignals(_ signals: [VideoSignalRecord]) throws {
+        try dbQueue.write { db in
+            // PersistableRecord.encode(to:) excludes join helpers automatically
+            for var s in signals { try s.save(db) }
+        }
+    }
+
+    func getVideoSignals(ticker: String?, days: Int?) throws -> [VideoSignalRecord] {
+        try dbQueue.read { db in
+            var request = VideoSignalRecord
+                .order(Column("extractedAt").desc)
+
+            if let ticker = ticker, !ticker.isEmpty {
+                request = request.filter(Column("ticker") == ticker.uppercased())
+            }
+            if let days = days, days > 0 {
+                let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
+                request = request.filter(Column("extractedAt") >= cutoff)
+            }
+
+            var records = try request.limit(100).fetchAll(db)
+
+            // Enrich with video metadata via a secondary lookup
+            let videoIds = Array(Set(records.map(\.videoId)))
+            if !videoIds.isEmpty {
+                let sources = try VideoSourceRecord
+                    .filter(videoIds.contains(Column("id")))
+                    .fetchAll(db)
+                let sourceMap = Dictionary(uniqueKeysWithValues: sources.map { ($0.id, $0) })
+                records = records.map { r in
+                    var enriched = r
+                    if let src = sourceMap[r.videoId] {
+                        enriched.videoTitle = src.title
+                        enriched.channelName = src.channelName
+                        enriched.publishedAt = src.publishedAt
+                    }
+                    return enriched
+                }
+            }
+
+            return records
+        }
+    }
+
+    // MARK: - Channel Tracks
+
+    func saveChannelTrack(_ ct: ChannelTrackRecord) throws {
+        try dbQueue.write { db in
+            var record = ct
+            try record.save(db)
+        }
+    }
+
+    func getChannelTracks() throws -> [ChannelTrackRecord] {
+        try dbQueue.read { db in
+            try ChannelTrackRecord.order(Column("createdAt").desc).fetchAll(db)
+        }
+    }
+
+    func removeChannelTrack(channelId: String) throws {
+        try dbQueue.write { db in
+            try ChannelTrackRecord.filter(Column("channelId") == channelId).deleteAll(db)
         }
     }
 }

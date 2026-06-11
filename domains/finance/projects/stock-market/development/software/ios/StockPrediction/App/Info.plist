@@ -70,6 +70,20 @@
 				<key>NSIncludesSubdomains</key>
 				<true/>
 			</dict>
+			<key>youtube.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+			<key>googlevideo.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<false/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
 		</dict>
 	</dict>
 	<key>UIApplicationSceneManifest</key>
@@ -79,6 +93,10 @@
 		<key>UISceneConfigurations</key>
 		<dict/>
 	</dict>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Used to transcribe YouTube video audio for market signal extraction.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Required by the speech recognition framework to process audio files.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

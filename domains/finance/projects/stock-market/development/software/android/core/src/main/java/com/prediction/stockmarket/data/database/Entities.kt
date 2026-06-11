@@ -62,3 +62,53 @@ data class PortfolioEntity(
     val costBasis: Double,
     val addedAt: Date
 )
+
+// ─── Video Intelligence Entities ─────────────────────────────────────────────
+
+@Entity(tableName = "video_sources")
+data class VideoSourceEntity(
+    @PrimaryKey val id: String,
+    val url: String,
+    val videoId: String,
+    val title: String,
+    val channelName: String,
+    val channelId: String,
+    val speakerName: String,
+    val publishedAt: String,
+    val durationSec: Int,
+    val viewCount: Long,
+    /** pending | transcribing | extracting | done | error */
+    val status: String,
+    val errorMsg: String?,
+    val transcriptModel: String?,
+    val fullText: String?,
+    val createdAt: Date
+)
+
+@Entity(tableName = "video_signals", primaryKeys = ["id"])
+data class VideoSignalEntity(
+    val id: String,
+    val videoId: String,
+    val ticker: String?,
+    val parameterName: String,
+    val domain: String,
+    /** "up" or "down" */
+    val direction: String,
+    /** Signal strength 0–100 */
+    val weight: Int,
+    /** Speaker confidence 0.0–1.0 */
+    val confidence: Double,
+    val keyQuote: String,
+    val extractedAt: Date
+)
+
+@Entity(tableName = "channel_tracks")
+data class ChannelTrackEntity(
+    @PrimaryKey val channelId: String,
+    val channelName: String,
+    val speakerName: String,
+    val autoProcess: Boolean,
+    /** How many years back to scan for videos */
+    val timeRangeYears: Int,
+    val createdAt: Date
+)

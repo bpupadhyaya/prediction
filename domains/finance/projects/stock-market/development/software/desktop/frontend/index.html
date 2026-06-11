@@ -112,8 +112,55 @@
     canvas { width: 100% !important; }
     .disclaimer { color: var(--muted); font-size: 0.75rem; margin-top: 2rem; text-align: center; }
     .accuracy-badge { background: rgba(79,142,247,0.15); color: var(--accent); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
-    #view-home, #view-stock, #view-portfolio, #view-models, #view-guidance, #view-interactive { display: none; }
-    #view-home.active, #view-stock.active, #view-portfolio.active, #view-models.active, #view-guidance.active, #view-interactive.active { display: block; }
+    #view-home, #view-stock, #view-portfolio, #view-models, #view-guidance, #view-interactive, #view-intelligence { display: none; }
+    #view-home.active, #view-stock.active, #view-portfolio.active, #view-models.active, #view-guidance.active, #view-interactive.active, #view-intelligence.active { display: block; }
+
+    /* ── YVIS — YouTube Video Intelligence System ─────────────────────────── */
+    .yvis-section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1.25rem; }
+    .yvis-section h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.85rem; }
+    .yvis-hero { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .yvis-hero input[type=text] { flex: 1; min-width: 220px; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.65rem 1rem; border-radius: 8px; font-size: 0.95rem; outline: none; transition: border-color 0.15s; }
+    .yvis-hero input[type=text]:focus { border-color: var(--accent); }
+    .yvis-hero select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.65rem 0.75rem; border-radius: 8px; font-size: 0.88rem; outline: none; }
+    .yvis-hero button { background: var(--accent); border: none; color: #fff; padding: 0.65rem 1.4rem; border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: 600; transition: opacity 0.15s; white-space: nowrap; }
+    .yvis-hero button:not(:disabled):hover { opacity: 0.88; }
+    .yvis-hero button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .whisper-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    .whisper-table th { text-align: left; color: var(--muted); font-weight: 600; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+    .whisper-table td { padding: 0.42rem 0.6rem; border-bottom: 1px solid rgba(42,45,58,0.5); vertical-align: middle; }
+    .whisper-table tr:last-child td { border-bottom: none; }
+    .speaker-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+    .speaker-chip { font-size: 0.78rem; padding: 0.3rem 0.75rem; border-radius: 20px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; transition: border-color 0.15s, background 0.15s; display: flex; align-items: center; gap: 0.35rem; }
+    .speaker-chip:hover { border-color: var(--accent); }
+    .speaker-chip.tracked { border-color: var(--accent2); background: rgba(52,211,153,0.1); color: var(--accent2); }
+    .queue-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.55rem 0; border-bottom: 1px solid rgba(42,45,58,0.4); font-size: 0.82rem; }
+    .queue-item:last-child { border-bottom: none; }
+    .queue-item .qi-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+    .queue-item .qi-url { font-size: 0.73rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+    .status-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.72rem; font-weight: 600; }
+    .status-badge.queued        { background: rgba(251,191,36,0.15); color: var(--warn); }
+    .status-badge.fetching_metadata,
+    .status-badge.transcribing,
+    .status-badge.extracting_signals,
+    .status-badge.storing_transcript { background: rgba(79,142,247,0.12); color: var(--accent); }
+    .status-badge.done          { background: rgba(52,211,153,0.12); color: var(--accent2); }
+    .status-badge.error         { background: rgba(248,113,113,0.12); color: var(--danger); }
+    .sig-feed-item { padding: 0.75rem 0; border-bottom: 1px solid rgba(42,45,58,0.4); font-size: 0.82rem; }
+    .sig-feed-item:last-child { border-bottom: none; }
+    .sig-feed-row { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; margin-bottom: 0.3rem; }
+    .sig-feed-quote { color: var(--muted); font-size: 0.76rem; line-height: 1.45; font-style: italic; margin: 0.2rem 0; padding-left: 0.5rem; border-left: 2px solid var(--border); }
+    .sig-feed-meta { font-size: 0.73rem; color: var(--muted); }
+    .dir-badge { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 4px; font-size: 0.72rem; font-weight: 700; }
+    .dir-badge.up   { background: rgba(52,211,153,0.15); color: #2dd4a0; }
+    .dir-badge.down { background: rgba(248,113,113,0.15); color: #f87171; }
+    .domain-badge { display: inline-block; padding: 0.12rem 0.4rem; border-radius: 4px; font-size: 0.7rem; background: rgba(79,142,247,0.1); color: var(--accent); }
+    .ticker-badge { display: inline-block; padding: 0.12rem 0.45rem; border-radius: 4px; font-size: 0.73rem; font-weight: 700; background: rgba(100,116,139,0.15); color: var(--text); }
+    .intel-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; }
+    .intel-card-header { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+    .intel-strength-bar { height: 5px; background: var(--border); border-radius: 3px; margin-top: 0.4rem; }
+    .intel-strength-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+    .intel-strength-fill.up   { background: var(--accent2); }
+    .intel-strength-fill.down { background: var(--danger); }
     .ticker-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
     .ticker-bar input { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 0.75rem; border-radius: 8px; font-size: 0.95rem; width: 200px; }
     .ticker-bar button { background: var(--accent); border: none; color: #fff; padding: 0.5rem 1.1rem; border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: opacity 0.15s; }
@@ -411,6 +458,7 @@
       <button onclick="showView('guidance')">Guidance</button>
       <button onclick="showView('models')">Models</button>
       <button onclick="showView('interactive')">Interactive</button>
+      <button onclick="showView('intelligence')">Intelligence</button>
     </nav>
   </header>
 
@@ -565,6 +613,125 @@
       <div id="ip-save-msg" style="display:none"></div>
 
       <div id="ip-groups"></div>
+    </div>
+
+    <!-- ── Video Intelligence (YVIS) ─────────────────────────────────────────── -->
+    <div id="view-intelligence">
+      <h2 style="margin-bottom:0.25rem">Video Intelligence</h2>
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem">
+        Paste a YouTube URL to extract market signals from audio. Track channels, analyze influential voices,
+        and feed insights directly into the prediction engine.
+      </p>
+
+      <!-- Hero: URL input -->
+      <div class="yvis-section">
+        <h3>Process a YouTube Video</h3>
+        <div class="yvis-hero">
+          <input type="text" id="yvis-url" placeholder="https://www.youtube.com/watch?v=..." />
+          <select id="yvis-time-range">
+            <option value="1">Last 1 hour</option>
+            <option value="4">Last 4 hours</option>
+            <option value="24">Last 24 hours</option>
+            <option value="168">Last week</option>
+            <option value="720" selected>Last month</option>
+            <option value="2160">Last 3 months</option>
+            <option value="4380">Last 6 months</option>
+            <option value="8760">Last year</option>
+            <option value="17520">Last 2 years</option>
+            <option value="26280">Last 3 years</option>
+            <option value="43800">Last 5 years</option>
+            <option value="87600">Last 10 years</option>
+            <option value="131400">Last 15 years</option>
+            <option value="175200">Last 20 years</option>
+            <option value="0">All time</option>
+          </select>
+          <input type="text" id="yvis-speaker" placeholder="Speaker name (optional)" style="max-width:200px" />
+          <button id="yvis-process-btn" onclick="yvisProcessUrl()">Process</button>
+        </div>
+        <div id="yvis-process-status" style="margin-top:0.75rem;font-size:0.83rem;color:var(--muted)"></div>
+      </div>
+
+      <!-- Whisper models -->
+      <div class="yvis-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+          <h3 style="margin:0">Whisper Transcription Models</h3>
+          <button onclick="yvisLoadWhisperModels()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.3rem 0.7rem;border-radius:6px;cursor:pointer;font-size:0.78rem">Refresh</button>
+        </div>
+        <div id="yvis-whisper-models"><span style="color:var(--muted);font-size:0.85rem">Loading...</span></div>
+      </div>
+
+      <!-- Speakers / channel tracking -->
+      <div class="yvis-section">
+        <h3>Influential Speakers &amp; Channels</h3>
+        <p style="color:var(--muted);font-size:0.82rem;margin-bottom:0.75rem">Click to toggle auto-tracking. Tracked channels will be scanned for new videos automatically.</p>
+        <div id="yvis-speakers" class="speaker-chips"><span style="color:var(--muted);font-size:0.82rem">Loading...</span></div>
+        <div style="display:flex;gap:0.5rem;margin-top:1rem;flex-wrap:wrap">
+          <input type="text" id="yvis-custom-channel-id" placeholder="Channel ID" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.45rem 0.7rem;border-radius:6px;font-size:0.82rem;width:200px;outline:none" />
+          <input type="text" id="yvis-custom-channel-name" placeholder="Display name" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.45rem 0.7rem;border-radius:6px;font-size:0.82rem;width:180px;outline:none" />
+          <button onclick="yvisTrackCustomChannel()" style="background:var(--accent);border:none;color:#fff;padding:0.45rem 1rem;border-radius:6px;cursor:pointer;font-size:0.82rem">Track Channel</button>
+        </div>
+      </div>
+
+      <!-- YouTube search -->
+      <div class="yvis-section">
+        <h3>Search YouTube</h3>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+          <input type="text" id="yvis-search-q" placeholder="Search query or ticker (e.g. NVDA earnings 2025)" style="flex:1;min-width:200px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.55rem 0.8rem;border-radius:6px;font-size:0.85rem;outline:none" />
+          <button onclick="yvisSearch()" style="background:var(--accent);border:none;color:#fff;padding:0.55rem 1.2rem;border-radius:6px;cursor:pointer;font-size:0.85rem">Search</button>
+        </div>
+        <div id="yvis-search-results" style="margin-top:0.75rem"></div>
+      </div>
+
+      <!-- Processing queue -->
+      <div class="yvis-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+          <h3 style="margin:0">Processing Queue</h3>
+          <button onclick="yvisRefreshQueue()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.3rem 0.7rem;border-radius:6px;cursor:pointer;font-size:0.78rem">Refresh</button>
+        </div>
+        <div id="yvis-queue"><span style="color:var(--muted);font-size:0.85rem">No jobs yet.</span></div>
+      </div>
+
+      <!-- Signal feed -->
+      <div class="yvis-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.85rem">
+          <h3 style="margin:0">Recent Signals Feed</h3>
+          <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+            <input type="text" id="yvis-sig-ticker" placeholder="Filter ticker" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.6rem;border-radius:6px;font-size:0.8rem;width:100px;outline:none" />
+            <select id="yvis-sig-domain" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.5rem;border-radius:6px;font-size:0.8rem;outline:none">
+              <option value="">All domains</option>
+              <option value="macro">Macro</option>
+              <option value="technical">Technical</option>
+              <option value="fundamental">Fundamental</option>
+              <option value="cross_asset">Cross-asset</option>
+              <option value="sentiment">Sentiment</option>
+              <option value="geopolitical">Geopolitical</option>
+            </select>
+            <select id="yvis-sig-dir" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.5rem;border-radius:6px;font-size:0.8rem;outline:none">
+              <option value="">All directions</option>
+              <option value="up">Bullish</option>
+              <option value="down">Bearish</option>
+            </select>
+            <button onclick="yvisLoadSignals()" style="background:var(--accent);border:none;color:#fff;padding:0.3rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.8rem">Filter</button>
+          </div>
+        </div>
+        <div id="yvis-signals"><span style="color:var(--muted);font-size:0.85rem">No signals yet — process a video to get started.</span></div>
+      </div>
+
+      <!-- Intelligence summary per ticker -->
+      <div class="yvis-section">
+        <h3>Ticker Intelligence Summary</h3>
+        <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap">
+          <input type="text" id="yvis-intel-ticker" placeholder="Ticker (e.g. NVDA)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.5rem 0.75rem;border-radius:6px;font-size:0.85rem;width:140px;outline:none;text-transform:uppercase" />
+          <select id="yvis-intel-days" style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:0.5rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none">
+            <option value="7">7 days</option>
+            <option value="30" selected>30 days</option>
+            <option value="90">90 days</option>
+            <option value="365">1 year</option>
+          </select>
+          <button onclick="yvisLoadIntelligence()" style="background:var(--accent);border:none;color:#fff;padding:0.5rem 1.1rem;border-radius:6px;cursor:pointer;font-size:0.85rem">Analyze</button>
+        </div>
+        <div id="yvis-intelligence"><span style="color:var(--muted);font-size:0.85rem">Enter a ticker to see aggregated video intelligence.</span></div>
+      </div>
     </div>
 
     <p class="disclaimer">
@@ -807,17 +974,35 @@
       getHistory:      (ticker, horizon = "1w", days = 60) => apiFetch(`/guidance/history/${ticker}?horizon=${horizon}&days=${days}`),
       addSignal:       (data) => apiFetch("/guidance/signal", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) }),
       deleteSignal:    (id) => apiFetch(`/guidance/signal/${id}`, { method:"DELETE" }),
+
+      // YVIS endpoints
+      yvisProcess:      (data) => apiFetch("/video-intelligence/process", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) }),
+      yvisJobStatus:    (id) => apiFetch(`/video-intelligence/process/${id}/status`),
+      yvisVideos:       () => apiFetch("/video-intelligence/videos"),
+      yvisDeleteVideo:  (id) => apiFetch(`/video-intelligence/videos/${id}`, { method:"DELETE" }),
+      yvisSignals:      (params) => apiFetch(`/video-intelligence/signals?${new URLSearchParams(params)}`),
+      yvisApply:        (data) => apiFetch("/video-intelligence/signals/apply", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) }),
+      yvisTrackChannel: (data) => apiFetch("/video-intelligence/channels/track", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) }),
+      yvisChannels:     () => apiFetch("/video-intelligence/channels"),
+      yvisUntrack:      (id) => apiFetch(`/video-intelligence/channels/${id}`, { method:"DELETE" }),
+      yvisSearch:       (data) => apiFetch("/video-intelligence/search", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data) }),
+      yvisQueue:        () => apiFetch("/video-intelligence/queue/status"),
+      yvisWhisperModels:() => apiFetch("/video-intelligence/whisper-models"),
+      yvisWhisperDl:    (id) => apiFetch(`/video-intelligence/whisper-models/${id}/download`, { method:"POST" }),
+      yvisSpeakers:     () => apiFetch("/video-intelligence/speakers"),
+      yvisIntelligence: (ticker, days) => apiFetch(`/video-intelligence/intelligence/${ticker}?time_range_days=${days}`),
     };
 
     // ── Navigation ─────────────────────────────────────────────────────────────
-    const _VIEWS = ["home", "stock", "portfolio", "guidance", "models", "interactive"];
+    const _VIEWS = ["home", "stock", "portfolio", "guidance", "models", "interactive", "intelligence"];
     function showView(view) {
       document.querySelectorAll("[id^=view-]").forEach(el => el.classList.remove("active"));
       document.querySelectorAll("nav button").forEach((b, i) => b.classList.toggle("active", _VIEWS[i] === view));
       document.getElementById("view-" + view).classList.add("active");
-      if (view === "models")      loadModelCatalog();
-      if (view === "guidance")    loadGuidanceView();
-      if (view === "interactive") ipOnViewSwitch();
+      if (view === "models")       loadModelCatalog();
+      if (view === "guidance")     loadGuidanceView();
+      if (view === "interactive")  ipOnViewSwitch();
+      if (view === "intelligence") yvisOnViewSwitch();
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
@@ -2444,6 +2629,388 @@
         ipRenderHeader();
         ipRenderGroups();
       }
+    }
+
+    // ── YVIS — YouTube Video Intelligence System ──────────────────────────────
+    let _yvisQueuePoller = null;
+    const _yvisActiveJobs = new Set();
+
+    function yvisOnViewSwitch() {
+      yvisLoadWhisperModels();
+      yvisLoadSpeakers();
+      yvisLoadSignals();
+      yvisRefreshQueue();
+    }
+
+    // ── Process URL ────────────────────────────────────────────────────────────
+    async function yvisProcessUrl() {
+      const url = document.getElementById("yvis-url").value.trim();
+      if (!url) { _showToast("Paste a YouTube URL first", "error"); return; }
+      const speaker = document.getElementById("yvis-speaker").value.trim() || null;
+      const btn = document.getElementById("yvis-process-btn");
+      const statusEl = document.getElementById("yvis-process-status");
+      btn.disabled = true;
+      statusEl.innerHTML = '<span class="loading-spinner"></span>Queuing video...';
+      try {
+        const job = await api.yvisProcess({ url, speaker_name: speaker, auto_apply_signals: false });
+        statusEl.innerHTML = `<span style="color:var(--accent2)">Queued!</span> Job ID: <code style="font-size:0.78rem">${job.id}</code> — check the queue below for progress.`;
+        document.getElementById("yvis-url").value = "";
+        _yvisActiveJobs.add(job.id);
+        _yvisStartQueuePoller();
+      } catch (e) {
+        statusEl.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function _yvisStartQueuePoller() {
+      if (_yvisQueuePoller) return;
+      _yvisQueuePoller = setInterval(async () => {
+        await yvisRefreshQueue();
+        // Stop polling when all active jobs are done/error
+        const allDone = [..._yvisActiveJobs].every(id => {
+          const el = document.querySelector(`[data-job-id="${id}"] .status-badge`);
+          if (!el) return true;
+          return el.classList.contains("done") || el.classList.contains("error");
+        });
+        if (allDone && _yvisActiveJobs.size > 0) {
+          clearInterval(_yvisQueuePoller);
+          _yvisQueuePoller = null;
+          _yvisActiveJobs.clear();
+          yvisLoadSignals();
+        }
+      }, 4000);
+    }
+
+    // ── Whisper models ─────────────────────────────────────────────────────────
+    async function yvisLoadWhisperModels() {
+      const el = document.getElementById("yvis-whisper-models");
+      try {
+        const data = await api.yvisWhisperModels();
+        if (!data.models || data.models.length === 0) {
+          el.innerHTML = '<span style="color:var(--muted)">No models listed.</span>';
+          return;
+        }
+        let html = `<table class="whisper-table">
+          <thead><tr>
+            <th>Model</th><th>Quality</th><th>Size</th><th>Status</th><th></th>
+          </tr></thead><tbody>`;
+        for (const m of data.models) {
+          const statusHtml = m.active
+            ? '<span class="status-badge done">Active</span>'
+            : m.downloaded
+              ? '<span class="status-badge" style="background:rgba(79,142,247,0.1);color:var(--accent)">Downloaded</span>'
+              : '<span style="color:var(--muted);font-size:0.78rem">Not downloaded</span>';
+          const btnHtml = m.downloaded
+            ? '<span style="color:var(--muted);font-size:0.78rem">—</span>'
+            : `<button onclick="yvisDownloadWhisperModel('${m.id}')" style="background:var(--accent);border:none;color:#fff;padding:0.25rem 0.7rem;border-radius:5px;cursor:pointer;font-size:0.78rem">Download</button>`;
+          html += `<tr>
+            <td><strong>${m.label}</strong></td>
+            <td style="color:var(--muted)">${m.quality}</td>
+            <td style="color:var(--muted)">${m.sizeGB >= 1 ? m.sizeGB.toFixed(1) + ' GB' : Math.round(m.sizeGB * 1000) + ' MB'}</td>
+            <td>${statusHtml}</td>
+            <td>${btnHtml}</td>
+          </tr>`;
+        }
+        html += "</tbody></table>";
+        el.innerHTML = html;
+      } catch (e) {
+        el.innerHTML = `<span style="color:var(--danger)">Failed to load whisper models: ${e.message}</span>`;
+      }
+    }
+
+    async function yvisDownloadWhisperModel(modelId) {
+      try {
+        await api.yvisWhisperDl(modelId);
+        _showToast(`Downloading ${modelId} in background. This may take a few minutes.`);
+        setTimeout(yvisLoadWhisperModels, 3000);
+      } catch (e) {
+        _showToast(`Download failed: ${e.message}`, "error");
+      }
+    }
+
+    // ── Speakers ───────────────────────────────────────────────────────────────
+    async function yvisLoadSpeakers() {
+      const el = document.getElementById("yvis-speakers");
+      try {
+        const data = await api.yvisSpeakers();
+        if (!data.speakers || data.speakers.length === 0) {
+          el.innerHTML = '<span style="color:var(--muted)">No speakers.</span>';
+          return;
+        }
+        el.innerHTML = data.speakers.map(s => `
+          <span class="speaker-chip ${s.is_tracked ? 'tracked' : ''}"
+                onclick="yvisToggleSpeaker(this, '${s.channel_id}', '${s.name}', ${s.is_tracked})"
+                title="${s.tickers.join(', ')}">
+            ${s.is_tracked ? '&#10003; ' : ''}${s.name}
+          </span>`).join("");
+      } catch (e) {
+        el.innerHTML = `<span style="color:var(--danger)">Failed to load speakers: ${e.message}</span>`;
+      }
+    }
+
+    async function yvisToggleSpeaker(el, channelId, name, isTracked) {
+      try {
+        if (isTracked) {
+          await api.yvisUntrack(channelId);
+          _showToast(`Stopped tracking ${name}`);
+        } else {
+          await api.yvisTrackChannel({ channel_id: channelId, channel_name: name, speaker_name: name });
+          _showToast(`Now tracking ${name}`);
+        }
+        yvisLoadSpeakers();
+      } catch (e) {
+        _showToast(`Failed: ${e.message}`, "error");
+      }
+    }
+
+    async function yvisTrackCustomChannel() {
+      const channelId = document.getElementById("yvis-custom-channel-id").value.trim();
+      const channelName = document.getElementById("yvis-custom-channel-name").value.trim() || channelId;
+      if (!channelId) { _showToast("Enter a channel ID", "error"); return; }
+      try {
+        await api.yvisTrackChannel({ channel_id: channelId, channel_name: channelName });
+        _showToast(`Tracking channel: ${channelName}`);
+        document.getElementById("yvis-custom-channel-id").value = "";
+        document.getElementById("yvis-custom-channel-name").value = "";
+        yvisLoadSpeakers();
+      } catch (e) {
+        _showToast(`Failed: ${e.message}`, "error");
+      }
+    }
+
+    // ── YouTube search ─────────────────────────────────────────────────────────
+    async function yvisSearch() {
+      const q = document.getElementById("yvis-search-q").value.trim();
+      if (!q) { _showToast("Enter a search query", "error"); return; }
+      const el = document.getElementById("yvis-search-results");
+      el.innerHTML = '<span class="loading-spinner"></span><span style="color:var(--muted);font-size:0.82rem">Searching...</span>';
+      try {
+        const data = await api.yvisSearch({ query: q, max_results: 20 });
+        if (!data.results || data.results.length === 0) {
+          el.innerHTML = '<span style="color:var(--muted);font-size:0.82rem">No results found.</span>';
+          return;
+        }
+        let html = '<div style="max-height:320px;overflow-y:auto">';
+        for (const r of data.results) {
+          const dur = r.duration_sec ? _yvisFormatDur(r.duration_sec) : "";
+          html += `<div style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.6rem 0;border-bottom:1px solid rgba(42,45,58,0.4)">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:0.83rem;font-weight:600;color:var(--text);margin-bottom:0.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_esc(r.title)}</div>
+              <div style="font-size:0.75rem;color:var(--muted)">${_esc(r.channel_name || "")} ${dur ? '· ' + dur : ''} ${r.published_at ? '· ' + _yvisRelDate(r.published_at) : ''}</div>
+            </div>
+            <div style="display:flex;gap:0.4rem;flex-shrink:0">
+              <button onclick="document.getElementById('yvis-url').value='${_esc(r.url)}';showView('intelligence')" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.2rem 0.55rem;border-radius:5px;cursor:pointer;font-size:0.72rem" title="Use this URL">Use</button>
+              <button onclick="yvisProcessSearchResult('${_esc(r.url)}')" style="background:var(--accent);border:none;color:#fff;padding:0.2rem 0.55rem;border-radius:5px;cursor:pointer;font-size:0.72rem">Process</button>
+            </div>
+          </div>`;
+        }
+        html += "</div>";
+        el.innerHTML = html;
+      } catch (e) {
+        el.innerHTML = `<span style="color:var(--danger);font-size:0.82rem">Search failed: ${e.message}</span>`;
+      }
+    }
+
+    async function yvisProcessSearchResult(url) {
+      try {
+        const job = await api.yvisProcess({ url, auto_apply_signals: false });
+        _showToast("Video queued for processing");
+        _yvisActiveJobs.add(job.id);
+        _yvisStartQueuePoller();
+        yvisRefreshQueue();
+      } catch (e) {
+        _showToast(`Failed: ${e.message}`, "error");
+      }
+    }
+
+    // ── Queue ──────────────────────────────────────────────────────────────────
+    async function yvisRefreshQueue() {
+      const el = document.getElementById("yvis-queue");
+      try {
+        const data = await api.yvisQueue();
+        if (!data.jobs || data.jobs.length === 0) {
+          el.innerHTML = '<span style="color:var(--muted);font-size:0.85rem">No jobs yet.</span>';
+          return;
+        }
+        const countHtml = `<div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.5rem">
+          Total: ${data.counts.total} · Done: ${data.counts.done} · Processing: ${data.counts.processing} · Error: ${data.counts.error}
+        </div>`;
+        const itemsHtml = data.jobs.slice(0, 20).map(j => {
+          const statusCls = j.status.replace(/_/g, "_");
+          return `<div class="queue-item" data-job-id="${j.job_id}">
+            <span class="status-badge ${statusCls}">${_yvisStatusLabel(j.status)}</span>
+            <div style="flex:1;min-width:0">
+              <div class="qi-url">${_esc(j.url || "")}</div>
+              ${j.signal_count !== undefined ? `<div style="font-size:0.72rem;color:var(--accent2);margin-top:0.1rem">${j.signal_count} signals extracted</div>` : ""}
+              ${j.error ? `<div style="font-size:0.72rem;color:var(--danger);margin-top:0.1rem">${_esc(j.error)}</div>` : ""}
+            </div>
+            <span style="font-size:0.72rem;color:var(--muted);flex-shrink:0">${j.created_at ? _yvisRelDate(j.created_at) : ""}</span>
+          </div>`;
+        }).join("");
+        el.innerHTML = countHtml + itemsHtml;
+      } catch (e) {
+        el.innerHTML = `<span style="color:var(--danger);font-size:0.82rem">Failed: ${e.message}</span>`;
+      }
+    }
+
+    // ── Signals feed ───────────────────────────────────────────────────────────
+    async function yvisLoadSignals() {
+      const el = document.getElementById("yvis-signals");
+      const ticker  = document.getElementById("yvis-sig-ticker")?.value.trim().toUpperCase() || "";
+      const domain  = document.getElementById("yvis-sig-domain")?.value || "";
+      const dir     = document.getElementById("yvis-sig-dir")?.value || "";
+      const params  = { time_range_days: 90, min_confidence: 0.5, limit: 50 };
+      if (ticker) params.ticker = ticker;
+      if (domain) params.domain = domain;
+      if (dir)    params.direction = dir;
+      el.innerHTML = '<span class="loading-spinner"></span><span style="color:var(--muted);font-size:0.82rem">Loading signals...</span>';
+      try {
+        const data = await api.yvisSignals(params);
+        if (!data.signals || data.signals.length === 0) {
+          el.innerHTML = '<span style="color:var(--muted);font-size:0.85rem">No signals found. Process a video to generate signals.</span>';
+          return;
+        }
+        el.innerHTML = data.signals.map(s => {
+          const tBadge = s.ticker ? `<span class="ticker-badge">${s.ticker}</span>` : '';
+          const dBadge = `<span class="domain-badge">${s.domain}</span>`;
+          const dirBadge = `<span class="dir-badge ${s.direction}">${s.direction === 'up' ? '▲ Bullish' : '▼ Bearish'}</span>`;
+          const weight  = `<span style="font-size:0.72rem;color:var(--muted)">w:${s.weight}</span>`;
+          const conf    = `<span style="font-size:0.72rem;color:var(--muted)">${Math.round(s.confidence * 100)}% conf</span>`;
+          const quote   = s.key_quote ? `<div class="sig-feed-quote">"${_esc(s.key_quote)}"</div>` : '';
+          const meta    = `<div class="sig-feed-meta">${_esc(s.video_title || '')}${s.channel_name ? ' · ' + _esc(s.channel_name) : ''}${s.published_at ? ' · ' + _yvisRelDate(s.published_at) : ''}</div>`;
+          const applyBtn= `<button onclick="yvisApplySignal('${s.id}')" style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);color:var(--accent2);padding:0.15rem 0.5rem;border-radius:4px;cursor:pointer;font-size:0.72rem;margin-left:auto">Apply</button>`;
+          return `<div class="sig-feed-item">
+            <div class="sig-feed-row">${tBadge}${dBadge}${dirBadge}${weight}${conf}${applyBtn}</div>
+            ${quote}${meta}
+          </div>`;
+        }).join("");
+      } catch (e) {
+        el.innerHTML = `<span style="color:var(--danger);font-size:0.82rem">Failed: ${e.message}</span>`;
+      }
+    }
+
+    async function yvisApplySignal(signalId) {
+      try {
+        await api.yvisApply({ signal_id: signalId, expires_days: 14 });
+        _showToast("Signal applied to prediction engine");
+      } catch (e) {
+        _showToast(`Apply failed: ${e.message}`, "error");
+      }
+    }
+
+    // ── Intelligence summary ───────────────────────────────────────────────────
+    async function yvisLoadIntelligence() {
+      const ticker = document.getElementById("yvis-intel-ticker").value.trim().toUpperCase();
+      const days   = parseInt(document.getElementById("yvis-intel-days").value, 10);
+      if (!ticker) { _showToast("Enter a ticker", "error"); return; }
+      const el = document.getElementById("yvis-intelligence");
+      el.innerHTML = '<span class="loading-spinner"></span><span style="color:var(--muted);font-size:0.82rem">Analyzing...</span>';
+      try {
+        const data = await api.yvisIntelligence(ticker, days);
+        if (!data.signal_count || data.signal_count === 0) {
+          el.innerHTML = `<span style="color:var(--muted);font-size:0.85rem">No signals found for <strong>${ticker}</strong> in the last ${days} days. Process relevant videos first.</span>`;
+          return;
+        }
+        const dir   = data.direction || "up";
+        const str   = Math.round((data.strength || 0) * 100);
+        const dirColor = dir === "up" ? "var(--accent2)" : "var(--danger)";
+        const dirLabel = dir === "up" ? "▲ Bullish" : "▼ Bearish";
+        let html = `<div class="intel-card">
+          <div class="intel-card-header">
+            <span class="ticker-badge" style="font-size:0.95rem">${ticker}</span>
+            <span class="dir-badge ${dir}" style="font-size:0.82rem">${dirLabel}</span>
+            <span style="font-size:0.82rem;color:var(--muted)">${data.signal_count} signal${data.signal_count !== 1 ? 's' : ''} · ${days}d window</span>
+            <button onclick="yvisApplyAllForTicker('${ticker}', ${days})" style="margin-left:auto;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);color:var(--accent2);padding:0.3rem 0.9rem;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600">Apply to Prediction</button>
+          </div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-bottom:0.35rem">Consensus strength: ${str}%</div>
+          <div class="intel-strength-bar"><div class="intel-strength-fill ${dir}" style="width:${str}%"></div></div>
+        </div>`;
+
+        if (data.top_signals && data.top_signals.length > 0) {
+          html += `<div style="font-size:0.82rem;font-weight:600;color:var(--muted);margin-bottom:0.5rem;margin-top:0.75rem">Top Supporting Signals</div>`;
+          html += data.top_signals.map(s => {
+            const dBadge  = `<span class="domain-badge">${s.domain}</span>`;
+            const dirBadge = `<span class="dir-badge ${s.direction}">${s.direction === 'up' ? '▲' : '▼'}</span>`;
+            const quote   = s.key_quote ? `<div class="sig-feed-quote">"${_esc(s.key_quote)}"</div>` : '';
+            return `<div class="sig-feed-item">
+              <div class="sig-feed-row">${dBadge}${dirBadge}<span style="font-size:0.75rem;color:var(--muted)">${s.parameter_name}</span><span style="font-size:0.72rem;color:var(--muted);margin-left:auto">w:${s.weight} · ${Math.round(s.confidence * 100)}%</span></div>
+              ${quote}
+              <div class="sig-feed-meta">${_esc(s.video_title || '')}${s.channel ? ' · ' + _esc(s.channel) : ''}${s.speaker ? ' · ' + _esc(s.speaker) : ''}</div>
+            </div>`;
+          }).join("");
+        }
+        el.innerHTML = html;
+      } catch (e) {
+        el.innerHTML = `<span style="color:var(--danger);font-size:0.82rem">Failed: ${e.message}</span>`;
+      }
+    }
+
+    async function yvisApplyAllForTicker(ticker, days) {
+      try {
+        // Fetch all signals for the ticker and apply each one
+        const data = await api.yvisSignals({ ticker, time_range_days: days, min_confidence: 0.5, limit: 50 });
+        if (!data.signals || data.signals.length === 0) {
+          _showToast("No signals to apply", "error");
+          return;
+        }
+        let applied = 0;
+        for (const s of data.signals) {
+          try {
+            await api.yvisApply({ signal_id: s.id, expires_days: 14 });
+            applied++;
+          } catch { /* skip individual failures */ }
+        }
+        _showToast(`Applied ${applied} signals for ${ticker} to prediction engine`);
+      } catch (e) {
+        _showToast(`Apply failed: ${e.message}`, "error");
+      }
+    }
+
+    // ── YVIS helpers ───────────────────────────────────────────────────────────
+    function _esc(s) {
+      return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+    }
+
+    function _yvisFormatDur(sec) {
+      if (!sec) return "";
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    }
+
+    function _yvisRelDate(raw) {
+      if (!raw) return "";
+      try {
+        // Handle YYYYMMDD from yt-dlp
+        let d;
+        if (/^\d{8}$/.test(raw)) {
+          d = new Date(raw.slice(0,4) + '-' + raw.slice(4,6) + '-' + raw.slice(6,8));
+        } else {
+          d = new Date(raw);
+        }
+        if (isNaN(d)) return raw;
+        const diff = Date.now() - d.getTime();
+        const days = Math.floor(diff / 86400000);
+        if (days === 0) return "today";
+        if (days === 1) return "yesterday";
+        if (days < 30)  return `${days}d ago`;
+        if (days < 365) return `${Math.floor(days/30)}mo ago`;
+        return `${Math.floor(days/365)}y ago`;
+      } catch { return raw; }
+    }
+
+    function _yvisStatusLabel(s) {
+      const labels = {
+        queued: "Queued", fetching_metadata: "Fetching metadata",
+        transcribing: "Transcribing", storing_transcript: "Storing",
+        extracting_signals: "Extracting signals", done: "Done", error: "Error",
+      };
+      return labels[s] || s;
     }
 
     // ── Init ────────────────────────────────────────────────────────────────────

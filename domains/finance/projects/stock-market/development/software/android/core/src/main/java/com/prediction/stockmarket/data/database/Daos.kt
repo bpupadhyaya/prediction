@@ -2,6 +2,7 @@ package com.prediction.stockmarket.data.database
 
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
+import java.util.Date
 
 @Dao
 interface StockDao {
@@ -76,4 +77,51 @@ interface PortfolioDao {
 
     @Query("DELETE FROM portfolio WHERE ticker = :ticker")
     suspend fun remove(ticker: String)
+}
+
+// ─── Video Intelligence DAOs ──────────────────────────────────────────────────
+
+@Dao
+interface VideoSourceDao {
+    @Query("SELECT * FROM video_sources ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun getRecent(limit: Int = 20): List<VideoSourceEntity>
+
+    @Query("SELECT * FROM video_sources WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): VideoSourceEntity?
+
+    @Upsert
+    suspend fun upsert(v: VideoSourceEntity)
+
+    @Query("UPDATE video_sources SET status = :status, errorMsg = :errorMsg, fullText = :fullText WHERE id = :id")
+    suspend fun updateStatus(id: String, status: String, errorMsg: String?, fullText: String?)
+}
+
+@Dao
+interface VideoSignalDao {
+    @Query("SELECT * FROM video_signals WHERE videoId = :videoId")
+    suspend fun getByVideo(videoId: String): List<VideoSignalEntity>
+
+    @Query("""
+        SELECT vs.* FROM video_signals vs
+        JOIN video_sources src ON vs.videoId = src.id
+        WHERE (:ticker IS NULL OR vs.ticker = :ticker)
+          AND src.createdAt >= :cutoff
+        ORDER BY src.createdAt DESC
+    """)
+    suspend fun querySignals(ticker: String?, cutoff: Date): List<VideoSignalEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(signals: List<VideoSignalEntity>)
+}
+
+@Dao
+interface ChannelTrackDao {
+    @Query("SELECT * FROM channel_tracks ORDER BY createdAt DESC")
+    suspend fun getAll(): List<ChannelTrackEntity>
+
+    @Upsert
+    suspend fun upsert(ct: ChannelTrackEntity)
+
+    @Query("DELETE FROM channel_tracks WHERE channelId = :channelId")
+    suspend fun remove(channelId: String)
 }

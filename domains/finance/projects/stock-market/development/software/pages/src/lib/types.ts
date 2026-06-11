@@ -35,3 +35,63 @@ export interface AppSettings {
   llmModelId: string | null;
   llmDownloaded: boolean;
 }
+
+// ─── Video Intelligence System (YVIS) ───────────────────────────────────────
+
+export interface VideoSource {
+  id: string;
+  url: string;
+  videoId: string;
+  title: string;
+  channelName: string;
+  channelId: string;
+  speakerName: string;
+  publishedAt: string;   // ISO date
+  durationSec: number;
+  viewCount: number;
+  status: 'pending' | 'transcribing' | 'extracting' | 'done' | 'error';
+  errorMsg?: string;
+  transcriptModel?: string;
+  processedAt?: string;
+  createdAt: string;
+}
+
+export interface VideoTranscript {
+  videoId: string;
+  fullText: string;
+  chunks: Array<{ start: number; end: number; text: string }>;
+  wordCount: number;
+  language: string;
+  modelUsed: string;
+  transcribedAt: string;
+}
+
+export interface VideoSignal {
+  id: string;
+  videoId: string;
+  ticker: string | null;
+  parameterName: string;
+  domain: string;
+  direction: 'up' | 'down';
+  weight: number;       // 1-100
+  confidence: number;   // 0-1
+  keyQuote: string;
+  extractedAt: string;
+}
+
+export interface ChannelTrack {
+  channelId: string;
+  channelName: string;
+  speakerName: string;
+  autoProcess: boolean;
+  timeRangeYears: number;
+  createdAt: string;
+}
+
+export interface WhisperModelInfo {
+  id: string;
+  label: string;
+  sizeGB: number;
+  quality: string;
+  hfModelId: string;  // HuggingFace model ID for transformers.js
+}

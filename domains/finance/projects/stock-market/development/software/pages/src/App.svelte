@@ -3,18 +3,60 @@
   import HistoryTab from './components/HistoryTab.svelte';
   import SettingsTab from './components/SettingsTab.svelte';
   import OnnxPredictionCard from './components/OnnxPredictionCard.svelte';
+  import VideoIntelligenceTab from './components/VideoIntelligenceTab.svelte';
+  import type { VideoSignal } from './lib/types';
+  import { PARAMETERS } from './lib/parameters';
+  import { loadParamStates, saveParamStates } from './lib/store';
 
-  let activeTab: 'predict' | 'model' | 'history' | 'settings' = 'predict';
+  let activeTab: 'predict' | 'model' | 'history' | 'settings' | 'intelligence' = 'predict';
   let ticker = 'AAPL';
+
+  // When a YVIS signal is applied, inject it into the predict tab's parameter state
+  async function handleSignalApply(signal: VideoSignal) {
+    // Determine the ticker to update — prefer signal ticker, fall back to current
+    const targetTicker = signal.ticker ?? ticker;
+
+    // Load current states for the target ticker
+    let states = await loadParamStates(targetTicker);
+    if (!states) {
+      // Init defaults if no state exists yet
+      const s: Record<string, import('./lib/types').ParamState> = {};
+      for (const p of PARAMETERS) {
+        s[p.name] = { weight: 0, direction: 'neutral', value: null };
+      }
+      states = s;
+    }
+
+    // Find a matching parameter by name (case-insensitive) or use the parameterName directly if it matches
+    const matchKey = Object.keys(states).find(
+      k => k.toLowerCase() === signal.parameterName.toLowerCase()
+    ) ?? signal.parameterName;
+
+    states = {
+      ...states,
+      [matchKey]: {
+        weight: signal.weight,
+        direction: signal.direction,
+        value: states[matchKey]?.value ?? null,
+      },
+    };
+
+    await saveParamStates(targetTicker, states);
+
+    // Switch to predict tab and update ticker so user can see the applied signal
+    if (signal.ticker) ticker = signal.ticker;
+    activeTab = 'predict';
+  }
 </script>
 
 <header>
   <div class="brand">📈 Interactive Stock Predictor</div>
   <nav>
-    <button class:active={activeTab === 'predict'}  on:click={() => activeTab = 'predict'}>Predict</button>
-    <button class:active={activeTab === 'model'}    on:click={() => activeTab = 'model'}>Model</button>
-    <button class:active={activeTab === 'history'}  on:click={() => activeTab = 'history'}>History</button>
-    <button class:active={activeTab === 'settings'} on:click={() => activeTab = 'settings'}>Settings</button>
+    <button class:active={activeTab === 'predict'}      on:click={() => activeTab = 'predict'}>Predict</button>
+    <button class:active={activeTab === 'model'}        on:click={() => activeTab = 'model'}>Model</button>
+    <button class:active={activeTab === 'history'}      on:click={() => activeTab = 'history'}>History</button>
+    <button class:active={activeTab === 'intelligence'} on:click={() => activeTab = 'intelligence'}>Intelligence</button>
+    <button class:active={activeTab === 'settings'}     on:click={() => activeTab = 'settings'}>Settings</button>
   </nav>
 </header>
 
@@ -25,6 +67,8 @@
     <OnnxPredictionCard {ticker} />
   {:else if activeTab === 'history'}
     <HistoryTab />
+  {:else if activeTab === 'intelligence'}
+    <VideoIntelligenceTab onSignalApply={handleSignalApply} />
   {:else}
     <SettingsTab />
   {/if}

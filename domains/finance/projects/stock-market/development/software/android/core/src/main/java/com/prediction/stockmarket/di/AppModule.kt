@@ -9,6 +9,7 @@ import com.prediction.stockmarket.data.sync.MarketDataSourceManager
 import com.prediction.stockmarket.data.sync.StooqFetcher
 import com.prediction.stockmarket.data.sync.YahooFinanceFetcher
 import com.prediction.stockmarket.prediction.LLMInferenceEngine
+import com.prediction.stockmarket.videointelligence.VideoIntelligenceManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -25,7 +26,7 @@ object AppModule {
     @Provides @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
         Room.databaseBuilder(ctx, AppDatabase::class.java, "stock_prediction.db")
-            .fallbackToDestructiveMigration()
+            .addMigrations(AppDatabase.MIGRATION_1_2)
             .build()
 
     @Provides fun provideStockDao(db: AppDatabase): StockDao = db.stockDao()
@@ -33,6 +34,19 @@ object AppModule {
     @Provides fun providePredictionDao(db: AppDatabase): PredictionDao = db.predictionDao()
     @Provides fun provideWatchlistDao(db: AppDatabase): WatchlistDao = db.watchlistDao()
     @Provides fun providePortfolioDao(db: AppDatabase): PortfolioDao = db.portfolioDao()
+
+    // Video Intelligence DAOs
+    @Provides fun provideVideoSourceDao(db: AppDatabase): VideoSourceDao = db.videoSourceDao()
+    @Provides fun provideVideoSignalDao(db: AppDatabase): VideoSignalDao = db.videoSignalDao()
+    @Provides fun provideChannelTrackDao(db: AppDatabase): ChannelTrackDao = db.channelTrackDao()
+
+    @Provides @Singleton
+    fun provideVideoIntelligenceManager(
+        @ApplicationContext ctx: Context,
+        db: AppDatabase,
+        okHttpClient: OkHttpClient,
+        llmEngine: LLMInferenceEngine
+    ): VideoIntelligenceManager = VideoIntelligenceManager(ctx, db, okHttpClient, llmEngine)
 
     @Provides @Singleton
     fun provideOkHttp(): OkHttpClient = OkHttpClient.Builder()

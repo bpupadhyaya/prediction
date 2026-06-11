@@ -31,6 +31,10 @@ struct ContentView: View {
                 NavigationStack { WatchlistView().environmentObject(store) }
                     .tabItem { Label("Watchlist", systemImage: "star") }
                     .tag(4)
+
+                NavigationStack { VideoIntelligenceView() }
+                    .tabItem { Label("Intelligence", systemImage: "video.badge.waveform") }
+                    .tag(5)
             }
             .tint(.white)
             .toolbarBackground(Color(red: 0.051, green: 0.122, blue: 0.212), for: .tabBar)

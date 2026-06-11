@@ -180,6 +180,80 @@ def init_db() -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_ip_ticker ON interactive_predictions(ticker)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_ip_date   ON interactive_predictions(session_date)")
 
+    # ── YouTube Video Intelligence System (YVIS) ─────────────────────────────
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS video_sources (
+            id              VARCHAR PRIMARY KEY,
+            url             VARCHAR UNIQUE,
+            video_id        VARCHAR,
+            title           VARCHAR,
+            channel_name    VARCHAR,
+            channel_id      VARCHAR,
+            speaker_name    VARCHAR,
+            published_at    TIMESTAMP,
+            duration_sec    INTEGER,
+            view_count      BIGINT,
+            language        VARCHAR DEFAULT 'en',
+            processed_at    TIMESTAMP,
+            transcript_model VARCHAR,
+            status          VARCHAR DEFAULT 'pending',
+            error_msg       TEXT,
+            created_at      TIMESTAMP DEFAULT now()
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS transcripts (
+            video_id        VARCHAR PRIMARY KEY,
+            full_text       TEXT,
+            chunks_json     TEXT,
+            word_count      INTEGER,
+            language        VARCHAR,
+            model_used      VARCHAR,
+            transcribed_at  TIMESTAMP DEFAULT now()
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS video_signals (
+            id              VARCHAR PRIMARY KEY,
+            video_id        VARCHAR,
+            ticker          VARCHAR,
+            parameter_name  VARCHAR,
+            domain          VARCHAR,
+            direction       VARCHAR,
+            weight          DOUBLE,
+            confidence      DOUBLE,
+            key_quote       TEXT,
+            quote_ts_sec    INTEGER,
+            extracted_at    TIMESTAMP DEFAULT now()
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS channel_tracks (
+            channel_id      VARCHAR PRIMARY KEY,
+            channel_name    VARCHAR,
+            speaker_name    VARCHAR,
+            auto_process    BOOLEAN DEFAULT TRUE,
+            time_range_years INTEGER DEFAULT 5,
+            last_checked_at TIMESTAMP,
+            created_at      TIMESTAMP DEFAULT now()
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS signal_correlations (
+            id              VARCHAR PRIMARY KEY,
+            speaker_name    VARCHAR,
+            ticker          VARCHAR,
+            parameter_name  VARCHAR,
+            hist_accuracy   DOUBLE,
+            sample_size     INTEGER,
+            updated_at      TIMESTAMP DEFAULT now()
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_vs_ticker   ON video_signals(ticker)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_vs_video    ON video_signals(video_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_vsrc_channel ON video_sources(channel_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_vsrc_published ON video_sources(published_at)")
+
     # ── Migrations: add new columns to existing tables ────────────────────────
     _safe_alter(conn, "ALTER TABLE fundamentals ADD COLUMN short_ratio DOUBLE DEFAULT 0")
     _safe_alter(conn, "ALTER TABLE fundamentals ADD COLUMN short_pct_float DOUBLE DEFAULT 0")

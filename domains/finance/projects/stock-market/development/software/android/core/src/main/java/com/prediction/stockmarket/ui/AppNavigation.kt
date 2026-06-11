@@ -30,15 +30,17 @@ import com.prediction.stockmarket.ui.watchlist.WatchlistScreen
 import com.prediction.stockmarket.ui.prediction.StockPredictionHomeScreen
 import com.prediction.stockmarket.ui.prediction.InteractivePredictionScreen
 import com.prediction.stockmarket.ui.prediction.marketSectionIds
+import com.prediction.stockmarket.ui.videointelligence.VideoIntelligenceScreen
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
-    Tab("stockhome", "Home",      Icons.Default.Home),
-    Tab("market",    "Market",    Icons.Default.TrendingUp),
-    Tab("search",    "Lookup",    Icons.Default.Search),
-    Tab("portfolio", "Portfolio", Icons.Default.Work),
-    Tab("watchlist", "Watchlist", Icons.Default.Star),
+    Tab("stockhome",     "Home",         Icons.Default.Home),
+    Tab("market",        "Market",       Icons.Default.TrendingUp),
+    Tab("search",        "Lookup",       Icons.Default.Search),
+    Tab("portfolio",     "Portfolio",    Icons.Default.Work),
+    Tab("watchlist",     "Watchlist",    Icons.Default.Star),
+    Tab("intelligence",  "Intelligence", Icons.Default.VideoLibrary),
 )
 
 @Composable
@@ -110,6 +112,7 @@ fun AppNavigation() {
             }
             composable("portfolio") { PortfolioScreen(navController, padding) }
             composable("watchlist") { WatchlistScreen(navController, padding) }
+            composable("intelligence") { VideoIntelligenceScreen() }
             composable(
                 "stock/{ticker}",
                 arguments = listOf(navArgument("ticker") { type = NavType.StringType })

@@ -523,10 +523,9 @@ private fun TrackedSpeakersSection(
                 exit = shrinkVertically()
             ) {
                 Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    // Pre-seeded influential speakers hint
                     if (channels.isEmpty()) {
                         Text(
-                            "No speakers tracked yet. Tap + to add, or start with influential speakers below.",
+                            "No speakers tracked yet. Tap + to add a speaker relevant to what you're analyzing.",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.White.copy(alpha = 0.6f),
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
@@ -540,43 +539,6 @@ private fun TrackedSpeakersSection(
                         }
                     }
 
-                    Spacer(Modifier.height(8.dp))
-
-                    // Pre-seeded speakers quick-add row
-                    Text(
-                        "Quick add influential speakers:",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        INFLUENTIAL_SPEAKERS.forEach { (channelId, name) ->
-                            val alreadyTracked = channels.any { it.channelId == channelId }
-                            if (!alreadyTracked) {
-                                AssistChip(
-                                    onClick = { /* handled via dialog in parent */ },
-                                    label = {
-                                        Text(
-                                            name,
-                                            style = MaterialTheme.typography.labelSmall
-                                        )
-                                    },
-                                    colors = AssistChipDefaults.assistChipColors(
-                                        containerColor = Color(0xFF1A3D73),
-                                        labelColor = Color(0xFF90CAF9)
-                                    ),
-                                    border = AssistChipDefaults.assistChipBorder(
-                                        enabled = true,
-                                        borderColor = Color(0xFF4FC3F7).copy(alpha = 0.3f)
-                                    )
-                                )
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
                 }
             }
         }
@@ -898,7 +860,6 @@ private fun AddChannelDialog(
     var channelId by remember { mutableStateOf("") }
     var channelName by remember { mutableStateOf("") }
     var speakerName by remember { mutableStateOf("") }
-    var showPreSeeded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -960,36 +921,6 @@ private fun AddChannelDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Pre-seeded speakers quick select
-                TextButton(onClick = { showPreSeeded = !showPreSeeded }) {
-                    Text(
-                        if (showPreSeeded) "Hide influential speakers" else "Select from influential speakers",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF4FC3F7)
-                    )
-                }
-                if (showPreSeeded) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        INFLUENTIAL_SPEAKERS.forEach { (id, name) ->
-                            TextButton(
-                                onClick = {
-                                    channelId = id
-                                    speakerName = name
-                                    channelName = name
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    name,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF90CAF9),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
-                    }
-                }
             }
         },
         confirmButton = {

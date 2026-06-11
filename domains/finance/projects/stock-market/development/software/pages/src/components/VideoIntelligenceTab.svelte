@@ -8,19 +8,34 @@
     saveChannelTrack, getAllChannelTracks, removeChannelTrack,
     getVideoSetting, setVideoSetting,
   } from '../lib/video-intelligence-store';
-  import { WHISPER_MODELS, transcribeAudioBlob, getDefaultModelId } from '../lib/youtube-transcriber';
+  import {
+    WHISPER_MODELS, DEFAULT_MODEL_ID,
+    fetchYouTubeAudio, transcribeAudioBlob,
+    CF_WORKER_TEMPLATE,
+  } from '../lib/youtube-transcriber';
   import { extractSignalsFromTranscript } from '../lib/video-signal-extractor';
 
   export let onSignalApply: (signal: VideoSignal) => void = () => { /* no-op */ };
 
-  // ── File drop state ──────────────────────────────────────────────────────────
+  // ── Input mode ───────────────────────────────────────────────────────────────
+  // 'file' = drag-and-drop audio/video | 'url' = YouTube URL via CF Worker
+  let inputMode: 'file' | 'url' = 'file';
+
+  // ── File upload state ────────────────────────────────────────────────────────
   let droppedFile: File | null = null;
   let isDragging = false;
-
-  // Optional metadata the user can fill in (for labelling; not required)
   let metaTitle = '';
   let metaChannel = '';
-  let metaYouTubeUrl = '';   // reference link only — not fetched
+  let metaYouTubeUrl = '';   // reference link only in file mode
+
+  // ── YouTube URL state ────────────────────────────────────────────────────────
+  let urlInput = '';
+
+  // ── Cloudflare Worker state ──────────────────────────────────────────────────
+  let cfWorkerUrl = '';
+  let cfWorkerSaved = false;
+  let cfWorkerError = '';
+  let showCFTemplate = false;
 
   // ── Processing state ─────────────────────────────────────────────────────────
   let processing = false;
@@ -31,7 +46,7 @@
   let extractionTokens = '';
 
   // ── Model selection ──────────────────────────────────────────────────────────
-  let activeModelId = getDefaultModelId();
+  let activeModelId = DEFAULT_MODEL_ID;
 
   // ── Tracked channels ─────────────────────────────────────────────────────────
   let trackedChannels: ChannelTrack[] = [];
@@ -56,7 +71,7 @@
 
   // ── Signal feed ──────────────────────────────────────────────────────────────
   let signals: VideoSignal[] = [];
-  let signalTimeRange = '168';  // hours; default 1 week
+  let signalTimeRange = '168';
   let tickerFilter = '';
 
   const TIME_RANGE_OPTIONS = [
@@ -80,14 +95,18 @@
   // ── Mount ────────────────────────────────────────────────────────────────────
   onMount(async () => {
     try {
-      const [sources, tracks, savedModel] = await Promise.all([
+      const [sources, tracks, savedWorker, savedModel, savedMode] = await Promise.all([
         getAllVideoSources(),
         getAllChannelTracks(),
+        getVideoSetting('cfWorkerUrl'),
         getVideoSetting('activeWhisperModel'),
+        getVideoSetting('inputMode'),
       ]);
       videoSources = sources;
       trackedChannels = tracks;
+      if (savedWorker) cfWorkerUrl = savedWorker;
       if (savedModel) activeModelId = savedModel;
+      if (savedMode === 'url' || savedMode === 'file') inputMode = savedMode as 'file' | 'url';
       await refreshSignals();
     } catch (err) {
       console.error('YVIS: failed to load initial data', err);
@@ -100,16 +119,17 @@
     signals = await getAllSignals(ticker, days);
   }
 
+  async function switchMode(mode: 'file' | 'url') {
+    inputMode = mode;
+    processError = '';
+    processSuccess = '';
+    await setVideoSetting('inputMode', mode);
+  }
+
   // ── File drop / select ────────────────────────────────────────────────────────
 
-  function onDragover(e: DragEvent) {
-    e.preventDefault();
-    isDragging = true;
-  }
-
-  function onDragleave() {
-    isDragging = false;
-  }
+  function onDragover(e: DragEvent) { e.preventDefault(); isDragging = true; }
+  function onDragleave() { isDragging = false; }
 
   function onDrop(e: DragEvent) {
     e.preventDefault();
@@ -127,12 +147,11 @@
 
   function acceptFile(file: File) {
     if (!file.type.startsWith('audio/') && !file.type.startsWith('video/')) {
-      processError = `Unsupported file type: "${file.type}". Drop an audio or video file (mp3, mp4, m4a, webm, wav, ogg…)`;
+      processError = `Unsupported file type "${file.type}". Drop an audio or video file (mp3, mp4, m4a, webm, wav, ogg…)`;
       return;
     }
     processError = '';
     droppedFile = file;
-    // Auto-fill title from filename if empty
     if (!metaTitle) metaTitle = file.name.replace(/\.[^.]+$/, '');
   }
 
@@ -143,27 +162,59 @@
     metaYouTubeUrl = '';
   }
 
+  // ── CF Worker ─────────────────────────────────────────────────────────────────
+
+  async function saveCFWorker() {
+    cfWorkerError = '';
+    const url = cfWorkerUrl.trim();
+    if (!url) { cfWorkerError = 'Please enter a URL.'; return; }
+    try { new URL(url); } catch { cfWorkerError = 'Invalid URL format.'; return; }
+    try {
+      await setVideoSetting('cfWorkerUrl', url);
+      cfWorkerSaved = true;
+      setTimeout(() => cfWorkerSaved = false, 3000);
+    } catch (err) {
+      cfWorkerError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  function copyTemplate() {
+    navigator.clipboard.writeText(CF_WORKER_TEMPLATE).catch(() => {/* ignore */});
+  }
+
   // ── Main analysis pipeline ────────────────────────────────────────────────────
 
   async function handleAnalyze() {
-    if (!droppedFile) {
+    processError = '';
+    processSuccess = '';
+
+    if (inputMode === 'file' && !droppedFile) {
       processError = 'Drop an audio or video file to get started.';
       return;
     }
+    if (inputMode === 'url' && !urlInput.trim()) {
+      processError = 'Please enter a YouTube URL.';
+      return;
+    }
 
-    processError = '';
-    processSuccess = '';
     processing = true;
     processingPct = 0;
     extractionTokens = '';
 
     const sourceId = `vid-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const title   = metaTitle.trim()   || droppedFile.name;
+
+    // Derive title/channel from mode
+    const title   = inputMode === 'file'
+      ? (metaTitle.trim()   || droppedFile!.name)
+      : (metaTitle.trim()   || `YouTube: ${extractYouTubeId(urlInput.trim()) ?? urlInput.trim()}`);
     const channel = metaChannel.trim() || 'Unknown';
+    const url     = inputMode === 'file'
+      ? (metaYouTubeUrl.trim() || `file://${droppedFile!.name}`)
+      : urlInput.trim();
 
     const source: VideoSource = {
       id: sourceId,
-      url: metaYouTubeUrl.trim() || `file://${droppedFile.name}`,
+      url,
       videoId: sourceId,
       title,
       channelName: channel,
@@ -181,15 +232,26 @@
       await saveVideoSource(source);
       videoSources = await getAllVideoSources();
 
-      // ── Step 1: Transcribe ────────────────────────────────────────────────────
+      // ── Step 1: Get audio blob ─────────────────────────────────────────────
+      let audioBlob: Blob;
+      if (inputMode === 'file') {
+        audioBlob = droppedFile!;
+      } else {
+        processingStatus = 'Fetching audio via Cloudflare Worker…';
+        processingPct = 5;
+        audioBlob = await fetchYouTubeAudio(urlInput.trim());
+      }
+
+      // ── Step 2: Transcribe ─────────────────────────────────────────────────
       processingStatus = 'Starting transcription…';
-      processingPct = 5;
+      processingPct = inputMode === 'file' ? 5 : 15;
 
       const transcription = await transcribeAudioBlob(
-        droppedFile,
+        audioBlob,
         activeModelId,
         (pct, msg) => {
-          processingPct = 5 + Math.round(pct * 0.6);
+          const base = inputMode === 'file' ? 5 : 15;
+          processingPct = base + Math.round(pct * (inputMode === 'file' ? 0.6 : 0.5));
           processingStatus = msg;
         },
       );
@@ -207,7 +269,7 @@
       await updateVideoSourceStatus(sourceId, 'extracting');
       videoSources = await getAllVideoSources();
 
-      // ── Step 2: Extract signals ────────────────────────────────────────────────
+      // ── Step 3: Extract signals ────────────────────────────────────────────
       processingStatus = 'Extracting market signals with LLM…';
       processingPct = 70;
       extractionTokens = '';
@@ -228,7 +290,11 @@
       processingPct = 100;
       processingStatus = `Done! ${extractedSignals.length} signal${extractedSignals.length !== 1 ? 's' : ''} extracted.`;
       processSuccess = `Processed "${title}". ${extractedSignals.length} market signal${extractedSignals.length !== 1 ? 's' : ''} extracted.`;
-      clearFile();
+
+      // Reset inputs
+      if (inputMode === 'file') clearFile(); else urlInput = '';
+      metaTitle = '';
+      metaChannel = '';
 
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -241,15 +307,21 @@
     }
   }
 
-  // ── Model selection ───────────────────────────────────────────────────────────
+  function extractYouTubeId(url: string): string | null {
+    try {
+      const u = new URL(url);
+      if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('?')[0];
+      return u.searchParams.get('v');
+    } catch { return null; }
+  }
 
+  // ── Model selection ───────────────────────────────────────────────────────────
   async function selectModel(id: string) {
     activeModelId = id;
     await setVideoSetting('activeWhisperModel', id);
   }
 
   // ── Channel tracking ─────────────────────────────────────────────────────────
-
   function isTracked(channelId: string): boolean {
     return trackedChannels.some(c => c.channelId === channelId);
   }
@@ -290,7 +362,6 @@
   }
 
   // ── Queue expansion ───────────────────────────────────────────────────────────
-
   async function toggleExpand(videoId: string) {
     if (expandedVideoId === videoId) { expandedVideoId = null; expandedTranscript = null; return; }
     expandedVideoId = videoId;
@@ -304,9 +375,8 @@
   }
 
   // ── Signal feed helpers ───────────────────────────────────────────────────────
-
-  async function onTimeRangeChange()   { await refreshSignals(); }
-  async function onTickerFilterChange(){ await refreshSignals(); }
+  async function onTimeRangeChange()    { await refreshSignals(); }
+  async function onTickerFilterChange() { await refreshSignals(); }
 
   function timeAgo(iso: string): string {
     const diff = Date.now() - new Date(iso).getTime();
@@ -322,39 +392,31 @@
 
   function statusColor(status: VideoSource['status']): string {
     switch (status) {
-      case 'pending':     return 'badge-muted';
-      case 'transcribing':return 'badge-warn';
-      case 'extracting':  return 'badge-warn';
-      case 'done':        return 'badge-done';
-      case 'error':       return 'badge-danger';
-      default:            return 'badge-muted';
+      case 'pending':      return 'badge-muted';
+      case 'transcribing': return 'badge-warn';
+      case 'extracting':   return 'badge-warn';
+      case 'done':         return 'badge-done';
+      case 'error':        return 'badge-danger';
+      default:             return 'badge-muted';
     }
   }
 
   // ── Intelligence summary ──────────────────────────────────────────────────────
-
   $: filteredTicker = tickerFilter.trim().toUpperCase();
-
-  $: tickerSignals = filteredTicker
-    ? signals.filter(s => s.ticker === filteredTicker)
-    : [];
-
+  $: tickerSignals  = filteredTicker ? signals.filter(s => s.ticker === filteredTicker) : [];
   $: summaryDirection = (() => {
     if (!tickerSignals.length) return null;
-    const up   = tickerSignals.filter(s => s.direction === 'up').reduce((a, s) => a + s.weight * s.confidence, 0);
+    const up   = tickerSignals.filter(s => s.direction === 'up').reduce((a, s)   => a + s.weight * s.confidence, 0);
     const down = tickerSignals.filter(s => s.direction === 'down').reduce((a, s) => a + s.weight * s.confidence, 0);
     return up >= down ? 'up' : 'down';
   })();
-
   $: avgConfidence = tickerSignals.length
     ? tickerSignals.reduce((a, s) => a + s.confidence, 0) / tickerSignals.length
     : 0;
-
   $: topQuotes = tickerSignals.slice(0, 5).map(s => s.keyQuote).filter(Boolean);
 
   function handleApply(signal: VideoSignal) { onSignalApply(signal); }
 
-  // ── File size helper ──────────────────────────────────────────────────────────
   function fmtSize(bytes: number): string {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -366,89 +428,112 @@
   <div class="page-header">
     <div>
       <h2>Video Intelligence</h2>
-      <p class="subtitle">Drop any audio/video file → on-device transcription → market signal extraction</p>
+      <p class="subtitle">Transcribe video audio on-device → extract market signals with LLM</p>
     </div>
   </div>
 
-  <!-- ── File Drop Zone ─────────────────────────────────────────────────────── -->
+  <!-- ── Input Mode Toggle ──────────────────────────────────────────────────── -->
   <section class="card">
-    {#if !droppedFile}
-      <!-- Drop target -->
-      <!-- svelte-ignore a11y-interactive-supports-focus -->
-      <div
-        class="drop-zone"
-        class:drop-zone--active={isDragging}
-        role="button"
-        aria-label="Drop audio or video file here"
-        on:dragover={onDragover}
-        on:dragleave={onDragleave}
-        on:drop={onDrop}
-        on:click={() => document.getElementById('file-picker')?.click()}
-        on:keydown={e => e.key === 'Enter' && document.getElementById('file-picker')?.click()}
-        tabindex="0"
+    <div class="mode-toggle">
+      <button
+        class="mode-btn"
+        class:mode-btn--active={inputMode === 'file'}
+        on:click={() => switchMode('file')}
       >
-        <div class="drop-icon">🎵</div>
-        <div class="drop-label">Drop audio or video file here</div>
-        <div class="drop-sub">mp3 · mp4 · m4a · webm · wav · ogg · and more</div>
-        <button class="btn-secondary btn-sm" type="button" on:click|stopPropagation={() => document.getElementById('file-picker')?.click()}>
-          Browse files
-        </button>
-        <input
-          id="file-picker"
-          type="file"
-          accept="audio/*,video/*"
-          style="display:none"
-          on:change={onFileInput}
-        />
-      </div>
-
-      <p class="note drop-how">
-        <strong>How to get the audio file:</strong>
-        Use <code>yt-dlp -x --audio-format mp3 "URL"</code> in a terminal,
-        or any YouTube-to-audio tool you prefer. Drop the file here — transcription runs entirely in your browser.
-      </p>
-
-    {:else}
-      <!-- File ready -->
-      <div class="file-ready">
-        <div class="file-icon">🎵</div>
-        <div class="file-meta">
-          <span class="file-name">{droppedFile.name}</span>
-          <span class="file-size">{fmtSize(droppedFile.size)}</span>
-        </div>
-        <button class="btn-ghost btn-sm" on:click={clearFile} disabled={processing}>✕ Remove</button>
-      </div>
-
-      <!-- Optional metadata -->
-      <div class="meta-fields">
-        <input
-          type="text"
-          placeholder="Video title (optional)"
-          bind:value={metaTitle}
-          disabled={processing}
-          aria-label="Video title"
-        />
-        <input
-          type="text"
-          placeholder="Channel / Speaker (optional)"
-          bind:value={metaChannel}
-          disabled={processing}
-          aria-label="Channel or speaker name"
-        />
-        <input
-          type="url"
-          placeholder="YouTube URL for reference (optional)"
-          bind:value={metaYouTubeUrl}
-          disabled={processing}
-          aria-label="YouTube URL reference"
-        />
-      </div>
-
-      <button class="btn-primary" on:click={handleAnalyze} disabled={processing}>
-        {processing ? '⏳ Processing…' : '▶ Transcribe & Extract Signals'}
+        <span class="mode-icon">📁</span>
+        <span class="mode-label">File Upload</span>
+        <span class="mode-desc">Drop any audio/video file — no external service</span>
       </button>
+      <button
+        class="mode-btn"
+        class:mode-btn--active={inputMode === 'url'}
+        on:click={() => switchMode('url')}
+      >
+        <span class="mode-icon">▶</span>
+        <span class="mode-label">YouTube URL</span>
+        <span class="mode-desc">Paste URL — requires Cloudflare Worker (free)</span>
+      </button>
+    </div>
+
+    <!-- ── FILE UPLOAD MODE ─────────────────────────────────────────────────── -->
+    {#if inputMode === 'file'}
+      {#if !droppedFile}
+        <!-- Drop target -->
+        <!-- svelte-ignore a11y-interactive-supports-focus -->
+        <div
+          class="drop-zone"
+          class:drop-zone--active={isDragging}
+          role="button"
+          aria-label="Drop audio or video file here"
+          on:dragover={onDragover}
+          on:dragleave={onDragleave}
+          on:drop={onDrop}
+          on:click={() => document.getElementById('file-picker')?.click()}
+          on:keydown={e => e.key === 'Enter' && document.getElementById('file-picker')?.click()}
+          tabindex="0"
+        >
+          <div class="drop-icon">🎵</div>
+          <div class="drop-label">Drop audio or video file here</div>
+          <div class="drop-sub">mp3 · mp4 · m4a · webm · wav · ogg · and more</div>
+          <button class="btn-secondary btn-sm" type="button" on:click|stopPropagation={() => document.getElementById('file-picker')?.click()}>
+            Browse files
+          </button>
+          <input
+            id="file-picker"
+            type="file"
+            accept="audio/*,video/*"
+            style="display:none"
+            on:change={onFileInput}
+          />
+        </div>
+        <p class="note">
+          Download audio with <code>yt-dlp -x --audio-format mp3 "URL"</code> or any YouTube-to-audio tool,
+          then drop the file here. Everything runs in your browser — no accounts needed.
+        </p>
+      {:else}
+        <!-- File ready -->
+        <div class="file-ready">
+          <div class="file-icon-sm">🎵</div>
+          <div class="file-meta">
+            <span class="file-name">{droppedFile.name}</span>
+            <span class="file-size">{fmtSize(droppedFile.size)}</span>
+          </div>
+          <button class="btn-ghost btn-sm" on:click={clearFile} disabled={processing}>✕ Remove</button>
+        </div>
+        <div class="meta-fields">
+          <input type="text"  placeholder="Video title (optional)"           bind:value={metaTitle}      disabled={processing} />
+          <input type="text"  placeholder="Channel / Speaker (optional)"     bind:value={metaChannel}    disabled={processing} />
+          <input type="url"   placeholder="YouTube URL for reference (optional)" bind:value={metaYouTubeUrl} disabled={processing} />
+        </div>
+        <button class="btn-primary" on:click={handleAnalyze} disabled={processing}>
+          {processing ? '⏳ Processing…' : '▶ Transcribe & Extract Signals'}
+        </button>
+      {/if}
     {/if}
 
+    <!-- ── YOUTUBE URL MODE ─────────────────────────────────────────────────── -->
+    {#if inputMode === 'url'}
+      <div class="url-row">
+        <input
+          type="url"
+          placeholder="Paste YouTube URL…"
+          bind:value={urlInput}
+          disabled={processing}
+          aria-label="YouTube URL"
+          on:keydown={e => e.key === 'Enter' && !processing && handleAnalyze()}
+        />
+        <button class="btn-primary" on:click={handleAnalyze} disabled={processing}>
+          {processing ? '⏳ Processing…' : '▶ Analyze'}
+        </button>
+      </div>
+      <!-- Optional metadata -->
+      <div class="meta-fields meta-fields--url">
+        <input type="text" placeholder="Override title (optional)"   bind:value={metaTitle}   disabled={processing} />
+        <input type="text" placeholder="Override channel (optional)" bind:value={metaChannel} disabled={processing} />
+      </div>
+    {/if}
+
+    <!-- ── Shared: progress + messages ─────────────────────────────────────── -->
     {#if processError}
       <div class="msg-error" role="alert">{processError}</div>
     {/if}
@@ -458,9 +543,7 @@
 
     {#if processing}
       <div class="progress-wrap" role="status" aria-live="polite">
-        <div class="progress-bar">
-          <div class="progress-fill" style="width:{processingPct}%"></div>
-        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:{processingPct}%"></div></div>
         <div class="progress-text">{processingStatus} ({processingPct}%)</div>
         {#if extractionTokens}
           <div class="token-stream">{extractionTokens}</div>
@@ -469,6 +552,54 @@
     {/if}
   </section>
 
+  <!-- ── Cloudflare Worker Setup (URL mode only) ───────────────────────────── -->
+  {#if inputMode === 'url'}
+    {#if !cfWorkerUrl}
+      <section class="card card-warn">
+        <div class="section-label">CLOUDFLARE WORKER SETUP REQUIRED</div>
+        <p class="note">
+          Browsers cannot directly fetch YouTube audio due to CORS restrictions.
+          Deploy a small Cloudflare Worker once (~30 lines of JS, free tier, no credit card).
+          The app will then work without any dependency on Cloudflare being operational —
+          if Cloudflare ever goes away, switch to File Upload mode instead.
+        </p>
+        <div class="cf-steps">
+          <p class="step"><strong>1.</strong> Copy the Worker script below</p>
+          <p class="step"><strong>2.</strong> Go to <a href="https://workers.cloudflare.com" target="_blank" rel="noopener">workers.cloudflare.com</a> → Create Worker → paste → Deploy</p>
+          <p class="step"><strong>3.</strong> Paste your Worker URL below (e.g. <code>https://my-worker.username.workers.dev</code>)</p>
+        </div>
+        <div class="cf-btns">
+          <button class="btn-secondary btn-sm" on:click={() => showCFTemplate = !showCFTemplate}>
+            {showCFTemplate ? 'Hide' : 'Show'} Worker Script
+          </button>
+          <button class="btn-secondary btn-sm" on:click={copyTemplate}>Copy Script</button>
+        </div>
+        {#if showCFTemplate}
+          <pre class="code-block">{CF_WORKER_TEMPLATE}</pre>
+        {/if}
+        <div class="cf-input-row">
+          <input type="url" placeholder="https://my-worker.username.workers.dev" bind:value={cfWorkerUrl} aria-label="Cloudflare Worker URL" />
+          <button class="btn-primary btn-sm" on:click={saveCFWorker}>{cfWorkerSaved ? '✓ Saved' : 'Save URL'}</button>
+        </div>
+        {#if cfWorkerError}
+          <div class="msg-error" role="alert">{cfWorkerError}</div>
+        {/if}
+      </section>
+    {:else}
+      <section class="card">
+        <div class="section-label">CLOUDFLARE WORKER</div>
+        <div class="cf-configured-row">
+          <span class="badge badge-done">✓ Configured</span>
+          <code class="cf-url">{cfWorkerUrl}</code>
+          <button class="btn-ghost btn-sm" on:click={() => { cfWorkerUrl = ''; setVideoSetting('cfWorkerUrl', ''); }}>Change</button>
+        </div>
+        {#if cfWorkerError}
+          <div class="msg-error" role="alert">{cfWorkerError}</div>
+        {/if}
+      </section>
+    {/if}
+  {/if}
+
   <!-- ── Whisper Model Card ────────────────────────────────────────────────── -->
   <section class="card">
     <div class="section-label">TRANSCRIPTION MODEL</div>
@@ -476,13 +607,7 @@
       {#each WHISPER_MODELS as m}
         <div class="model-row" class:model-row--active={activeModelId === m.id}>
           <label class="model-radio">
-            <input
-              type="radio"
-              name="whisper-model"
-              value={m.id}
-              checked={activeModelId === m.id}
-              on:change={() => selectModel(m.id)}
-            />
+            <input type="radio" name="whisper-model" value={m.id} checked={activeModelId === m.id} on:change={() => selectModel(m.id)} />
           </label>
           <div class="model-info">
             <span class="model-name">{m.label}</span>
@@ -492,10 +617,10 @@
         </div>
       {/each}
     </div>
-    <p class="note">Models are downloaded once and cached in your browser's Origin Private File System — no server, no account needed.</p>
+    <p class="note">Models are downloaded once and cached in your browser's Origin Private File System — no server needed.</p>
   </section>
 
-  <!-- ── Tracked Speakers / Channels ──────────────────────────────────────── -->
+  <!-- ── Tracked Speakers ──────────────────────────────────────────────────── -->
   <section class="card">
     <div class="section-label">TRACKED SPEAKERS</div>
     <div class="chips">
@@ -511,43 +636,36 @@
         </button>
       {/each}
     </div>
-
     {#if trackedChannels.filter(c => !PRESET_SPEAKERS.some(p => p.channelId === c.channelId)).length > 0}
       <div class="custom-tracks">
-        <span class="note">Custom tracked:</span>
+        <span class="note">Custom:</span>
         {#each trackedChannels.filter(c => !PRESET_SPEAKERS.some(p => p.channelId === c.channelId)) as ct}
           <div class="custom-track-chip">
             <span>{ct.speakerName || ct.channelId}</span>
-            <button class="btn-remove-tiny" on:click={() => untrackChannel(ct.channelId)} title="Untrack">✕</button>
+            <button class="btn-remove-tiny" on:click={() => untrackChannel(ct.channelId)}>✕</button>
           </div>
         {/each}
       </div>
     {/if}
-
     <div class="custom-track-input">
-      <input type="text" placeholder="Speaker / channel name" bind:value={customChannelInput} aria-label="Speaker name" />
-      <input type="text" placeholder="Display name (optional)" bind:value={customSpeakerInput} aria-label="Display name" />
+      <input type="text" placeholder="Speaker / channel name"   bind:value={customChannelInput} />
+      <input type="text" placeholder="Display name (optional)"  bind:value={customSpeakerInput} />
       <button class="btn-secondary btn-sm" on:click={trackCustomChannel}>Track</button>
     </div>
-
-    <p class="note">Tracked speakers let you annotate and filter signals by source. Download their videos, drop them here to analyze.</p>
+    <p class="note">Tracked speakers help you annotate and filter signals by source.</p>
   </section>
 
   <!-- ── Processing Queue ──────────────────────────────────────────────────── -->
   <section class="card">
     <div class="section-label">PROCESSING QUEUE</div>
-
     {#if videoSources.length === 0}
-      <p class="empty-state">No videos analyzed yet. Drop an audio/video file above to get started.</p>
+      <p class="empty-state">No videos analyzed yet.</p>
     {:else}
       <div class="queue-list">
         {#each videoSources as vid}
           <div class="queue-item">
             <!-- svelte-ignore a11y-interactive-supports-focus -->
-            <div
-              class="queue-header"
-              role="button"
-              tabindex="0"
+            <div class="queue-header" role="button" tabindex="0"
               on:click={() => toggleExpand(vid.videoId)}
               on:keydown={e => e.key === 'Enter' && toggleExpand(vid.videoId)}
             >
@@ -562,15 +680,12 @@
                 <span class="expand-toggle">{expandedVideoId === vid.videoId ? '▲' : '▼'}</span>
               </div>
             </div>
-
             {#if expandedVideoId === vid.videoId}
               <div class="queue-expand">
                 {#if vid.errorMsg}<div class="msg-error">{vid.errorMsg}</div>{/if}
                 <div class="transcript-preview">
-                  {#if expandedTranscript === null}
-                    <span class="note">Loading…</span>
-                  {:else}
-                    <p class="transcript-text">{expandedTranscript.slice(0, 1200)}{expandedTranscript.length > 1200 ? '…' : ''}</p>
+                  {#if expandedTranscript === null}<span class="note">Loading…</span>
+                  {:else}<p class="transcript-text">{expandedTranscript.slice(0, 1200)}{expandedTranscript.length > 1200 ? '…' : ''}</p>
                   {/if}
                 </div>
               </div>
@@ -584,29 +699,19 @@
   <!-- ── Signal Feed ────────────────────────────────────────────────────────── -->
   <section class="card">
     <div class="section-label">SIGNAL FEED</div>
-
     <div class="feed-filters">
       <div class="filter-group">
         <label for="time-range">Time range</label>
         <select id="time-range" bind:value={signalTimeRange} on:change={onTimeRangeChange}>
-          {#each TIME_RANGE_OPTIONS as opt}
-            <option value={opt.value}>{opt.label}</option>
-          {/each}
+          {#each TIME_RANGE_OPTIONS as opt}<option value={opt.value}>{opt.label}</option>{/each}
         </select>
       </div>
       <div class="filter-group">
         <label for="ticker-filter">Ticker</label>
-        <input
-          id="ticker-filter"
-          type="text"
-          placeholder="e.g. AAPL"
-          bind:value={tickerFilter}
-          on:input={onTickerFilterChange}
-          style="width:110px; text-transform:uppercase"
-        />
+        <input id="ticker-filter" type="text" placeholder="e.g. AAPL" bind:value={tickerFilter}
+          on:input={onTickerFilterChange} style="width:110px; text-transform:uppercase" />
       </div>
     </div>
-
     {#if signals.length === 0}
       <p class="empty-state">No signals yet. Analyze a video to extract market signals.</p>
     {:else}
@@ -656,9 +761,7 @@
       </div>
       {#if topQuotes.length > 0}
         <div class="section-label" style="margin-top:0.75rem">TOP QUOTES</div>
-        <ol class="quote-list">
-          {#each topQuotes as q}<li>"{q}"</li>{/each}
-        </ol>
+        <ol class="quote-list">{#each topQuotes as q}<li>"{q}"</li>{/each}</ol>
       {/if}
     </section>
   {/if}
@@ -678,124 +781,108 @@
     padding: 1.1rem 1.25rem;
     margin-bottom: 1rem;
   }
+  .card-warn { border-color: rgba(251,191,36,0.35); }
 
   .section-label {
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    text-transform: uppercase;
-    margin-bottom: 0.6rem;
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 0.6rem;
   }
+
+  /* ── Mode toggle ── */
+  .mode-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+    margin-bottom: 1.1rem;
+  }
+  .mode-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    background: rgba(42,45,58,0.3);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .mode-btn:hover { border-color: var(--accent); background: rgba(79,142,247,0.06); }
+  .mode-btn--active { border-color: var(--accent); background: rgba(79,142,247,0.1); }
+  .mode-icon { font-size: 1.4rem; }
+  .mode-label { font-size: 0.85rem; font-weight: 700; color: var(--text); }
+  .mode-desc  { font-size: 0.7rem; color: var(--muted); line-height: 1.4; }
 
   /* ── Drop zone ── */
   .drop-zone {
     border: 2px dashed var(--border);
     border-radius: 10px;
-    padding: 2rem 1.5rem;
+    padding: 1.75rem 1.5rem;
     text-align: center;
     cursor: pointer;
     transition: all 0.15s;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
+    gap: 0.45rem;
+    margin-bottom: 0.6rem;
   }
   .drop-zone:hover, .drop-zone--active {
     border-color: var(--accent);
     background: rgba(79,142,247,0.05);
   }
-  .drop-icon { font-size: 2rem; }
-  .drop-label { font-size: 0.9rem; font-weight: 600; color: var(--text); }
-  .drop-sub { font-size: 0.75rem; color: var(--muted); }
-  .drop-how { margin-top: 0.4rem; }
-  .drop-how code { font-family: monospace; font-size: 0.78rem; background: rgba(42,45,58,0.6); padding: 0.1rem 0.3rem; border-radius: 4px; }
+  .drop-icon { font-size: 1.8rem; }
+  .drop-label { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+  .drop-sub   { font-size: 0.72rem; color: var(--muted); }
 
   /* ── File ready ── */
   .file-ready {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    background: rgba(79,142,247,0.06);
-    border: 1px solid rgba(79,142,247,0.25);
-    border-radius: 8px;
-    padding: 0.6rem 0.85rem;
-    margin-bottom: 0.75rem;
+    display: flex; align-items: center; gap: 0.75rem;
+    background: rgba(79,142,247,0.06); border: 1px solid rgba(79,142,247,0.25);
+    border-radius: 8px; padding: 0.55rem 0.85rem; margin-bottom: 0.6rem;
   }
-  .file-icon { font-size: 1.3rem; }
+  .file-icon-sm { font-size: 1.2rem; }
   .file-meta { flex: 1; display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
   .file-name { font-size: 0.82rem; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .file-size { font-size: 0.72rem; color: var(--muted); }
 
-  /* ── Metadata fields ── */
-  .meta-fields {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    margin-bottom: 0.75rem;
-  }
+  /* ── Meta fields ── */
+  .meta-fields { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem; }
   .meta-fields input { width: 100%; }
+  .meta-fields--url { margin-top: 0.5rem; }
+
+  /* ── URL row ── */
+  .url-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.15rem; flex-wrap: wrap; }
+  .url-row input { flex: 1; min-width: 200px; }
 
   /* ── Buttons ── */
   .btn-primary {
-    background: var(--accent);
-    border: none;
-    color: #fff;
-    padding: 0.45rem 1.25rem;
-    border-radius: 8px;
-    font-size: 0.875rem;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.15s;
+    background: var(--accent); border: none; color: #fff;
+    padding: 0.45rem 1.2rem; border-radius: 8px; font-size: 0.875rem;
+    font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.15s;
   }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-primary:not(:disabled):hover { filter: brightness(1.1); }
   .btn-secondary {
-    background: rgba(79,142,247,0.12);
-    border: 1px solid rgba(79,142,247,0.25);
-    color: var(--accent);
-    padding: 0.35rem 0.85rem;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: all 0.15s;
+    background: rgba(79,142,247,0.12); border: 1px solid rgba(79,142,247,0.25);
+    color: var(--accent); padding: 0.35rem 0.85rem; border-radius: 8px;
+    font-size: 0.8rem; cursor: pointer; transition: all 0.15s;
   }
   .btn-secondary:hover { background: rgba(79,142,247,0.22); }
   .btn-ghost {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--muted);
-    padding: 0.3rem 0.7rem;
-    border-radius: 8px;
-    font-size: 0.78rem;
-    cursor: pointer;
-    transition: all 0.15s;
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    padding: 0.3rem 0.7rem; border-radius: 8px; font-size: 0.78rem; cursor: pointer; transition: all 0.15s;
   }
   .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
   .btn-sm { font-size: 0.78rem; padding: 0.3rem 0.75rem; }
   .btn-apply {
-    background: rgba(52,211,153,0.12);
-    border: 1px solid rgba(52,211,153,0.3);
-    color: var(--accent2);
-    padding: 0.25rem 0.7rem;
-    border-radius: 8px;
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
+    background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.3);
+    color: var(--accent2); padding: 0.25rem 0.7rem; border-radius: 8px;
+    font-size: 0.75rem; cursor: pointer; transition: all 0.15s; white-space: nowrap;
   }
   .btn-apply:hover { background: rgba(52,211,153,0.22); }
-  .btn-remove-tiny {
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 0.7rem;
-    cursor: pointer;
-    padding: 0 0.2rem;
-    line-height: 1;
-  }
+  .btn-remove-tiny { background: none; border: none; color: var(--muted); font-size: 0.7rem; cursor: pointer; padding: 0 0.2rem; line-height: 1; }
   .btn-remove-tiny:hover { color: var(--danger); }
 
   /* ── Progress ── */
@@ -804,100 +891,74 @@
   .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.25s ease; }
   .progress-text { font-size: 0.72rem; color: var(--muted); margin-top: 0.25rem; }
   .token-stream {
-    font-size: 0.72rem;
-    color: var(--muted);
-    font-family: monospace;
-    background: rgba(42,45,58,0.5);
-    border-radius: 6px;
-    padding: 0.4rem 0.6rem;
-    margin-top: 0.4rem;
-    max-height: 80px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
+    font-size: 0.72rem; color: var(--muted); font-family: monospace;
+    background: rgba(42,45,58,0.5); border-radius: 6px; padding: 0.4rem 0.6rem;
+    margin-top: 0.4rem; max-height: 80px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
   }
 
   /* ── Messages ── */
   .msg-error {
-    font-size: 0.78rem;
-    color: var(--danger);
-    background: rgba(248,113,113,0.08);
-    border: 1px solid rgba(248,113,113,0.2);
-    border-radius: 8px;
-    padding: 0.5rem 0.75rem;
-    margin-top: 0.5rem;
-    white-space: pre-wrap;
-    word-break: break-word;
-    line-height: 1.5;
+    font-size: 0.78rem; color: var(--danger); background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.2); border-radius: 8px; padding: 0.5rem 0.75rem;
+    margin-top: 0.5rem; white-space: pre-wrap; word-break: break-word; line-height: 1.5;
   }
   .msg-success {
-    font-size: 0.78rem;
-    color: var(--accent2);
-    background: rgba(52,211,153,0.08);
-    border: 1px solid rgba(52,211,153,0.2);
-    border-radius: 8px;
-    padding: 0.5rem 0.75rem;
-    margin-top: 0.5rem;
+    font-size: 0.78rem; color: var(--accent2); background: rgba(52,211,153,0.08);
+    border: 1px solid rgba(52,211,153,0.2); border-radius: 8px;
+    padding: 0.5rem 0.75rem; margin-top: 0.5rem;
   }
-
   .note { font-size: 0.75rem; color: var(--muted); line-height: 1.6; margin-top: 0.4rem; }
+  .note code { font-family: monospace; font-size: 0.78rem; background: rgba(42,45,58,0.6); padding: 0.1rem 0.3rem; border-radius: 4px; }
+
+  /* ── CF Worker ── */
+  .cf-steps { margin: 0.6rem 0; }
+  .step { font-size: 0.8rem; color: var(--text); margin-bottom: 0.3rem; line-height: 1.5; }
+  .step a { color: var(--accent); }
+  .step code { font-family: monospace; font-size: 0.78rem; background: rgba(42,45,58,0.6); padding: 0.1rem 0.3rem; border-radius: 4px; }
+  .cf-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .code-block {
+    background: rgba(15,17,23,0.7); border: 1px solid var(--border); border-radius: 8px;
+    padding: 0.75rem; font-family: monospace; font-size: 0.7rem; color: var(--text);
+    overflow-x: auto; margin: 0.75rem 0; white-space: pre; max-height: 240px; overflow-y: auto;
+  }
+  .cf-input-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.6rem; flex-wrap: wrap; }
+  .cf-input-row input { flex: 1; min-width: 200px; }
+  .cf-configured-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+  .cf-url { font-family: monospace; font-size: 0.78rem; color: var(--muted); word-break: break-all; }
 
   /* ── Whisper model table ── */
   .model-table { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.5rem; }
   .model-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    background: rgba(42,45,58,0.3);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 0.5rem 0.85rem;
-    cursor: pointer;
-    transition: border-color 0.15s;
+    display: flex; align-items: center; gap: 0.75rem;
+    background: rgba(42,45,58,0.3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.5rem 0.85rem; cursor: pointer; transition: border-color 0.15s;
   }
   .model-row--active { border-color: rgba(79,142,247,0.4); background: rgba(79,142,247,0.06); }
   .model-radio input { cursor: pointer; }
   .model-info { flex: 1; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
   .model-name { font-size: 0.82rem; font-weight: 600; color: var(--text); }
   .quality-badge {
-    font-size: 0.7rem;
-    padding: 0.1rem 0.45rem;
-    border-radius: 99px;
-    background: rgba(79,142,247,0.12);
-    color: var(--accent);
-    border: 1px solid rgba(79,142,247,0.25);
+    font-size: 0.7rem; padding: 0.1rem 0.45rem; border-radius: 99px;
+    background: rgba(79,142,247,0.12); color: var(--accent); border: 1px solid rgba(79,142,247,0.25);
   }
   .model-cache-note { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
 
   /* ── Chips ── */
   .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.6rem; }
   .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    background: rgba(42,45,58,0.5);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    padding: 0.3rem 0.75rem;
-    border-radius: 99px;
-    font-size: 0.78rem;
-    cursor: pointer;
-    transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    background: rgba(42,45,58,0.5); border: 1px solid var(--border);
+    color: var(--muted); padding: 0.3rem 0.75rem; border-radius: 99px;
+    font-size: 0.78rem; cursor: pointer; transition: all 0.15s;
   }
   .chip--active { background: rgba(79,142,247,0.15); border-color: rgba(79,142,247,0.4); color: var(--accent); }
   .chip:hover:not(.chip--active) { border-color: var(--accent); color: var(--text); }
   .chip-icon { font-size: 0.7rem; }
   .custom-tracks { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0.5rem 0; }
   .custom-track-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    background: rgba(52,211,153,0.1);
-    border: 1px solid rgba(52,211,153,0.3);
-    color: var(--accent2);
-    padding: 0.2rem 0.55rem;
-    border-radius: 99px;
-    font-size: 0.75rem;
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3);
+    color: var(--accent2); padding: 0.2rem 0.55rem; border-radius: 99px; font-size: 0.75rem;
   }
   .custom-track-input { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.6rem; }
   .custom-track-input input { width: 180px; }
@@ -906,19 +967,15 @@
   .queue-list { display: flex; flex-direction: column; gap: 0.5rem; }
   .queue-item { background: rgba(42,45,58,0.3); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
   .queue-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.55rem 0.85rem;
-    cursor: pointer;
-    gap: 0.5rem;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.55rem 0.85rem; cursor: pointer; gap: 0.5rem;
   }
   .queue-header:hover { background: rgba(79,142,247,0.04); }
   .queue-meta { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
   .queue-title { font-size: 0.82rem; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 340px; }
   .queue-channel { font-size: 0.72rem; color: var(--muted); }
-  .queue-time { font-size: 0.7rem; color: var(--muted); }
-  .queue-right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+  .queue-time   { font-size: 0.7rem; color: var(--muted); }
+  .queue-right  { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
   .queue-error-msg { color: var(--danger); font-size: 0.8rem; cursor: help; }
   .expand-toggle { color: var(--muted); font-size: 0.75rem; }
   .queue-expand { padding: 0.5rem 0.85rem 0.75rem; border-top: 1px solid var(--border); }
@@ -927,10 +984,10 @@
 
   /* ── Badges ── */
   .badge { font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 99px; white-space: nowrap; }
-  .badge-muted  { background: rgba(100,116,139,0.15); color: var(--muted);    border: 1px solid rgba(100,116,139,0.25); }
-  .badge-warn   { background: rgba(251,191,36,0.12);  color: var(--warn);     border: 1px solid rgba(251,191,36,0.25); }
-  .badge-done   { background: rgba(52,211,153,0.12);  color: var(--accent2);  border: 1px solid rgba(52,211,153,0.25); }
-  .badge-danger { background: rgba(248,113,113,0.12); color: var(--danger);   border: 1px solid rgba(248,113,113,0.25); }
+  .badge-muted  { background: rgba(100,116,139,0.15); color: var(--muted);   border: 1px solid rgba(100,116,139,0.25); }
+  .badge-warn   { background: rgba(251,191,36,0.12);  color: var(--warn);    border: 1px solid rgba(251,191,36,0.25); }
+  .badge-done   { background: rgba(52,211,153,0.12);  color: var(--accent2); border: 1px solid rgba(52,211,153,0.25); }
+  .badge-danger { background: rgba(248,113,113,0.12); color: var(--danger);  border: 1px solid rgba(248,113,113,0.25); }
 
   /* ── Signal Feed ── */
   .feed-filters { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 0.75rem; }
@@ -948,17 +1005,10 @@
   .sig-param  { font-size: 0.75rem; color: var(--text); flex: 1; }
   .sig-time   { font-size: 0.7rem; color: var(--muted); margin-left: auto; white-space: nowrap; }
   .sig-quote {
-    font-size: 0.78rem;
-    color: var(--muted);
-    font-style: italic;
-    border-left: 2px solid var(--border);
-    padding-left: 0.6rem;
-    margin: 0.3rem 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    font-size: 0.78rem; color: var(--muted); font-style: italic;
+    border-left: 2px solid var(--border); padding-left: 0.6rem; margin: 0.3rem 0;
+    overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   }
   .sig-bottom { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
   .sig-confidence { font-size: 0.72rem; color: var(--muted); }

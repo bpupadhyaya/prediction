@@ -1,8 +1,12 @@
 // Audio Transcription via Whisper (transformers.js, runs 100% in-browser)
-// User provides an audio/video file downloaded from any source.
-// No external services, no accounts, no CORS issues — works forever.
+//
+// Two input modes:
+//   A. File upload  — user drops any audio/video file; no external service needed
+//   B. YouTube URL  — fetches audio via a user-deployed Cloudflare Worker proxy
+//                     (free tier, ~30 lines of JS; user deploys once, app works forever)
 
 import type { WhisperModelInfo } from './types';
+import { getVideoSetting } from './video-intelligence-store';
 
 // ─── Whisper model registry ───────────────────────────────────────────────────
 
@@ -44,10 +48,83 @@ export const WHISPER_MODELS: WhisperModelInfo[] = [
   },
 ];
 
-const DEFAULT_MODEL_ID = 'base';
+export const DEFAULT_MODEL_ID = 'base';
 
-export function getDefaultModelId(): string {
-  return DEFAULT_MODEL_ID;
+// ─── Cloudflare Worker template ───────────────────────────────────────────────
+
+export const CF_WORKER_TEMPLATE = `// Cloudflare Worker — YouTube Audio Proxy
+// Deploy at: https://workers.cloudflare.com/ (free, no credit card)
+// Free tier: 100,000 requests/day
+export default {
+  async fetch(request) {
+    const url = new URL(request.url);
+    const ytUrl = url.searchParams.get('url');
+    if (!ytUrl) return new Response('Missing url param', { status: 400 });
+    if (!ytUrl.includes('youtube.com') && !ytUrl.includes('youtu.be'))
+      return new Response('Only YouTube URLs allowed', { status: 400 });
+
+    const pageRes = await fetch(ytUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible)' }
+    });
+    const html = await pageRes.text();
+    const match = html.match(/ytInitialPlayerResponse\\s*=\\s*({.+?});/);
+    if (!match) return new Response('Could not parse YouTube page', { status: 500 });
+
+    const playerResponse = JSON.parse(match[1]);
+    const formats = playerResponse?.streamingData?.adaptiveFormats || [];
+    const audioFormat = formats.find(f =>
+      f.mimeType?.includes('audio/webm') || f.mimeType?.includes('audio/mp4')
+    );
+    if (!audioFormat?.url) return new Response('No audio stream found', { status: 500 });
+
+    const audioRes = await fetch(audioFormat.url);
+    return new Response(audioRes.body, {
+      headers: {
+        'Content-Type': audioFormat.mimeType || 'audio/webm',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=3600',
+      }
+    });
+  }
+};`;
+
+// ─── YouTube audio fetching (via Cloudflare Worker) ───────────────────────────
+
+/**
+ * Download audio from a YouTube URL via the user's Cloudflare Worker proxy.
+ * Throws a descriptive error if no Worker URL is configured.
+ */
+export async function fetchYouTubeAudio(youtubeUrl: string): Promise<Blob> {
+  const cfWorkerUrl = await getVideoSetting('cfWorkerUrl');
+
+  if (!cfWorkerUrl) {
+    throw new Error(
+      'Cloudflare Worker not configured.\n\n' +
+      'To use the YouTube URL mode, deploy the included Worker script (free, ~30 lines) ' +
+      'at workers.cloudflare.com, then paste your Worker URL in the setup card below.'
+    );
+  }
+
+  const proxyUrl = `${cfWorkerUrl.replace(/\/$/, '')}?url=${encodeURIComponent(youtubeUrl)}`;
+
+  let response: Response;
+  try {
+    response = await fetch(proxyUrl);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to reach Cloudflare Worker at "${cfWorkerUrl}": ${msg}`);
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(
+      `Cloudflare Worker returned HTTP ${response.status}` +
+      (body ? `: ${body}` : '') +
+      `. Check your Worker URL and deployment.`
+    );
+  }
+
+  return response.blob();
 }
 
 // ─── Lazy pipeline cache ──────────────────────────────────────────────────────
@@ -55,18 +132,16 @@ export function getDefaultModelId(): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _pipelines: Map<string, any> = new Map();
 
-// ─── Transcribe any audio/video file ─────────────────────────────────────────
+// ─── Whisper transcription (works with any Blob/File) ────────────────────────
 
 /**
  * Transcribe an audio or video File/Blob using Whisper via transformers.js.
- * Everything runs in the browser — no servers, no accounts required.
- *
- * Supported input formats: mp3, mp4, webm, m4a, ogg, wav, and most other
- * formats the browser's AudioContext can decode.
+ * Runs 100% in-browser — no servers required.
+ * Works with files from drag-and-drop OR blobs fetched by the CF Worker.
  *
  * @param audioFile  Any File or Blob containing audio/video
- * @param modelId    Whisper model to use (default: 'base')
- * @param onProgress Called with (0–100, statusMessage) during processing
+ * @param modelId    Whisper model id (default: 'base')
+ * @param onProgress Called with (0–100, statusMessage)
  */
 export async function transcribeAudioBlob(
   audioFile: Blob | File,
@@ -77,7 +152,7 @@ export async function transcribeAudioBlob(
 
   onProgress?.(0, `Loading Whisper model (${modelInfo.label})…`);
 
-  // Dynamic import — keeps the heavy bundle out of the initial load
+  // Dynamic import keeps the heavy bundle out of the initial load
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let transformers: any;
   try {
@@ -91,7 +166,7 @@ export async function transcribeAudioBlob(
 
   const { pipeline, env } = transformers;
 
-  // Use OPFS (Origin Private File System) to cache model weights across sessions
+  // OPFS caches model weights across sessions — downloaded once, reused forever
   env.useBrowserCache = true;
   if (env.backends?.onnx?.wasm) {
     env.backends.onnx.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency ?? 2);
@@ -134,7 +209,6 @@ export async function transcribeAudioBlob(
     audioData = decoded.getChannelData(0);
     ctx.close();
   } catch {
-    // Fallback: pass raw bytes and let transformers.js handle decoding
     audioData = new Float32Array(arrayBuffer);
   }
 

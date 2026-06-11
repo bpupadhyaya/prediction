@@ -1,6 +1,5 @@
 package com.prediction.stockmarket.ui.models
 
-import androidx.compose.animation.animateItemPlacement
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -198,8 +197,7 @@ private fun ModelCard(
 
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .animateItemPlacement(),
+            .fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {

@@ -23,6 +23,10 @@ class LLMInferenceEngine @Inject constructor(
     private var llmInference: LlmInference? = null
     private var loadedModelPath: String? = null
 
+    // MediaPipe 0.10.x streams partial results to the options-level result listener,
+    // not a per-call callback. The active chat() flow registers its forwarder here.
+    @Volatile private var responseCallback: ((String, Boolean) -> Unit)? = null
+
     /** True when a model is loaded and ready to serve requests. */
     val isReady: Boolean get() = llmInference != null
 
@@ -42,6 +46,7 @@ class LLMInferenceEngine @Inject constructor(
                 .setTopK(40)
                 .setTemperature(0.8f)
                 .setRandomSeed(101)
+                .setResultListener { partial, done -> responseCallback?.invoke(partial ?: "", done) }
                 .build()
             llmInference = LlmInference.createFromOptions(context, options)
             loadedModelPath = modelPath
@@ -76,20 +81,21 @@ class LLMInferenceEngine @Inject constructor(
 
         val prompt = buildPrompt(systemPrompt, userMessage)
 
-        try {
-            inference.generateResponseAsync(prompt) { partialResult, done ->
-                if (!partialResult.isNullOrEmpty()) {
-                    trySend(partialResult)
-                }
-                if (done) close()
+        responseCallback = { partialResult, done ->
+            if (partialResult.isNotEmpty()) {
+                trySend(partialResult)
             }
+            if (done) close()
+        }
+        try {
+            inference.generateResponseAsync(prompt)
         } catch (e: Exception) {
             Log.e(TAG, "Inference error: ${e.message}", e)
             trySend("\n[Inference error: ${e.message}]")
             close(e)
         }
 
-        awaitClose { /* MediaPipe manages its own inference lifecycle */ }
+        awaitClose { responseCallback = null }
     }.flowOn(Dispatchers.IO)
 
     /** Release the currently loaded model and free native resources. */

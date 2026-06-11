@@ -162,22 +162,17 @@ class YouTubeAudioExtractor(private val client: OkHttpClient) {
     private fun extractPlayerResponse(html: String): JSONObject {
         // Extract the ytInitialPlayerResponse JSON object from the page HTML
         val pattern = Regex("""ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*(?:var |window\[|</script)""")
-        val match = pattern.find(html)
-            ?: run {
-                // Fallback: try broader match
-                val fallback = Regex("""ytInitialPlayerResponse\s*=\s*(\{""")
-                val start = fallback.find(html) ?: throw Exception("ytInitialPlayerResponse not found in page")
-                val startIdx = start.groups[1]!!.range.first
-                // Find matching closing brace
-                extractJsonObject(html, startIdx)?.let {
-                    return@run object {
-                        val groupValues = listOf("", it)
-                    }
-                } ?: throw Exception("Could not parse ytInitialPlayerResponse JSON")
-            }
+        val primaryJson: String? = pattern.find(html)?.groupValues?.get(1)
 
         return try {
-            JSONObject(match.groupValues[1])
+            val jsonStr = primaryJson ?: run {
+                // Fallback: try broader match + brace-matching extractor
+                val fallback = Regex("""ytInitialPlayerResponse\s*=\s*(\{""")
+                val start = fallback.find(html) ?: throw Exception("ytInitialPlayerResponse not found in page")
+                extractJsonObject(html, start.groups[1]!!.range.first)
+                    ?: throw Exception("Could not parse ytInitialPlayerResponse JSON")
+            }
+            JSONObject(jsonStr)
         } catch (e: Exception) {
             // Try with the broad extractor
             val fallbackPattern = Regex("""ytInitialPlayerResponse\s*=\s*(\{""")

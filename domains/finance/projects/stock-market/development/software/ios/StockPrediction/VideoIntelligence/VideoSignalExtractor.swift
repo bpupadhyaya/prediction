@@ -10,6 +10,7 @@ final class VideoSignalExtractor {
 
     /// Use the on-device LLM to extract market signals from a transcript.
     /// Returns an array of `VideoSignalRecord` (without join-helper fields).
+    @MainActor
     func extractSignals(
         transcript: String,
         title: String,

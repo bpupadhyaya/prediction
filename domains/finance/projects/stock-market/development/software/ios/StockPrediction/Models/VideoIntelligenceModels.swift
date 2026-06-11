@@ -91,9 +91,10 @@ extension VideoSignalRecord: Codable {
 
 // MARK: - ChannelTrackRecord
 
-struct ChannelTrackRecord: Codable, FetchableRecord, PersistableRecord {
+struct ChannelTrackRecord: Codable, FetchableRecord, PersistableRecord, Identifiable {
     static let databaseTableName = "channel_tracks"
 
+    var id: String { channelId }
     var channelId: String
     var channelName: String
     var speakerName: String

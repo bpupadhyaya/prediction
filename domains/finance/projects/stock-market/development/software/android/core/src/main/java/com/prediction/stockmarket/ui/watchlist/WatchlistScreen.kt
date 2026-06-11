@@ -1,6 +1,5 @@
 package com.prediction.stockmarket.ui.watchlist
 
-import androidx.compose.animation.animateItemPlacement
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -89,7 +88,6 @@ private fun WatchlistListItem(
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
-            .animateItemPlacement()
             .clickable(onClick = onClick),
         headlineContent = {
             Text(ticker, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

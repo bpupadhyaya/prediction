@@ -1,6 +1,5 @@
 package com.prediction.stockmarket.ui.portfolio
 
-import androidx.compose.animation.animateItemPlacement
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -135,7 +134,6 @@ private fun HoldingListItem(holding: PortfolioEntity, currentPrice: Double, onCl
     ListItem(
         modifier = Modifier
             .fillMaxWidth()
-            .animateItemPlacement()
             .clickable(onClick = onClick),
         headlineContent = {
             Text(holding.ticker, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

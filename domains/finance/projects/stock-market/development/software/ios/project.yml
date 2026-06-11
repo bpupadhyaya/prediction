@@ -32,8 +32,6 @@ targets:
         INFOPLIST_KEY_NSCameraUsageDescription: ""
     dependencies:
       - package: GRDB
-      - package: llama.cpp
-        product: llama
     info:
       path: StockPrediction/App/Info.plist
       properties:
@@ -69,6 +67,3 @@ packages:
   GRDB:
     url: https://github.com/groue/GRDB.swift
     from: "6.27.0"
-  llama.cpp:
-    url: https://github.com/ggml-org/llama.cpp
-    branch: master

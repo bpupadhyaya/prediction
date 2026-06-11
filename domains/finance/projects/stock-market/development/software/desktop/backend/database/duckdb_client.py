@@ -260,6 +260,12 @@ def init_db() -> None:
     _safe_alter(conn, "ALTER TABLE predictions ADD COLUMN regime_label VARCHAR")
     _safe_alter(conn, "ALTER TABLE prediction_outcomes ADD COLUMN source_type VARCHAR DEFAULT 'model'")
     _safe_alter(conn, "ALTER TABLE prediction_outcomes ADD COLUMN source_id VARCHAR")
+    # YVIS feedback loop (Layer 5 ← Layer 6): keep speaker/video provenance on
+    # applied video signals so resolved outcomes can be attributed to a speaker.
+    _safe_alter(conn, "ALTER TABLE user_signals ADD COLUMN speaker_name VARCHAR")
+    _safe_alter(conn, "ALTER TABLE user_signals ADD COLUMN video_id VARCHAR")
+    _safe_alter(conn, "ALTER TABLE user_signals ADD COLUMN parameter_name VARCHAR")
+    _safe_alter(conn, "ALTER TABLE user_signals ADD COLUMN horizon VARCHAR DEFAULT '1w'")
 
     # ── Seed signal_weights with default domains ──────────────────────────────
     _seed_signal_weights(conn)

@@ -219,12 +219,23 @@ def _store_video_and_transcript(
 
 
 def _apply_video_signals_to_guidance(video_db_id: str, expires_days: int) -> int:
-    """Copy video_signals rows into user_signals for the prediction engine."""
+    """
+    Copy video_signals rows into user_signals for the prediction engine.
+
+    Carries speaker/video/parameter provenance so the YVIS feedback loop
+    (online_learner.resolve_video_signal_outcomes) can later attribute outcomes
+    back to the speaker. The applied weight is scaled by the speaker's historical
+    accuracy (signal_correlations) so proven speakers gain influence over time
+    and unreliable ones are damped.
+    """
+    from backend.models.online_learner import get_speaker_signal_multiplier
+
     conn = get_conn()
     rows = conn.execute(
         """
         SELECT vs.ticker, vs.parameter_name, vs.domain, vs.direction,
-               vs.weight, vs.confidence, vs.key_quote, src.title, src.url
+               vs.weight, vs.confidence, vs.key_quote, src.title, src.url,
+               src.speaker_name, src.channel_name
         FROM video_signals vs
         JOIN video_sources src ON vs.video_id = src.id
         WHERE vs.video_id = ?
@@ -235,20 +246,28 @@ def _apply_video_signals_to_guidance(video_db_id: str, expires_days: int) -> int
     expires_at = (datetime.now() + timedelta(days=expires_days)).isoformat()
     count = 0
     for row in rows:
-        ticker, param_name, domain, direction, weight, confidence, key_quote, title, url = row
+        (ticker, param_name, domain, direction, weight, confidence, key_quote,
+         title, url, speaker_name, channel_name) = row
+        speaker = speaker_name or channel_name or ""
         extracted = 1.0 if direction == "up" else -1.0
         sig_id = str(uuid.uuid4())
-        weight_mult = max(0.5, min(2.0, weight / 50.0))
+        base_mult = max(0.5, min(2.0, weight / 50.0))
+        # Scale by the speaker's proven track record (neutral 1.0 until enough samples).
+        track_mult = get_speaker_signal_multiplier(speaker, ticker, param_name)
+        weight_mult = max(0.5, min(2.0, base_mult * track_mult))
         content = f"[YVIS] {title} — {key_quote[:200]}" if key_quote else f"[YVIS] {title}"
         try:
             conn.execute(
                 """
                 INSERT INTO user_signals
                     (id, ticker, signal_type, domain, content, extracted_signal,
-                     weight_multiplier, confidence, source_tag, created_at, expires_at, is_active)
-                VALUES (?, ?, 'video', ?, ?, ?, ?, ?, 'VIDEO_INTELLIGENCE', now(), ?, TRUE)
+                     weight_multiplier, confidence, source_tag, created_at, expires_at, is_active,
+                     speaker_name, video_id, parameter_name, horizon)
+                VALUES (?, ?, 'video', ?, ?, ?, ?, ?, 'VIDEO_INTELLIGENCE', now(), ?, TRUE,
+                        ?, ?, ?, '1w')
                 """,
-                [sig_id, ticker, domain, content, extracted, weight_mult, confidence, expires_at],
+                [sig_id, ticker, domain, content, extracted, weight_mult, confidence,
+                 expires_at, speaker, video_db_id, param_name],
             )
             count += 1
         except Exception as ex:
@@ -494,10 +513,13 @@ def apply_signals(req: ApplySignalsRequest):
             return {"message": f"Applied {count} signals to prediction engine", "video_id": req.video_id}
 
         # Single signal
+        from backend.models.online_learner import get_speaker_signal_multiplier
+
         sig = conn.execute(
             """
             SELECT vs.ticker, vs.parameter_name, vs.domain, vs.direction,
-                   vs.weight, vs.confidence, vs.key_quote, src.title
+                   vs.weight, vs.confidence, vs.key_quote, src.title,
+                   src.speaker_name, src.channel_name, vs.video_id
             FROM video_signals vs
             JOIN video_sources src ON vs.video_id = src.id
             WHERE vs.id = ?
@@ -507,19 +529,26 @@ def apply_signals(req: ApplySignalsRequest):
         if not sig:
             raise HTTPException(status_code=404, detail=f"Signal '{req.signal_id}' not found")
 
-        ticker, param_name, domain, direction, weight, confidence, key_quote, title = sig
+        (ticker, param_name, domain, direction, weight, confidence, key_quote,
+         title, speaker_name, channel_name, video_db_id) = sig
+        speaker = speaker_name or channel_name or ""
         extracted = 1.0 if direction == "up" else -1.0
-        weight_mult = max(0.5, min(2.0, weight / 50.0))
+        base_mult = max(0.5, min(2.0, weight / 50.0))
+        track_mult = get_speaker_signal_multiplier(speaker, ticker, param_name)
+        weight_mult = max(0.5, min(2.0, base_mult * track_mult))
         content = f"[YVIS] {title} — {key_quote[:200]}" if key_quote else f"[YVIS] {title}"
         new_id = str(uuid.uuid4())
         conn.execute(
             """
             INSERT INTO user_signals
                 (id, ticker, signal_type, domain, content, extracted_signal,
-                 weight_multiplier, confidence, source_tag, created_at, expires_at, is_active)
-            VALUES (?, ?, 'video', ?, ?, ?, ?, ?, 'VIDEO_INTELLIGENCE', now(), ?, TRUE)
+                 weight_multiplier, confidence, source_tag, created_at, expires_at, is_active,
+                 speaker_name, video_id, parameter_name, horizon)
+            VALUES (?, ?, 'video', ?, ?, ?, ?, ?, 'VIDEO_INTELLIGENCE', now(), ?, TRUE,
+                    ?, ?, ?, '1w')
             """,
-            [new_id, ticker, domain, content, extracted, weight_mult, confidence, expires_at],
+            [new_id, ticker, domain, content, extracted, weight_mult, confidence, expires_at,
+             speaker, video_db_id, param_name],
         )
         conn.commit()
         return {"message": "Signal applied to prediction engine", "signal_id": req.signal_id, "user_signal_id": new_id}
@@ -768,6 +797,63 @@ def list_speakers():
             "is_tracked": s["channel_id"] in tracked_ids,
         })
     return {"speakers": result}
+
+
+# ── Feedback loop (Layer 5 ← Layer 6) ────────────────────────────────────────
+
+@router.post("/signals/resolve")
+def resolve_signals():
+    """
+    Resolve elapsed applied video signals against realised price moves and refresh
+    per-speaker accuracy (signal_correlations). Normally runs nightly via the
+    scheduler; this endpoint triggers it on demand for testing.
+    """
+    try:
+        from backend.models.online_learner import (
+            resolve_video_signal_outcomes,
+            update_speaker_correlations,
+        )
+        n = resolve_video_signal_outcomes()
+        speakers = update_speaker_correlations()
+        return {"resolved": n, "speakers_updated": len(speakers), "speakers": speakers}
+    except Exception as e:
+        logger.error("resolve_signals failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/speakers/correlations")
+def speaker_correlations(speaker_name: str | None = None, limit: int = 100):
+    """Return learned per-speaker accuracy and influence multipliers."""
+    try:
+        from backend.models.online_learner import get_speaker_signal_multiplier
+        conn = get_conn()
+        if speaker_name:
+            rows = conn.execute(
+                "SELECT speaker_name, ticker, parameter_name, hist_accuracy, sample_size, updated_at "
+                "FROM signal_correlations WHERE speaker_name = ? ORDER BY sample_size DESC LIMIT ?",
+                [speaker_name, limit],
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT speaker_name, ticker, parameter_name, hist_accuracy, sample_size, updated_at "
+                "FROM signal_correlations ORDER BY sample_size DESC LIMIT ?",
+                [limit],
+            ).fetchall()
+        out = []
+        for r in rows:
+            out.append({
+                "speaker_name":   r[0],
+                "ticker":         r[1],
+                "parameter_name": r[2],
+                "hist_accuracy":  r[3],
+                "sample_size":    r[4],
+                "multiplier":     get_speaker_signal_multiplier(r[0], r[1], r[2]),
+                "updated_at":     str(r[5]),
+            })
+        return {"correlations": out, "count": len(out)}
+    except Exception as e:
+        logger.error("speaker_correlations failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── Aggregated intelligence per ticker ───────────────────────────────────────

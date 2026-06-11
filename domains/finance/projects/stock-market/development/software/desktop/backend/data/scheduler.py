@@ -50,11 +50,37 @@ def run_initial_data_load() -> None:
     logger.info("Initial data load complete.")
 
 
+def run_outcome_resolution() -> None:
+    """Resolve elapsed predictions/signals and feed accuracy back into the
+    online-learning weights. Runs nightly after fresh prices are in."""
+    from backend.models.online_learner import (
+        resolve_outcomes,
+        resolve_interactive_outcomes,
+        resolve_video_signal_outcomes,
+        update_domain_weights,
+        update_interactive_accuracy_weights,
+        update_speaker_correlations,
+    )
+    logger.info("Outcome resolution started...")
+    n_model = resolve_outcomes()
+    n_inter = resolve_interactive_outcomes()
+    n_video = resolve_video_signal_outcomes()
+    # Feed resolved outcomes back into the weighting layers (Layer 5).
+    update_domain_weights()
+    update_interactive_accuracy_weights()
+    update_speaker_correlations()
+    logger.info(
+        f"Outcome resolution complete — model={n_model}, interactive={n_inter}, video={n_video}"
+    )
+
+
 def start_scheduler() -> None:
     from apscheduler.schedulers.background import BackgroundScheduler
-    from backend.models.online_learner import resolve_interactive_outcomes
     scheduler = BackgroundScheduler()
     scheduler.add_job(run_daily_refresh, "cron", hour=22, minute=0)
-    scheduler.add_job(resolve_interactive_outcomes, "cron", hour=2, minute=30, id="resolve_interactive")
+    scheduler.add_job(run_outcome_resolution, "cron", hour=2, minute=30, id="resolve_outcomes")
     scheduler.start()
-    logger.info("Scheduler started — daily refresh at 22:00 UTC, interactive outcome resolution at 02:30 UTC")
+    logger.info(
+        "Scheduler started — daily refresh at 22:00 UTC, outcome resolution + "
+        "online-learning weight updates at 02:30 UTC"
+    )

@@ -392,6 +392,212 @@ def update_user_signal_outcome(signal_id: str, was_correct: bool) -> None:
         logger.debug(f"Could not update user signal outcome: {e}")
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# YVIS feedback loop — Layer 5 ← Layer 6
+#
+# Applied video signals are stored in user_signals (source_tag='VIDEO_INTELLIGENCE')
+# with speaker/video/parameter provenance. These functions resolve their outcomes
+# against realised price moves, attribute accuracy to the speaker, and feed that
+# back so proven speakers gain influence and unreliable ones are damped.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Trading-day horizon → minimum calendar age before an outcome can be resolved.
+_HORIZON_TRADING_DAYS = {"1d": 1, "1w": 5, "1m": 21}
+_HORIZON_MIN_CALENDAR_DAYS = {"1d": 2, "1w": 9, "1m": 35}
+_CORR_MIN_SAMPLES = 5          # speaker needs this many resolved signals before it sways weighting
+
+
+def resolve_video_signal_outcomes() -> int:
+    """
+    Resolve outcomes for applied video signals (user_signals with a video source).
+
+    For each active video signal whose horizon has elapsed and whose ticker has
+    enough forward price data, determine whether its direction was correct, mark
+    the user_signal (which also nudges its domain weight via
+    update_user_signal_outcome), and log a row into prediction_outcomes
+    (source_type='video') for accuracy reporting.
+
+    Returns the number of video signal outcomes resolved.
+    """
+    conn = get_conn()
+    try:
+        candidates = conn.execute("""
+            SELECT id, ticker, extracted_signal, created_at,
+                   COALESCE(horizon, '1w')          AS horizon,
+                   COALESCE(speaker_name, '')        AS speaker_name,
+                   COALESCE(parameter_name, '')      AS parameter_name,
+                   COALESCE(domain, 'macro')         AS domain
+            FROM user_signals
+            WHERE source_tag = 'VIDEO_INTELLIGENCE'
+              AND outcome_known = FALSE
+              AND ticker IS NOT NULL AND ticker <> ''
+              AND created_at < (now() - INTERVAL 2 DAY)
+            LIMIT 500
+        """).df()
+    except Exception as e:
+        logger.debug(f"resolve_video_signal_outcomes query failed: {e}")
+        return 0
+
+    resolved = 0
+    for _, row in candidates.iterrows():
+        sig_id   = row["id"]
+        ticker   = row["ticker"]
+        horizon  = str(row["horizon"]) if str(row["horizon"]) in _HORIZON_TRADING_DAYS else "1w"
+        created  = pd.to_datetime(row["created_at"])
+        min_age  = _HORIZON_MIN_CALENDAR_DAYS[horizon]
+
+        # Skip signals not yet old enough for this horizon to have played out.
+        if created > (datetime.now() - timedelta(days=min_age)):
+            continue
+
+        n_days = _HORIZON_TRADING_DAYS[horizon]
+        actual_return = _get_actual_return(conn, ticker, created, n_days)
+        if actual_return is None:
+            continue
+
+        es = float(row["extracted_signal"] or 0.0)
+        if es == 0.0:
+            continue
+        predicted_up = es > 0
+        was_correct = (predicted_up and actual_return > 0) or (not predicted_up and actual_return < 0)
+
+        # Mark the user_signal + nudge its domain weight (existing reinforcement path).
+        update_user_signal_outcome(sig_id, bool(was_correct))
+
+        # Record an outcome row for accuracy reporting / dashboards.
+        try:
+            conn.execute("""
+                INSERT OR IGNORE INTO prediction_outcomes
+                    (ticker, horizon, predicted_at, direction, probability,
+                     regime_label, actual_return, was_correct, resolved_at,
+                     source_type, source_id)
+                VALUES (?, ?, ?, ?, ?, 'video', ?, ?, now(), 'video', ?)
+            """, [ticker, horizon, row["created_at"],
+                  "up" if predicted_up else "down", 0.5 + 0.5 * min(1.0, abs(es)),
+                  float(actual_return), bool(was_correct), str(sig_id)])
+            resolved += 1
+        except Exception as e:
+            logger.debug(f"Could not log video outcome for {sig_id}: {e}")
+
+    if resolved:
+        conn.commit()
+        logger.info(f"Resolved {resolved} video signal outcomes")
+        update_speaker_correlations()
+
+    return resolved
+
+
+def update_speaker_correlations() -> dict:
+    """
+    Aggregate resolved video signals into the signal_correlations table:
+    per (speaker, ticker, parameter) historical accuracy + sample size, plus a
+    per-speaker 'ALL' rollup. This is the memory the prediction path reads to
+    weight a speaker's future signals.
+
+    Returns {speaker_name: {accuracy, n}} for speakers with a populated rollup.
+    """
+    import uuid as _uuid
+
+    conn = get_conn()
+    try:
+        rows = conn.execute("""
+            SELECT COALESCE(speaker_name, '')   AS speaker_name,
+                   COALESCE(ticker, '')         AS ticker,
+                   COALESCE(parameter_name, '') AS parameter_name,
+                   was_correct
+            FROM user_signals
+            WHERE source_tag = 'VIDEO_INTELLIGENCE'
+              AND outcome_known = TRUE
+              AND speaker_name IS NOT NULL AND speaker_name <> ''
+        """).df()
+    except Exception as e:
+        logger.debug(f"update_speaker_correlations query failed: {e}")
+        return {}
+
+    if rows.empty:
+        return {}
+
+    # Build (speaker, ticker, parameter) buckets AND a per-speaker ALL/ALL rollup.
+    buckets: dict[tuple, dict] = {}
+    for _, r in rows.iterrows():
+        speaker = r["speaker_name"]
+        correct = bool(r["was_correct"])
+        for key in [
+            (speaker, r["ticker"] or "ALL", r["parameter_name"] or "ALL"),
+            (speaker, "ALL", "ALL"),
+        ]:
+            b = buckets.setdefault(key, {"correct": 0, "total": 0})
+            b["total"] += 1
+            b["correct"] += 1 if correct else 0
+
+    summary: dict[str, dict] = {}
+    for (speaker, ticker, param), b in buckets.items():
+        acc = b["correct"] / b["total"] if b["total"] else 0.0
+        try:
+            existing = conn.execute(
+                "SELECT id FROM signal_correlations WHERE speaker_name = ? AND ticker = ? AND parameter_name = ?",
+                [speaker, ticker, param],
+            ).fetchone()
+            if existing:
+                conn.execute("""
+                    UPDATE signal_correlations
+                    SET hist_accuracy = ?, sample_size = ?, updated_at = now()
+                    WHERE id = ?
+                """, [round(acc, 4), int(b["total"]), existing[0]])
+            else:
+                conn.execute("""
+                    INSERT INTO signal_correlations
+                        (id, speaker_name, ticker, parameter_name, hist_accuracy, sample_size, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, now())
+                """, [str(_uuid.uuid4()), speaker, ticker, param, round(acc, 4), int(b["total"])])
+        except Exception as e:
+            logger.debug(f"Could not upsert correlation {speaker}/{ticker}/{param}: {e}")
+
+        if ticker == "ALL" and param == "ALL":
+            summary[speaker] = {"accuracy": round(acc, 4), "n": int(b["total"])}
+
+    conn.commit()
+    if summary:
+        logger.info(f"Updated speaker correlations: {summary}")
+    return summary
+
+
+def get_speaker_signal_multiplier(
+    speaker_name: str,
+    ticker: str | None = None,
+    parameter_name: str | None = None,
+    min_samples: int = _CORR_MIN_SAMPLES,
+) -> float:
+    """
+    Weight multiplier in [0.5, 2.0] for a speaker's video signal, derived from
+    historical accuracy. Falls back through (speaker,ticker,param) →
+    (speaker,ticker) → (speaker,ALL,ALL); returns 1.0 (neutral) until a speaker
+    has at least `min_samples` resolved signals.
+    """
+    if not speaker_name:
+        return 1.0
+    conn = get_conn()
+    lookups = [
+        (speaker_name, ticker or "ALL", parameter_name or "ALL"),
+        (speaker_name, ticker or "ALL", "ALL"),
+        (speaker_name, "ALL", "ALL"),
+    ]
+    for sp, tk, pm in lookups:
+        try:
+            row = conn.execute("""
+                SELECT hist_accuracy, sample_size FROM signal_correlations
+                WHERE speaker_name = ? AND ticker = ? AND parameter_name = ?
+            """, [sp, tk, pm]).fetchone()
+        except Exception:
+            row = None
+        if row and row[1] and int(row[1]) >= min_samples:
+            acc = float(row[0])
+            # acc 0.5 → 1.0 ; 0.75 → 1.5 ; 1.0 → 2.0 ; 0.25 → 0.5 ; clamp [0.5, 2.0]
+            mult = 1.0 + (acc - 0.5) * 2.0
+            return float(max(0.5, min(2.0, mult)))
+    return 1.0
+
+
 def get_recent_accuracy(horizon: str = "1w", days: int = 90) -> dict:
     """Return recent directional accuracy summary."""
     conn = get_conn()

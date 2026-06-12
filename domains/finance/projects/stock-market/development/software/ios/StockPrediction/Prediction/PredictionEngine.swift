@@ -41,7 +41,10 @@ final class PredictionEngine {
 
         let probUp = output[1]
         let direction = probUp >= 0.5 ? "UP" : "DOWN"
-        let volatility = standardDeviation(bars.prefix(20).map { Float($0.adjClose) })
+        let closesForVol = bars.map { Float($0.adjClose) }
+        let volatility = closesForVol.count >= 21
+            ? standardDeviation((0..<20).map { closesForVol[$0] / closesForVol[$0 + 1] - 1 })
+            : 0
         let magnitude = abs(Double(probUp) - 0.5) * 2
         let expectedLow  = probUp >= 0.5 ?  magnitude * 0.5 : -magnitude
         let expectedHigh = probUp >= 0.5 ?  magnitude       : -magnitude * 0.5
@@ -59,8 +62,13 @@ final class PredictionEngine {
 
     // MARK: - Feature Engineering
 
+    // Feature semantics MUST match the training pipeline (desktop trainer.py):
+    //   ma_N          = rolling(N).mean() / close - 1
+    //   volatility_20 = std of daily RETURNS (not price levels)
+    // Input order: return_1d, return_5d, return_20d, ma_5, ma_20, ma_50,
+    //              volatility_20, volume_ratio, rsi  (prices newest-first)
     private func buildFeatures(prices: [PriceBar]) -> [Float]? {
-        guard prices.count >= 50 else { return nil }
+        guard prices.count >= 51 else { return nil }
         let closes = prices.map { Float($0.adjClose) }
         let volumes = prices.map { Float($0.volume) }
 
@@ -68,11 +76,12 @@ final class PredictionEngine {
         let ret5 = (closes[0] - closes[5]) / closes[5]
         let ret20 = (closes[0] - closes[20]) / closes[20]
 
-        let ma5 = closes.prefix(5).reduce(0, +) / 5
-        let ma20 = closes.prefix(20).reduce(0, +) / 20
-        let ma50 = closes.prefix(50).reduce(0, +) / 50
+        let ma5 = closes.prefix(5).reduce(0, +) / 5 / closes[0] - 1
+        let ma20 = closes.prefix(20).reduce(0, +) / 20 / closes[0] - 1
+        let ma50 = closes.prefix(50).reduce(0, +) / 50 / closes[0] - 1
 
-        let vol20 = standardDeviation(Array(closes.prefix(20)))
+        let dailyReturns = (0..<20).map { closes[$0] / closes[$0 + 1] - 1 }
+        let vol20 = standardDeviation(dailyReturns)
         let volRatio: Float = {
             let avgVol = volumes.prefix(20).reduce(0, +) / 20
             return avgVol > 0 ? volumes[0] / avgVol : 1.0
@@ -80,8 +89,7 @@ final class PredictionEngine {
 
         let rsi = computeRSI(closes: Array(closes.prefix(15)))
 
-        return [ret1, ret5, ret20, closes[0] / ma5, closes[0] / ma20, closes[0] / ma50,
-                vol20, volRatio, rsi]
+        return [ret1, ret5, ret20, ma5, ma20, ma50, vol20, volRatio, rsi]
     }
 
     private func standardDeviation(_ values: [Float]) -> Float {
@@ -122,7 +130,10 @@ final class PredictionEngine {
         let probUp = output[1]   // probability of UP class
         let direction = probUp >= 0.5 ? "UP" : "DOWN"
 
-        let volatility = standardDeviation(prices.prefix(20).map { Float($0.adjClose) })
+        let closesForVol = prices.map { Float($0.adjClose) }
+        let volatility = closesForVol.count >= 21
+            ? standardDeviation((0..<20).map { closesForVol[$0] / closesForVol[$0 + 1] - 1 })
+            : 0
         let magnitude = abs(Double(probUp) - 0.5) * 2
         let expectedLow  = probUp >= 0.5 ?  magnitude * 0.5 : -magnitude
         let expectedHigh = probUp >= 0.5 ?  magnitude       : -magnitude * 0.5

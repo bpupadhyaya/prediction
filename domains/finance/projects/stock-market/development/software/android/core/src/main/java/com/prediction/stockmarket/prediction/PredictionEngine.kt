@@ -34,7 +34,10 @@ class PredictionEngine @Inject constructor(
         val features = buildFeatures(prices) ?: return null
         val prob = runInference(features) ?: return null
         val direction = if (prob >= 0.5f) "UP" else "DOWN"
-        val vol = stdDev(prices.take(20).map { it.adjClose.toFloat() })
+        val closes = prices.map { it.adjClose.toFloat() }
+        val vol = if (closes.size >= 21)
+            stdDev((0 until 20).map { i -> closes[i] / closes[i + 1] - 1f })
+        else 0f
 
         return PredictionEntity(
             ticker = ticker,
@@ -49,24 +52,29 @@ class PredictionEngine @Inject constructor(
         )
     }
 
+    // Feature semantics MUST match the training pipeline (desktop trainer.py):
+    //   ma_N          = rolling(N).mean() / close - 1
+    //   volatility_20 = std of daily RETURNS (not price levels)
+    // Input order: return_1d, return_5d, return_20d, ma_5, ma_20, ma_50,
+    //              volatility_20, volume_ratio, rsi  (prices newest-first)
     private fun buildFeatures(prices: List<PriceBarEntity>): FloatArray? {
-        if (prices.size < 50) return null
+        if (prices.size < 51) return null
         val closes = prices.map { it.adjClose.toFloat() }
         val volumes = prices.map { it.volume.toFloat() }
 
         val ret1 = (closes[0] - closes[1]) / closes[1]
         val ret5 = (closes[0] - closes[5]) / closes[5]
         val ret20 = (closes[0] - closes[20]) / closes[20]
-        val ma5 = closes.take(5).average().toFloat()
-        val ma20 = closes.take(20).average().toFloat()
-        val ma50 = closes.take(50).average().toFloat()
-        val vol20 = stdDev(closes.take(20))
+        val ma5 = closes.take(5).average().toFloat() / closes[0] - 1f
+        val ma20 = closes.take(20).average().toFloat() / closes[0] - 1f
+        val ma50 = closes.take(50).average().toFloat() / closes[0] - 1f
+        val dailyReturns = (0 until 20).map { i -> closes[i] / closes[i + 1] - 1f }
+        val vol20 = stdDev(dailyReturns)
         val avgVol = volumes.take(20).average().toFloat()
         val volRatio = if (avgVol > 0) volumes[0] / avgVol else 1f
         val rsi = computeRSI(closes.take(15))
 
-        return floatArrayOf(ret1, ret5, ret20, closes[0] / ma5, closes[0] / ma20,
-            closes[0] / ma50, vol20, volRatio, rsi)
+        return floatArrayOf(ret1, ret5, ret20, ma5, ma20, ma50, vol20, volRatio, rsi)
     }
 
     private fun runInference(features: FloatArray): Float? {

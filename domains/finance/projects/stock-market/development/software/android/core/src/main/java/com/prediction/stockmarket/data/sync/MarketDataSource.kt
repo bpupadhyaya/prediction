@@ -44,6 +44,69 @@ class MarketDataSourceManager @Inject constructor(
 
 class YahooFinanceFetcher @Inject constructor(private val client: OkHttpClient) {
 
+    companion object {
+        private const val UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36"
+    }
+
+    // Yahoo's v7 quote API is crumb-gated: a session cookie (fc.yahoo.com) plus a
+    // crumb token (v1/test/getcrumb) must accompany every request. Cached per
+    // process; invalidated + refetched once on 401.
+    @Volatile private var yahooCrumb: String? = null
+    @Volatile private var yahooCookie: String? = null
+
+    @Synchronized
+    private fun ensureCrumb(force: Boolean = false): Pair<String, String>? {
+        if (!force) {
+            val c = yahooCrumb; val k = yahooCookie
+            if (c != null && k != null) return c to k
+        }
+        return try {
+            val cookieResp = client.newCall(
+                Request.Builder().url("https://fc.yahoo.com").header("User-Agent", UA).build()
+            ).execute()
+            val cookie = cookieResp.headers("Set-Cookie")
+                .firstOrNull { it.startsWith("A3=") || it.startsWith("A1=") }
+                ?.substringBefore(";")
+            cookieResp.close()
+            if (cookie.isNullOrEmpty()) return null
+
+            val crumb = client.newCall(
+                Request.Builder().url("https://query1.finance.yahoo.com/v1/test/getcrumb")
+                    .header("User-Agent", UA).header("Cookie", cookie).build()
+            ).execute().use { it.body?.string()?.trim() ?: "" }
+            if (crumb.isEmpty() || crumb.contains("Too Many", ignoreCase = true)) return null
+
+            yahooCrumb = crumb
+            yahooCookie = cookie
+            crumb to cookie
+        } catch (_: Exception) { null }
+    }
+
+    /** GET a crumb-authenticated quote URL; retries once with a fresh crumb on 401. */
+    private fun quoteRequest(symbolsCsv: String): String? {
+        var auth = ensureCrumb() ?: return null
+        repeat(2) { attempt ->
+            val (crumb, cookie) = auth
+            val url = "https://query1.finance.yahoo.com/v7/finance/quote" +
+                "?symbols=$symbolsCsv&crumb=" + java.net.URLEncoder.encode(crumb, "UTF-8")
+            try {
+                client.newCall(
+                    Request.Builder().url(url)
+                        .header("User-Agent", UA).header("Cookie", cookie)
+                        .header("Accept", "application/json").build()
+                ).execute().use { resp ->
+                    if (resp.code == 401 && attempt == 0) {
+                        auth = ensureCrumb(force = true) ?: return null
+                        return@use
+                    }
+                    if (!resp.isSuccessful) return null
+                    return resp.body?.string()
+                }
+            } catch (_: Exception) { return null }
+        }
+        return null
+    }
+
     fun fetchPriceBars(ticker: String, range: String = "5y"): List<PriceBarEntity> {
         val url = "https://query1.finance.yahoo.com/v8/finance/chart/$ticker?interval=1d&range=$range"
         val req = Request.Builder().url(url)
@@ -104,13 +167,7 @@ class YahooFinanceFetcher @Inject constructor(private val client: OkHttpClient) 
     fun fetchQuoteLites(symbols: List<String>): List<QuoteLite> {
         if (symbols.isEmpty()) return emptyList()
         return try {
-            val joined = symbols.joinToString(",")
-            val url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=$joined"
-            val req = Request.Builder().url(url)
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-                .header("Accept", "application/json")
-                .build()
-            val body = client.newCall(req).execute().use { it.body?.string() ?: "" }
+            val body = quoteRequest(symbols.joinToString(",")) ?: return emptyList()
             val result = JSONObject(body).getJSONObject("quoteResponse").getJSONArray("result")
             (0 until result.length()).mapNotNull { i ->
                 val q = result.getJSONObject(i)
@@ -127,12 +184,7 @@ class YahooFinanceFetcher @Inject constructor(private val client: OkHttpClient) 
 
     fun fetchQuote(ticker: String): StockEntity? {
         return try {
-            val url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=$ticker"
-            val req = Request.Builder().url(url)
-                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-                .header("Accept", "application/json")
-                .build()
-            val body = client.newCall(req).execute().use { it.body?.string() ?: "" }
+            val body = quoteRequest(ticker) ?: return null
             val json = JSONObject(body)
             val result = json.getJSONObject("quoteResponse").getJSONArray("result")
             if (result.length() == 0) return null

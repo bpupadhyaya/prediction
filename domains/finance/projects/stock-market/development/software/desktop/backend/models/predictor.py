@@ -74,6 +74,12 @@ class Prediction:
 _cache: dict = {"date": None, "cs": None, "macro": None, "fund": None, "sectors": None}
 
 
+def invalidate_cache() -> None:
+    """Force a cross-sectional cache rebuild (e.g. after an on-demand data load
+    adds a ticker the daily cache has never seen)."""
+    _cache["date"] = None
+
+
 def _refresh_cache() -> None:
     today = date.today()
     if _cache["date"] == today:

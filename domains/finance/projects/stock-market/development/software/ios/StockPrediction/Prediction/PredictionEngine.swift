@@ -8,6 +8,18 @@ final class PredictionEngine {
 
     private let modelName = "stock_predictor"
 
+    /// One bundled ONNX per horizon; 3m maps to the 1m model (closest trained).
+    /// Falls back to the 1w model when a horizon-specific file is absent.
+    private func modelURL(for horizon: String) -> URL? {
+        let h = horizon.lowercased()
+        let name: String
+        if h.hasPrefix("1d") { name = "stock_predictor_1d" }
+        else if h.hasPrefix("1m") || h.hasPrefix("3m") { name = "stock_predictor_1m" }
+        else { name = modelName }
+        return Bundle.main.url(forResource: name, withExtension: "onnx")
+            ?? Bundle.main.url(forResource: modelName, withExtension: "onnx")
+    }
+
     // MARK: - Public API
 
     func predict(ticker: String, horizon: String = "1w") throws -> Prediction {
@@ -34,7 +46,7 @@ final class PredictionEngine {
     /// instruments are not part of the synced stock universe. Returns nil when
     /// the model or features are unavailable — callers show a neutral chip.
     func predict(fromBars bars: [PriceBar], ticker: String, horizon: String = "1w") -> Prediction? {
-        guard let modelURL = Bundle.main.url(forResource: modelName, withExtension: "onnx"),
+        guard let modelURL = modelURL(for: horizon),
               let features = buildFeatures(prices: bars),
               let session = try? OnnxRuntimeSession(modelPath: modelURL.path),
               let output = try? session.run(input: features) else { return nil }
@@ -129,7 +141,7 @@ final class PredictionEngine {
     // MARK: - ONNX Inference
 
     private func runInference(ticker: String, horizon: String) throws -> Prediction? {
-        guard let modelURL = Bundle.main.url(forResource: modelName, withExtension: "onnx") else {
+        guard let modelURL = modelURL(for: horizon) else {
             return nil
         }
         let prices = try DatabaseManager.shared.prices(ticker: ticker, days: 600)

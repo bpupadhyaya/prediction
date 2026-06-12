@@ -230,6 +230,44 @@ def _fetch_prices_single(ticker: str, start: datetime) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def ensure_ticker_data(ticker: str, min_bars: int = 260) -> bool:
+    """
+    Make ANY symbol predictable on demand — local or global stock, crypto pair,
+    ETF, index. If the ticker has too little price history in the DB, fetch ~5y
+    from Yahoo and upsert it (plus best-effort fundamentals). Returns True when
+    enough history exists for the prediction pipeline afterwards.
+    """
+    ticker = ticker.upper()
+    conn = get_conn()
+    try:
+        n = conn.execute(
+            "SELECT COUNT(*) FROM prices WHERE ticker = ?", [ticker]
+        ).fetchone()[0]
+    except Exception:
+        n = 0
+    if n >= min_bars:
+        return True
+
+    start = datetime.today() - timedelta(days=365 * 5)
+    df = _fetch_prices_single(ticker, start)
+    if df.empty:
+        return n >= min_bars
+    upsert_prices(df)
+    try:
+        refresh_ticker_fundamentals(ticker)
+    except Exception:
+        pass
+    # The predictor's cross-sectional cache is built once per day — it has never
+    # seen this ticker, so force a rebuild or the prediction falls back to neutral.
+    try:
+        from backend.models.predictor import invalidate_cache
+        invalidate_cache()
+    except Exception:
+        pass
+    logger.info(f"On-demand data load for {ticker}: {len(df)} bars")
+    return len(df) >= min_bars or n + len(df) >= min_bars
+
+
 def initial_load(tickers: list[str]) -> None:
     conn = get_conn()
     existing = {r[0] for r in conn.execute("SELECT DISTINCT ticker FROM prices").fetchall()}

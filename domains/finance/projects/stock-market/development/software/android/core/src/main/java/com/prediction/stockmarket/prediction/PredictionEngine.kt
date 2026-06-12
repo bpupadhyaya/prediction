@@ -19,20 +19,35 @@ class PredictionEngine @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val env = OrtEnvironment.getEnvironment()
-    private var session: OrtSession? = null
 
-    init {
-        try {
-            val modelBytes = context.assets.open("stock_predictor.onnx").readBytes()
-            session = env.createSession(modelBytes, OrtSession.SessionOptions())
-        } catch (_: Exception) {
-            // Model not yet available; predictions fall back to DB cache
+    // One ONNX model per prediction horizon, lazily loaded from assets.
+    // 3M maps to the 1m model (closest trained horizon).
+    private val sessions = mutableMapOf<String, OrtSession?>()
+
+    private fun assetForHorizon(horizon: String): String = when {
+        horizon.startsWith("1d", ignoreCase = true) -> "stock_predictor_1d.onnx"
+        horizon.startsWith("1m", ignoreCase = true) ||
+        horizon.startsWith("3m", ignoreCase = true) -> "stock_predictor_1m.onnx"
+        else -> "stock_predictor.onnx"   // 1w (legacy file name)
+    }
+
+    @Synchronized
+    private fun sessionFor(horizon: String): OrtSession? {
+        val asset = assetForHorizon(horizon)
+        return sessions.getOrPut(asset) {
+            try {
+                val modelBytes = context.assets.open(asset).readBytes()
+                env.createSession(modelBytes, OrtSession.SessionOptions())
+            } catch (_: Exception) {
+                // Horizon model missing — fall back to the 1w model if available
+                if (asset != "stock_predictor.onnx") sessionFor("1w") else null
+            }
         }
     }
 
     fun predict(ticker: String, horizon: String, prices: List<PriceBarEntity>): PredictionEntity? {
         val features = buildFeatures(prices) ?: return null
-        val prob = runInference(features) ?: return null
+        val prob = runInference(features, horizon) ?: return null
         val direction = if (prob >= 0.5f) "UP" else "DOWN"
         val closes = prices.map { it.adjClose.toFloat() }
         val vol = if (closes.size >= 21)
@@ -92,8 +107,8 @@ class PredictionEngine @Inject constructor(
         return kotlin.math.sqrt(variance).toFloat()
     }
 
-    private fun runInference(features: FloatArray): Float? {
-        val sess = session ?: return null
+    private fun runInference(features: FloatArray, horizon: String = "1w"): Float? {
+        val sess = sessionFor(horizon) ?: return null
         return try {
             val buf = FloatBuffer.wrap(features)
             val shape = longArrayOf(1, features.size.toLong())

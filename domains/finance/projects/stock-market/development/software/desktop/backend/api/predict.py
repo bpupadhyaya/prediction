@@ -102,6 +102,15 @@ def get_prediction(ticker: str, horizon: str = "1w"):
     if horizon not in PREDICTION_HORIZONS:
         raise HTTPException(status_code=422, detail=f"horizon must be one of {PREDICTION_HORIZONS}")
     try:
+        # Any-symbol support: fetch history on demand for tickers outside the
+        # synced universe (global stocks, crypto pairs, ETFs, indices).
+        from backend.data.price_feed import ensure_ticker_data
+        if not ensure_ticker_data(ticker):
+            raise HTTPException(
+                status_code=404,
+                detail=f"No price history available for '{ticker.upper()}' — "
+                       "check the symbol (Yahoo Finance notation, e.g. 7203.T, BTC-USD).",
+            )
         result = predict_ticker(ticker.upper(), horizon)
         return _pred_to_dict(result, include_explanation=False)
     except HTTPException:

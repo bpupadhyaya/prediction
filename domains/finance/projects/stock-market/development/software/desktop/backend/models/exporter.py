@@ -51,6 +51,22 @@ MOBILE_FEATURES = [
 N_FEATURES = len(MOBILE_FEATURES)
 ONNX_PATH = MODELS_DIR / "stock_predictor.onnx"
 
+# One ONNX per horizon. The 1w file keeps the legacy name so existing bundles
+# and the release script stay backward-compatible.
+HORIZON_ONNX_PATHS = {
+    "1d": MODELS_DIR / "stock_predictor_1d.onnx",
+    "1w": ONNX_PATH,
+    "1m": MODELS_DIR / "stock_predictor_1m.onnx",
+}
+
+
+def export_all_horizons(verify: bool = False) -> dict:
+    """Train + export a mobile model for every prediction horizon (1d/1w/1m)."""
+    out = {}
+    for horizon in HORIZON_ONNX_PATHS:
+        out[horizon] = export(verify=verify, horizon=horizon)
+    return out
+
 
 def export(verify: bool = False, horizon: str = "1w") -> Path:
     """Train a compact mobile GBM (MOBILE_FEATURES) from the prepared training data and export ONNX."""
@@ -67,6 +83,7 @@ def export(verify: bool = False, horizon: str = "1w") -> Path:
     from backend.models.trainer import prepare_all_training_data, HORIZON_DAYS
 
     horizon_days = HORIZON_DAYS.get(horizon, 5)
+    onnx_path = HORIZON_ONNX_PATHS.get(horizon, ONNX_PATH)
     logger.info(f"Preparing training data for the {horizon} mobile model...")
     combined = prepare_all_training_data(horizon_days)
     if combined is None or combined.empty:
@@ -101,16 +118,16 @@ def export(verify: bool = False, horizon: str = "1w") -> Path:
         options={id(pipeline.named_steps["classifier"]): {"zipmap": False}},
     )
 
-    ONNX_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(ONNX_PATH, "wb") as f:
+    onnx_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(onnx_path, "wb") as f:
         f.write(onnx_model.SerializeToString())
 
-    size_kb = ONNX_PATH.stat().st_size / 1024
-    logger.info(f"Exported {N_FEATURES}-feature mobile ONNX → {ONNX_PATH}  ({size_kb:.0f} KB)")
+    size_kb = onnx_path.stat().st_size / 1024
+    logger.info(f"Exported {N_FEATURES}-feature {horizon} mobile ONNX → {onnx_path}  ({size_kb:.0f} KB)")
 
     if verify:
         _verify(onnx_model)
-    return ONNX_PATH
+    return onnx_path
 
 
 def _verify(onnx_model) -> None:

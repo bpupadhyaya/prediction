@@ -17,12 +17,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOFTWARE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DESKTOP_DIR="$SOFTWARE_DIR/desktop"
 VENV_PY="$DESKTOP_DIR/.venv/bin/python"
-MODEL_SRC="$HOME/.prediction/stock-market/models/stock_predictor.onnx"
+MODELS_SRC_DIR="$HOME/.prediction/stock-market/models"
+MODEL_FILES="stock_predictor.onnx stock_predictor_1d.onnx stock_predictor_1m.onnx"
 
 IOS_DEST="$SOFTWARE_DIR/ios/StockPrediction/Resources/stock_predictor.onnx"
 ANDROID_DEST="$SOFTWARE_DIR/android/app/src/main/assets/stock_predictor.onnx"
 
-echo "==> Building 9-feature mobile ONNX model..."
+echo "==> Building mobile ONNX models (1d / 1w / 1m)..."
 if [[ ! -x "$VENV_PY" ]]; then
     echo "ERROR: desktop venv not found at $VENV_PY"
     echo "       Create it: cd $DESKTOP_DIR && python3.11 -m venv .venv && .venv/bin/pip install -r requirements.txt"
@@ -30,25 +31,23 @@ if [[ ! -x "$VENV_PY" ]]; then
 fi
 
 cd "$DESKTOP_DIR"
-"$VENV_PY" -m backend.models.exporter --verify
+"$VENV_PY" -c "from backend.models.exporter import export_all_horizons; export_all_horizons(verify=True)"
 
-if [[ ! -f "$MODEL_SRC" ]]; then
-    echo "ERROR: expected model at $MODEL_SRC but it was not produced."
-    echo "       Run the data+training pipeline first: $VENV_PY -m backend.setup"
-    exit 1
-fi
-
-echo "==> Deploying model into app bundles..."
+echo "==> Deploying horizon models into app bundles..."
 mkdir -p "$(dirname "$IOS_DEST")" "$(dirname "$ANDROID_DEST")"
-cp "$MODEL_SRC" "$IOS_DEST"
-cp "$MODEL_SRC" "$ANDROID_DEST"
-
-SIZE_KB=$(( $(stat -f%z "$MODEL_SRC" 2>/dev/null || stat -c%s "$MODEL_SRC") / 1024 ))
+for f in $MODEL_FILES; do
+    if [[ ! -f "$MODELS_SRC_DIR/$f" ]]; then
+        echo "ERROR: expected model at $MODELS_SRC_DIR/$f but it was not produced."
+        echo "       Run the data+training pipeline first: $VENV_PY -m backend.setup"
+        exit 1
+    fi
+    cp "$MODELS_SRC_DIR/$f" "$(dirname "$IOS_DEST")/$f"
+    cp "$MODELS_SRC_DIR/$f" "$(dirname "$ANDROID_DEST")/$f"
+    echo "    ✓ $f"
+done
 echo ""
-echo "✓ Deployed stock_predictor.onnx (${SIZE_KB} KB) to:"
-echo "    iOS:     $IOS_DEST"
-echo "    Android: $ANDROID_DEST"
+echo "✓ Deployed ${MODEL_FILES} to iOS Resources + Android assets"
 echo ""
 echo "Next: rebuild the iOS/Android apps so they bundle the new model."
-echo "NOTE: mobile buildFeatures() must emit the 9 features in exporter.MOBILE_FEATURES"
-echo "      order and semantics (ma_N = MA/close-1; volatility_20 = std of returns)."
+echo "NOTE: mobile buildFeatures() must emit exporter.MOBILE_FEATURES in order"
+echo "      with trainer.py semantics (ma_N = MA/close-1; volatility = returns std)."

@@ -176,18 +176,51 @@ struct YahooFinanceFetcher {
         let earningsTimestamp: Int64?   // unix seconds, nil if none reported
     }
 
+    // Yahoo's v7 quote API is crumb-gated: hitting fc.yahoo.com seeds a session
+    // cookie (URLSession's shared cookie storage keeps it), then v1/test/getcrumb
+    // yields the crumb token that must accompany every v7 request.
+    private static var yahooCrumb: String?
+
+    private static func ensureCrumb(force: Bool = false) async -> String? {
+        if !force, let crumb = yahooCrumb { return crumb }
+        let ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"
+        if let seedURL = URL(string: "https://fc.yahoo.com") {
+            var seed = URLRequest(url: seedURL, timeoutInterval: 15)
+            seed.setValue(ua, forHTTPHeaderField: "User-Agent")
+            _ = try? await URLSession.shared.data(for: seed)   // sets cookie; response body irrelevant
+        }
+        guard let crumbURL = URL(string: "https://query1.finance.yahoo.com/v1/test/getcrumb") else { return nil }
+        var req = URLRequest(url: crumbURL, timeoutInterval: 15)
+        req.setValue(ua, forHTTPHeaderField: "User-Agent")
+        guard let (data, _) = try? await URLSession.shared.data(for: req),
+              let crumb = String(data: data, encoding: .utf8)?
+                  .trimmingCharacters(in: .whitespacesAndNewlines),
+              !crumb.isEmpty, !crumb.lowercased().contains("too many") else { return nil }
+        yahooCrumb = crumb
+        return crumb
+    }
+
     static func fetchQuoteLites(symbols: [String]) async throws -> [QuoteLite] {
         guard !symbols.isEmpty else { return [] }
         let joined = symbols.joined(separator: ",")
-        let urlStr = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=\(joined)"
-        guard let url = URL(string: urlStr) else { return [] }
-        var req = URLRequest(url: url, timeoutInterval: 20)
-        req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
-        req.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, _) = try await URLSession.shared.data(for: req)
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let qr = json["quoteResponse"] as? [String: Any],
-              let results = qr["result"] as? [[String: Any]] else { return [] }
+
+        var results: [[String: Any]] = []
+        for attempt in 0..<2 {
+            guard let crumb = await ensureCrumb(force: attempt > 0),
+                  let crumbEnc = crumb.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+                  let url = URL(string: "https://query1.finance.yahoo.com/v7/finance/quote?symbols=\(joined)&crumb=\(crumbEnc)")
+            else { return [] }
+            var req = URLRequest(url: url, timeoutInterval: 20)
+            req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
+            req.setValue("application/json", forHTTPHeaderField: "Accept")
+            guard let (data, response) = try? await URLSession.shared.data(for: req) else { return [] }
+            if (response as? HTTPURLResponse)?.statusCode == 401, attempt == 0 { continue }
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let qr = json["quoteResponse"] as? [String: Any],
+                  let r = qr["result"] as? [[String: Any]] else { return [] }
+            results = r
+            break
+        }
         return results.compactMap { q in
             guard let symbol = q["symbol"] as? String else { return nil }
             return QuoteLite(

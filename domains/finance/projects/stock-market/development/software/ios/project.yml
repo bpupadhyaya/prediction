@@ -32,6 +32,8 @@ targets:
         INFOPLIST_KEY_NSCameraUsageDescription: ""
     dependencies:
       - package: GRDB
+      - package: onnxruntime
+        product: onnxruntime
     info:
       path: StockPrediction/App/Info.plist
       properties:
@@ -67,3 +69,6 @@ packages:
   GRDB:
     url: https://github.com/groue/GRDB.swift
     from: "6.27.0"
+  onnxruntime:
+    url: https://github.com/microsoft/onnxruntime-swift-package-manager
+    from: "1.16.0"

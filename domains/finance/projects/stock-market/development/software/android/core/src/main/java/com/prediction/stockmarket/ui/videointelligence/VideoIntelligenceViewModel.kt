@@ -27,7 +27,9 @@ data class VideoIntelligenceUiState(
     val jobs: Map<String, ProcessingJob> = emptyMap(),
     /** Whisper model download progress keyed by modelId */
     val whisperDownloadProgress: Map<String, Float> = emptyMap(),
-    val whisperDownloadStatus: Map<String, String> = emptyMap()
+    val whisperDownloadStatus: Map<String, String> = emptyMap(),
+    /** Ids of Whisper models already on disk */
+    val whisperDownloaded: Set<String> = emptySet()
 )
 
 @HiltViewModel
@@ -68,6 +70,7 @@ class VideoIntelligenceViewModel @Inject constructor(
             .launchIn(viewModelScope)
 
         loadData()
+        refreshWhisperDownloaded()
     }
 
     // -------------------------------------------------------------------------
@@ -76,6 +79,40 @@ class VideoIntelligenceViewModel @Inject constructor(
 
     fun onUrlInputChange(url: String) {
         _uiState.value = _uiState.value.copy(urlInput = url, errorMessage = null)
+    }
+
+    fun refreshWhisperDownloaded() {
+        val downloaded = WHISPER_MODELS
+            .filter { manager.isWhisperModelDownloaded(it.id) }
+            .map { it.id }
+            .toSet()
+        _uiState.value = _uiState.value.copy(whisperDownloaded = downloaded)
+    }
+
+    fun downloadWhisperModel(modelId: String) {
+        if (_uiState.value.whisperDownloadStatus[modelId] == "downloading") return
+        _uiState.value = _uiState.value.copy(
+            whisperDownloadStatus = _uiState.value.whisperDownloadStatus + (modelId to "downloading"),
+            whisperDownloadProgress = _uiState.value.whisperDownloadProgress + (modelId to 0f),
+        )
+        viewModelScope.launch {
+            try {
+                manager.downloadWhisperModel(modelId) { progress, _ ->
+                    _uiState.value = _uiState.value.copy(
+                        whisperDownloadProgress = _uiState.value.whisperDownloadProgress + (modelId to progress)
+                    )
+                }
+                _uiState.value = _uiState.value.copy(
+                    whisperDownloadStatus = _uiState.value.whisperDownloadStatus + (modelId to "done")
+                )
+                refreshWhisperDownloaded()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    whisperDownloadStatus = _uiState.value.whisperDownloadStatus + (modelId to "error"),
+                    errorMessage = "Whisper download failed: ${e.message}"
+                )
+            }
+        }
     }
 
     fun onUrlSubmit(url: String) {

@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -149,9 +150,14 @@ fun VideoIntelligenceScreen(
                 )
             }
 
-            // Whisper model hint
+            // Whisper model download/status
             item {
-                WhisperModelHintCard()
+                WhisperModelCard(
+                    downloaded = uiState.whisperDownloaded,
+                    progress = uiState.whisperDownloadProgress,
+                    status = uiState.whisperDownloadStatus,
+                    onDownload = { viewModel.downloadWhisperModel(it) },
+                )
             }
 
             // Signals section header
@@ -571,13 +577,18 @@ private fun SpeakerChip(name: String, onRemove: () -> Unit) {
     }
 }
 
-// ─── Whisper Model Hint Card ──────────────────────────────────────────────────
+// ─── Whisper Model Card (download + status) ──────────────────────────────────
 
 @Composable
-private fun WhisperModelHintCard() {
-    // NOTE: To enable ONNX Whisper transcription, download a Whisper model from the
-    // Models tab (if/when Whisper model download is added there).
-    // Current transcription falls back to Android's SpeechRecognizer when no model is downloaded.
+private fun WhisperModelCard(
+    downloaded: Set<String>,
+    progress: Map<String, Float>,
+    status: Map<String, String>,
+    onDownload: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val anyDownloaded = downloaded.isNotEmpty()
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -585,18 +596,101 @@ private fun WhisperModelHintCard() {
         colors = CardDefaults.cardColors(containerColor = Color(0xFF0D2A1A)),
         shape = RoundedCornerShape(10.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "Transcription: using on-device speech recognition. " +
-                    "Download a Whisper ONNX model for improved accuracy.",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFFA5D6A7)
-            )
+        Column(Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    if (anyDownloaded) Icons.Default.CheckCircle else Icons.Default.Info,
+                    contentDescription = null,
+                    tint = Color(0xFF4CAF50),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (anyDownloaded)
+                        "Whisper model ready — high-accuracy transcription enabled."
+                    else
+                        "Transcription: on-device speech recognition. Download a Whisper model for better accuracy.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFFA5D6A7),
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = Color(0xFFA5D6A7),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            if (expanded) {
+                Spacer(Modifier.height(10.dp))
+                WHISPER_MODELS.forEach { model ->
+                    val isDone = model.id in downloaded || status[model.id] == "done"
+                    val isDownloading = status[model.id] == "downloading"
+                    val pct = progress[model.id] ?: 0f
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                model.label,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White
+                            )
+                            Text(
+                                "Quality: ${model.quality}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                            if (isDownloading) {
+                                Spacer(Modifier.height(4.dp))
+                                LinearProgressIndicator(
+                                    progress = { pct },
+                                    modifier = Modifier.fillMaxWidth().height(3.dp),
+                                    color = Color(0xFF4CAF50),
+                                    trackColor = Color.White.copy(alpha = 0.1f),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        when {
+                            isDone -> Icon(
+                                Icons.Default.CheckCircle, contentDescription = "Downloaded",
+                                tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp)
+                            )
+                            isDownloading -> Text(
+                                "${(pct * 100).toInt()}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFA5D6A7)
+                            )
+                            else -> OutlinedButton(
+                                onClick = { onDownload(model.id) },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF4CAF50)),
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Get", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+                if (status.values.any { it == "error" }) {
+                    Text(
+                        "A download failed — check connection and retry.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFFEF9A9A)
+                    )
+                }
+            }
         }
     }
 }

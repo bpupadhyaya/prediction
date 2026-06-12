@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		08621CBB51B1D931AB300DB6 /* StockPredictionHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196C873F45FBD0465B994647 /* StockPredictionHomeView.swift */; };
 		2450036576B6020B8FB50591 /* VideoTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D7DC8EA63DF8A063AA109F /* VideoTranscriber.swift */; };
+		29F83FE0C203A5048D8605A5 /* onnxruntime in Frameworks */ = {isa = PBXBuildFile; productRef = 69EE21D643E526B0BF46F21E /* onnxruntime */; };
 		3F262645C429901BBB5A003E /* VideoIntelligenceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2741211BAD83D621BEC418B1 /* VideoIntelligenceModels.swift */; };
 		544B0F9AD0ED419079029514 /* StockDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF6251698A97D66D40EBEC4 /* StockDetailView.swift */; };
 		5561AF6090A08B8EA83F5528 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 17C1089BD4292BBDDBADC7EC /* Assets.xcassets */; };
@@ -89,6 +90,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EA929B6559DD4E41D228089F /* GRDB in Frameworks */,
+				29F83FE0C203A5048D8605A5 /* onnxruntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -236,6 +238,7 @@
 			name = StockPrediction;
 			packageProductDependencies = (
 				358167BDD7C18D1675E95291 /* GRDB */,
+				69EE21D643E526B0BF46F21E /* onnxruntime */,
 			);
 			productName = StockPrediction;
 			productReference = 807DD58CA01B38BE65CEEC84 /* StockPrediction.app */;
@@ -267,6 +270,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				DBDEDF0ECA1089CE425A4FA9 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				7F5A1C963493914F8BAAE548 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3D57F4A525CBC265E36F0C63 /* Products */;
@@ -517,6 +521,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		7F5A1C963493914F8BAAE548 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/microsoft/onnxruntime-swift-package-manager";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.16.0;
+			};
+		};
 		DBDEDF0ECA1089CE425A4FA9 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/groue/GRDB.swift";
@@ -532,6 +544,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = DBDEDF0ECA1089CE425A4FA9 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
+		};
+		69EE21D643E526B0BF46F21E /* onnxruntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7F5A1C963493914F8BAAE548 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */;
+			productName = onnxruntime;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

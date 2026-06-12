@@ -139,9 +139,50 @@ final class PredictionEngine {
     }
 }
 
-// MARK: - Minimal OnnxRuntime shim (replaced by real OnnxRuntimeGenAI binding)
-// This stub lets the code compile before the SPM package resolves in Xcode.
+// MARK: - OnnxRuntime session
+// Real inference via the official onnxruntime Swift package. The canImport guard
+// keeps the target buildable if the package is ever removed — the fallback stub
+// returns a neutral 0.5/0.5, which the UI renders as "—".
+#if canImport(OnnxRuntimeBindings)
+import OnnxRuntimeBindings
+
+private final class OnnxRuntimeSession {
+    private let session: ORTSession
+
+    init(modelPath: String) throws {
+        let env = try ORTEnv(loggingLevel: .warning)
+        session = try ORTSession(env: env, modelPath: modelPath, sessionOptions: nil)
+    }
+
+    /// Runs the bundled classifier on one feature row. Returns [probDOWN, probUP].
+    func run(input: [Float]) throws -> [Float] {
+        let data = NSMutableData(
+            bytes: input, length: input.count * MemoryLayout<Float>.stride
+        )
+        let tensor = try ORTValue(
+            tensorData: data,
+            elementType: .float,
+            shape: [1, NSNumber(value: input.count)]
+        )
+        let outputs = try session.run(
+            withInputs: ["input": tensor],
+            outputNames: ["probabilities"],
+            runOptions: nil
+        )
+        guard let probsValue = outputs["probabilities"] else {
+            throw LLMError.inferenceError("ONNX output 'probabilities' missing")
+        }
+        let probsData = try probsValue.tensorData() as Data
+        let probs = probsData.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+        guard probs.count >= 2 else {
+            throw LLMError.inferenceError("ONNX output too short: \(probs.count)")
+        }
+        return probs
+    }
+}
+#else
 private final class OnnxRuntimeSession {
     init(modelPath: String) throws {}
     func run(input: [Float]) throws -> [Float] { [0.5, 0.5] }
 }
+#endif

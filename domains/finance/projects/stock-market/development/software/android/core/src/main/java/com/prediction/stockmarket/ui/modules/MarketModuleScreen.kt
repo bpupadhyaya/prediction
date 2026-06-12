@@ -1,0 +1,464 @@
+package com.prediction.stockmarket.ui.modules
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.prediction.stockmarket.data.sync.YahooFinanceFetcher
+import com.prediction.stockmarket.prediction.PredictionEngine
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import javax.inject.Inject
+import kotlin.math.abs
+import kotlin.math.min
+
+// ─── Instrument universes ─────────────────────────────────────────────────────
+
+private data class Instrument(val symbol: String, val label: String, val sublabel: String = "")
+
+private val CRYPTO_UNIVERSE = listOf(
+    Instrument("BTC-USD", "Bitcoin"), Instrument("ETH-USD", "Ethereum"),
+    Instrument("SOL-USD", "Solana"), Instrument("BNB-USD", "BNB"),
+    Instrument("XRP-USD", "XRP"), Instrument("ADA-USD", "Cardano"),
+    Instrument("DOGE-USD", "Dogecoin"), Instrument("AVAX-USD", "Avalanche"),
+    Instrument("DOT-USD", "Polkadot"), Instrument("LINK-USD", "Chainlink"),
+    Instrument("LTC-USD", "Litecoin"), Instrument("BCH-USD", "Bitcoin Cash"),
+)
+
+private val SECTOR_UNIVERSE = listOf(
+    Instrument("XLK", "Technology"), Instrument("XLF", "Financials"),
+    Instrument("XLE", "Energy"), Instrument("XLV", "Health Care"),
+    Instrument("XLI", "Industrials"), Instrument("XLY", "Cons. Discretionary"),
+    Instrument("XLP", "Cons. Staples"), Instrument("XLU", "Utilities"),
+    Instrument("XLRE", "Real Estate"), Instrument("XLB", "Materials"),
+    Instrument("XLC", "Communications"), Instrument("SPY", "S&P 500 (bench)"),
+)
+
+private val GLOBAL_UNIVERSE = listOf(
+    Instrument("^GSPC", "S&P 500", "United States"), Instrument("^IXIC", "Nasdaq", "United States"),
+    Instrument("^DJI", "Dow Jones", "United States"), Instrument("^GSPTSE", "TSX", "Canada"),
+    Instrument("^BVSP", "Bovespa", "Brazil"), Instrument("^FTSE", "FTSE 100", "United Kingdom"),
+    Instrument("^GDAXI", "DAX", "Germany"), Instrument("^FCHI", "CAC 40", "France"),
+    Instrument("^STOXX50E", "Euro Stoxx 50", "Eurozone"), Instrument("^N225", "Nikkei 225", "Japan"),
+    Instrument("^HSI", "Hang Seng", "Hong Kong"), Instrument("000001.SS", "Shanghai", "China"),
+    Instrument("^KS11", "KOSPI", "South Korea"), Instrument("^BSESN", "Sensex", "India"),
+    Instrument("^AXJO", "ASX 200", "Australia"),
+)
+
+// Earnings watch universe — mega caps + high-interest names (merged with watchlist at load)
+private val EARNINGS_UNIVERSE = listOf(
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AVGO", "AMD", "NFLX",
+    "JPM", "V", "WMT", "COST", "ORCL", "CRM", "ADBE", "INTC", "QCOM", "TXN",
+    "HOOD", "PLTR", "COIN", "UBER", "SOFI", "RDDT",
+)
+
+// ─── Row model + UI state ─────────────────────────────────────────────────────
+
+data class ModuleRow(
+    val symbol: String,
+    val name: String,
+    val sublabel: String,
+    val price: Double,
+    val changePct1d: Double,
+    val ret1w: Double,
+    val direction: String?,        // "UP" / "DOWN" / null when model unavailable
+    val probability: Double?,
+    val earningsDate: Date? = null,
+)
+
+data class ModuleUiState(
+    val isLoading: Boolean = true,
+    val rows: List<ModuleRow> = emptyList(),
+    val error: String? = null,
+)
+
+// ─── ViewModel ────────────────────────────────────────────────────────────────
+
+@HiltViewModel
+class MarketModuleViewModel @Inject constructor(
+    private val fetcher: YahooFinanceFetcher,
+    private val engine: PredictionEngine,
+    private val watchlistDao: com.prediction.stockmarket.data.database.WatchlistDao,
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(ModuleUiState())
+    val uiState: StateFlow<ModuleUiState> = _uiState.asStateFlow()
+
+    private var loadedModule: String? = null
+
+    fun load(moduleId: String, force: Boolean = false) {
+        if (!force && loadedModule == moduleId && _uiState.value.rows.isNotEmpty()) return
+        loadedModule = moduleId
+        _uiState.value = ModuleUiState(isLoading = true)
+        viewModelScope.launch {
+            try {
+                val rows = withContext(Dispatchers.IO) {
+                    when (moduleId) {
+                        "crypto"  -> loadInstruments(CRYPTO_UNIVERSE)
+                        "sectors" -> loadInstruments(SECTOR_UNIVERSE)
+                        "global"  -> loadInstruments(GLOBAL_UNIVERSE)
+                        "earnings" -> loadEarnings()
+                        else      -> emptyList()
+                    }
+                }
+                _uiState.value = ModuleUiState(
+                    isLoading = false,
+                    rows = rows,
+                    error = if (rows.isEmpty()) "No data available — check your connection and retry." else null,
+                )
+            } catch (e: Exception) {
+                _uiState.value = ModuleUiState(isLoading = false, error = e.message ?: "Load failed")
+            }
+        }
+    }
+
+    private suspend fun loadInstruments(universe: List<Instrument>): List<ModuleRow> =
+        withContext(Dispatchers.IO) {
+            universe.map { inst ->
+                async {
+                    try {
+                        val bars = fetcher.fetchPriceBars(inst.symbol, range = "1y")
+                        if (bars.size < 51) return@async null
+                        val chrono = bars.sortedBy { it.date }
+                        val last = chrono.last()
+                        val prev = chrono[chrono.size - 2]
+                        val wk = chrono[chrono.size - 6]
+                        val pred = engine.predict(inst.symbol, "1W", chrono.sortedByDescending { it.date })
+                        ModuleRow(
+                            symbol = inst.symbol,
+                            name = inst.label,
+                            sublabel = inst.sublabel,
+                            price = last.close,
+                            changePct1d = (last.close - prev.close) / prev.close * 100,
+                            ret1w = (last.close - wk.close) / wk.close * 100,
+                            direction = pred?.direction,
+                            probability = pred?.probability,
+                        )
+                    } catch (_: Exception) { null }
+                }
+            }.awaitAll().filterNotNull()
+        }
+
+    private suspend fun loadEarnings(): List<ModuleRow> = withContext(Dispatchers.IO) {
+        val watch = try { watchlistDao.getAll().map { it.ticker } } catch (_: Exception) { emptyList() }
+        val symbols = (watch + EARNINGS_UNIVERSE).distinct()
+        val nowSec = System.currentTimeMillis() / 1000
+        val horizonSec = nowSec + 60L * 60 * 24 * 45   // next 45 days
+
+        val upcoming = fetcher.fetchQuoteLites(symbols)
+            .filter { it.earningsTimestamp != null && it.earningsTimestamp in nowSec..horizonSec }
+            .sortedBy { it.earningsTimestamp }
+            .take(15)
+
+        upcoming.map { q ->
+            async {
+                val pred = try {
+                    val bars = fetcher.fetchPriceBars(q.symbol, range = "1y")
+                    if (bars.size >= 51) engine.predict(q.symbol, "1W", bars.sortedByDescending { it.date }) else null
+                } catch (_: Exception) { null }
+                ModuleRow(
+                    symbol = q.symbol,
+                    name = q.name,
+                    sublabel = "",
+                    price = q.price,
+                    changePct1d = q.changePct,
+                    ret1w = 0.0,
+                    direction = pred?.direction,
+                    probability = pred?.probability,
+                    earningsDate = Date(q.earningsTimestamp!! * 1000),
+                )
+            }
+        }.awaitAll()
+    }
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
+private data class ModuleChrome(
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
+    val gradColors: List<Color>,
+    val iconColor: Color,
+)
+
+private fun chromeFor(moduleId: String): ModuleChrome = when (moduleId) {
+    "crypto"   -> ModuleChrome("Crypto", "BTC, ETH & altcoin price signals", Icons.Default.CurrencyBitcoin, listOf(Color(0xFF063C4B), Color(0xFF0A6A83), Color(0xFF10ACC9)), Color(0xFF67DFF0))
+    "earnings" -> ModuleChrome("Earnings", "Upcoming reports & AI direction", Icons.Default.CalendarMonth, listOf(Color(0xFF0F4738), Color(0xFF157A5E), Color(0xFF10B981)), Color(0xFF6EE7B7))
+    "sectors"  -> ModuleChrome("Sectors", "Sector rotation & performance map", Icons.Default.GridView, listOf(Color(0xFF0E2040), Color(0xFF1A3D73), Color(0xFF2868BE)), Color(0xFF93C3F0))
+    "global"   -> ModuleChrome("Global Markets", "International index forecasts", Icons.Default.Public, listOf(Color(0xFF143E26), Color(0xFF1B7A3D), Color(0xFF22C55E)), Color(0xFF86EFAC))
+    else       -> ModuleChrome(moduleId, "", Icons.Default.TrendingUp, listOf(Color(0xFF0C3B6E), Color(0xFF1A69A2), Color(0xFF0EA5E9)), Color(0xFF7DD3F8))
+}
+
+@Composable
+fun MarketModuleScreen(
+    moduleId: String,
+    onBack: () -> Unit,
+    onOpenTicker: (String) -> Unit,
+    viewModel: MarketModuleViewModel = hiltViewModel(),
+) {
+    val state by viewModel.uiState.collectAsState()
+    LaunchedEffect(moduleId) { viewModel.load(moduleId) }
+
+    val chrome = chromeFor(moduleId)
+    val gradient = Brush.linearGradient(
+        colors = chrome.gradColors,
+        start = Offset(0f, 0f),
+        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+    )
+    // Index symbols (with ^ / .SS) have no detail screen — only plain tickers navigate.
+    val rowsTappable = moduleId != "global"
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0B1526))
+    ) {
+        // Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onBack) {
+                Icon(Icons.Default.ChevronLeft, contentDescription = "Go back", tint = Color.White)
+                Text("Home", color = Color.White, fontWeight = FontWeight.Medium)
+            }
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { viewModel.load(moduleId, force = true) }) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+            }
+        }
+
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier.size(44.dp).clip(CircleShape).background(gradient),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(chrome.icon, contentDescription = chrome.title, tint = chrome.iconColor, modifier = Modifier.size(24.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(chrome.title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                Text(chrome.subtitle, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.6f))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        when {
+            state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = chrome.iconColor)
+                    Spacer(Modifier.height(12.dp))
+                    Text("Fetching market data…", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            state.error != null && state.rows.isEmpty() -> Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(state.error ?: "", color = Color.White.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(12.dp))
+                    Button(onClick = { viewModel.load(moduleId, force = true) }) { Text("Retry") }
+                }
+            }
+            moduleId == "sectors" -> SectorContent(state.rows, onOpenTicker)
+            else -> LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                items(state.rows, key = { it.symbol }) { row ->
+                    InstrumentCard(
+                        row = row,
+                        showEarnings = moduleId == "earnings",
+                        onClick = if (rowsTappable) ({ onOpenTicker(row.symbol) }) else null,
+                    )
+                }
+                item { DisclaimerFooter() }
+            }
+        }
+    }
+}
+
+// ─── Sector heat map + list ──────────────────────────────────────────────────
+
+@Composable
+private fun SectorContent(rows: List<ModuleRow>, onOpenTicker: (String) -> Unit) {
+    LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+        item {
+            Text(
+                "1-week performance map",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.6f),
+                modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
+            )
+            // Fixed-height grid: 12 tiles / 3 columns = 4 rows of 64dp + spacing
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                modifier = Modifier.fillMaxWidth().height(296.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                userScrollEnabled = false,
+            ) {
+                items(rows, key = { it.symbol }) { row ->
+                    val intensity = min(abs(row.ret1w) / 4.0, 1.0).toFloat()
+                    val tileColor =
+                        if (row.ret1w >= 0) Color(0xFF16A34A).copy(alpha = 0.25f + 0.6f * intensity)
+                        else Color(0xFFDC2626).copy(alpha = 0.25f + 0.6f * intensity)
+                    Column(
+                        modifier = Modifier
+                            .height(64.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(tileColor)
+                            .clickable { onOpenTicker(row.symbol) }
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(row.symbol, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                        Text(formatPct(row.ret1w), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.85f))
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Forecasts",
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.6f),
+                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+            )
+        }
+        items(rows, key = { "list-${it.symbol}" }) { row ->
+            InstrumentCard(row = row, showEarnings = false, onClick = { onOpenTicker(row.symbol) })
+        }
+        item { DisclaimerFooter() }
+    }
+}
+
+// ─── Instrument card ──────────────────────────────────────────────────────────
+
+@Composable
+private fun InstrumentCard(row: ModuleRow, showEarnings: Boolean, onClick: (() -> Unit)?) {
+    val dayColor = if (row.changePct1d >= 0) Color(0xFF4ADE80) else Color(0xFFF87171)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF13243F)),
+        shape = RoundedCornerShape(14.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(row.name, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = Color.White)
+                    if (row.sublabel.isNotEmpty()) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(row.sublabel, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.45f))
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(row.symbol, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.5f))
+                    if (showEarnings && row.earningsDate != null) {
+                        Spacer(Modifier.width(8.dp))
+                        Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFF1A3D73)) {
+                            Text(
+                                "Earnings ${SimpleDateFormat("EEE, MMM d", Locale.US).format(row.earningsDate)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF93C3F0),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                }
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(formatPrice(row.price), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = Color.White)
+                Text(formatPct(row.changePct1d) + " today", style = MaterialTheme.typography.labelSmall, color = dayColor)
+            }
+            Spacer(Modifier.width(10.dp))
+            DirectionChip(row.direction, row.probability)
+        }
+    }
+}
+
+@Composable
+private fun DirectionChip(direction: String?, probability: Double?) {
+    val (label, bg, fg) = when (direction?.uppercase()) {
+        "UP"   -> Triple("▲ ${pctLabel(probability)}", Color(0xFF14532D), Color(0xFF4ADE80))
+        "DOWN" -> Triple("▼ ${pctLabel(probability, invert = true)}", Color(0xFF601A1A), Color(0xFFF87171))
+        else   -> Triple("—", Color(0xFF1E293B), Color.White.copy(alpha = 0.4f))
+    }
+    Surface(shape = RoundedCornerShape(8.dp), color = bg) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = fg,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+        )
+    }
+}
+
+@Composable
+private fun DisclaimerFooter() {
+    Text(
+        "1-week direction from the on-device model. Probabilistic — not financial advice.",
+        style = MaterialTheme.typography.labelSmall,
+        color = Color.White.copy(alpha = 0.35f),
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+    )
+}
+
+// ─── Formatting helpers ───────────────────────────────────────────────────────
+
+private fun pctLabel(probability: Double?, invert: Boolean = false): String {
+    if (probability == null) return ""
+    val p = if (invert) 1.0 - probability else probability
+    return "${(p * 100).toInt()}%"
+}
+
+private fun formatPct(v: Double): String = String.format(Locale.US, "%+.2f%%", v)
+
+private fun formatPrice(v: Double): String = when {
+    v.isNaN() -> "—"
+    v >= 1000 -> String.format(Locale.US, "%,.0f", v)
+    v >= 1    -> String.format(Locale.US, "%,.2f", v)
+    else      -> String.format(Locale.US, "%.4f", v)
+}

@@ -29,6 +29,34 @@ final class PredictionEngine {
         )
     }
 
+    /// Run inference on caller-supplied bars (newest-first) without touching the DB.
+    /// Used by the market modules (crypto / sectors / global indices) whose
+    /// instruments are not part of the synced stock universe. Returns nil when
+    /// the model or features are unavailable — callers show a neutral chip.
+    func predict(fromBars bars: [PriceBar], ticker: String, horizon: String = "1w") -> Prediction? {
+        guard let modelURL = Bundle.main.url(forResource: modelName, withExtension: "onnx"),
+              let features = buildFeatures(prices: bars),
+              let session = try? OnnxRuntimeSession(modelPath: modelURL.path),
+              let output = try? session.run(input: features) else { return nil }
+
+        let probUp = output[1]
+        let direction = probUp >= 0.5 ? "UP" : "DOWN"
+        let volatility = standardDeviation(bars.prefix(20).map { Float($0.adjClose) })
+        let magnitude = abs(Double(probUp) - 0.5) * 2
+        let expectedLow  = probUp >= 0.5 ?  magnitude * 0.5 : -magnitude
+        let expectedHigh = probUp >= 0.5 ?  magnitude       : -magnitude * 0.5
+
+        return Prediction(
+            ticker: ticker, horizon: horizon, direction: direction,
+            probability: Double(probUp),
+            expectedReturnLow: min(expectedLow, expectedHigh),
+            expectedReturnHigh: max(expectedLow, expectedHigh),
+            volatility: Double(volatility),
+            modelAccuracy: 0.54,
+            generatedAt: Date()
+        )
+    }
+
     // MARK: - Feature Engineering
 
     private func buildFeatures(prices: [PriceBar]) -> [Float]? {

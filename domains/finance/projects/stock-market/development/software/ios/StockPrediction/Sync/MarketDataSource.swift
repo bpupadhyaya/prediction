@@ -132,6 +132,39 @@ struct YahooFinanceFetcher {
             updatedAt: Date()
         )
     }
+
+    /// Lightweight batch quote — name, price, day change, next earnings timestamp.
+    struct QuoteLite {
+        let symbol: String
+        let name: String
+        let price: Double
+        let changePct: Double
+        let earningsTimestamp: Int64?   // unix seconds, nil if none reported
+    }
+
+    static func fetchQuoteLites(symbols: [String]) async throws -> [QuoteLite] {
+        guard !symbols.isEmpty else { return [] }
+        let joined = symbols.joined(separator: ",")
+        let urlStr = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=\(joined)"
+        guard let url = URL(string: urlStr) else { return [] }
+        var req = URLRequest(url: url, timeoutInterval: 20)
+        req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, _) = try await URLSession.shared.data(for: req)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let qr = json["quoteResponse"] as? [String: Any],
+              let results = qr["result"] as? [[String: Any]] else { return [] }
+        return results.compactMap { q in
+            guard let symbol = q["symbol"] as? String else { return nil }
+            return QuoteLite(
+                symbol: symbol,
+                name: q["shortName"] as? String ?? q["longName"] as? String ?? symbol,
+                price: q["regularMarketPrice"] as? Double ?? .nan,
+                changePct: q["regularMarketChangePercent"] as? Double ?? 0,
+                earningsTimestamp: (q["earningsTimestamp"] as? NSNumber)?.int64Value
+            )
+        }
+    }
 }
 
 // MARK: - Stooq fetcher (no key, CSV)

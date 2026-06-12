@@ -143,10 +143,18 @@ fun AppNavigation() {
                 arguments = listOf(navArgument("moduleId") { type = NavType.StringType })
             ) { backstack ->
                 val moduleId = backstack.arguments?.getString("moduleId").orEmpty()
-                StockModulePlaceholder(
-                    moduleId = moduleId,
-                    onBack = { navController.popBackStack() }
-                )
+                if (moduleId in setOf("crypto", "earnings", "sectors", "global")) {
+                    com.prediction.stockmarket.ui.modules.MarketModuleScreen(
+                        moduleId = moduleId,
+                        onBack = { navController.popBackStack() },
+                        onOpenTicker = { t -> navController.navigate("stock/$t") }
+                    )
+                } else {
+                    StockModulePlaceholder(
+                        moduleId = moduleId,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
         }
     }

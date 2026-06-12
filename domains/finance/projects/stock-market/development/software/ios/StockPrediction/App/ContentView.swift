@@ -41,9 +41,17 @@ struct ContentView: View {
             .toolbarBackground(.visible, for: .tabBar)
 
             if let moduleId = activeModuleId {
-                StockModulePlaceholderOverlay(moduleId: moduleId, onBack: {
-                    withAnimation(.easeInOut(duration: 0.3)) { activeModuleId = nil }
-                })
+                Group {
+                    if ["crypto", "earnings", "sectors", "global"].contains(moduleId) {
+                        MarketModuleView(moduleId: moduleId, onBack: {
+                            withAnimation(.easeInOut(duration: 0.3)) { activeModuleId = nil }
+                        })
+                    } else {
+                        StockModulePlaceholderOverlay(moduleId: moduleId, onBack: {
+                            withAnimation(.easeInOut(duration: 0.3)) { activeModuleId = nil }
+                        })
+                    }
+                }
                 .transition(.move(edge: .trailing).combined(with: .opacity))
                 .ignoresSafeArea()
             }

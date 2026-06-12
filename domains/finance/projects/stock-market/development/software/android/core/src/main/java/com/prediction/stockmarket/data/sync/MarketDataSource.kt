@@ -44,14 +44,47 @@ class MarketDataSourceManager @Inject constructor(
 
 class YahooFinanceFetcher @Inject constructor(private val client: OkHttpClient) {
 
-    fun fetchPriceBars(ticker: String): List<PriceBarEntity> {
-        val url = "https://query1.finance.yahoo.com/v8/finance/chart/$ticker?interval=1d&range=5y"
+    fun fetchPriceBars(ticker: String, range: String = "5y"): List<PriceBarEntity> {
+        val url = "https://query1.finance.yahoo.com/v8/finance/chart/$ticker?interval=1d&range=$range"
         val req = Request.Builder().url(url)
             .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
             .header("Accept", "application/json")
             .build()
         val body = client.newCall(req).execute().use { it.body?.string() ?: "" }
         return parseChartJson(body, ticker)
+    }
+
+    /** Lightweight batch quote — name, price, day change, next earnings timestamp. */
+    data class QuoteLite(
+        val symbol: String,
+        val name: String,
+        val price: Double,
+        val changePct: Double,
+        val earningsTimestamp: Long?,   // unix seconds, null if none reported
+    )
+
+    fun fetchQuoteLites(symbols: List<String>): List<QuoteLite> {
+        if (symbols.isEmpty()) return emptyList()
+        return try {
+            val joined = symbols.joinToString(",")
+            val url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=$joined"
+            val req = Request.Builder().url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                .header("Accept", "application/json")
+                .build()
+            val body = client.newCall(req).execute().use { it.body?.string() ?: "" }
+            val result = JSONObject(body).getJSONObject("quoteResponse").getJSONArray("result")
+            (0 until result.length()).mapNotNull { i ->
+                val q = result.getJSONObject(i)
+                QuoteLite(
+                    symbol = q.optString("symbol") ?: return@mapNotNull null,
+                    name = q.optString("shortName").ifEmpty { q.optString("longName", q.optString("symbol")) },
+                    price = q.optDouble("regularMarketPrice", Double.NaN),
+                    changePct = q.optDouble("regularMarketChangePercent", 0.0),
+                    earningsTimestamp = if (q.has("earningsTimestamp")) q.getLong("earningsTimestamp") else null,
+                )
+            }
+        } catch (_: Exception) { emptyList() }
     }
 
     fun fetchQuote(ticker: String): StockEntity? {

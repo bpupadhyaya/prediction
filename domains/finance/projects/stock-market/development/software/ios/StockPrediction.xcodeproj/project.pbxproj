@@ -35,6 +35,7 @@
 		DD72248DFEF40773D25F8588 /* LLMCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A4ED44C8E23ED94589F977F /* LLMCatalog.swift */; };
 		E015491B2AA11AD2775E111B /* VideoSignalExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193B28C3BE1B631EDC34C427 /* VideoSignalExtractor.swift */; };
 		E15581B43FA9FF283A860129 /* YouTubeAudioExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C1432DC024F172EC88F8F97 /* YouTubeAudioExtractor.swift */; };
+		E17BC052BF9AABA0C4897E71 /* MarketModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D08061B3F061C9A8302E5A04 /* MarketModuleView.swift */; };
 		EA929B6559DD4E41D228089F /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 358167BDD7C18D1675E95291 /* GRDB */; };
 		EAA1518071A6DAB4642C99BE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC050853E554016B063A8AF /* ContentView.swift */; };
 		EC1A06410C1425A0F072EF02 /* WatchlistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194CA138F340782C42E0E65D /* WatchlistView.swift */; };
@@ -75,6 +76,7 @@
 		AB7945C6332BF66EB7263E42 /* SyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncManager.swift; sourceTree = "<group>"; };
 		B5247A09E48F9DA6A546C65E /* VideoIntelligenceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoIntelligenceManager.swift; sourceTree = "<group>"; };
 		C1E069B99A97FE71A3E8085A /* StockPredictionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockPredictionApp.swift; sourceTree = "<group>"; };
+		D08061B3F061C9A8302E5A04 /* MarketModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketModuleView.swift; sourceTree = "<group>"; };
 		E0C293E3FEF31332D0E480A7 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		EBB166F9E69099E663C8F107 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		EE3630CC6A3C2C75457A98AA /* PortfolioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioView.swift; sourceTree = "<group>"; };
@@ -142,6 +144,7 @@
 			children = (
 				E0C293E3FEF31332D0E480A7 /* HomeView.swift */,
 				28E522D9A77511EDF7F80FC4 /* InteractiveParameterView.swift */,
+				D08061B3F061C9A8302E5A04 /* MarketModuleView.swift */,
 				670935B84430972B857ABAB3 /* ModelsView.swift */,
 				EE3630CC6A3C2C75457A98AA /* PortfolioView.swift */,
 				0B4174674EE679E28ED8D7D5 /* SearchView.swift */,
@@ -301,6 +304,7 @@
 				DD72248DFEF40773D25F8588 /* LLMCatalog.swift in Sources */,
 				D35F9E42A8D3688F4460D619 /* LLMInferenceManager.swift in Sources */,
 				81448CE71E332A54E3B4CA0E /* MarketDataSource.swift in Sources */,
+				E17BC052BF9AABA0C4897E71 /* MarketModuleView.swift in Sources */,
 				7370846ECF4DE09F277CDE29 /* ModelsView.swift in Sources */,
 				CE13A36C7D0A1CE19A4472FF /* ParameterStore.swift in Sources */,
 				C6B65F5DEE0A0C3A4F82EBA7 /* PortfolioView.swift in Sources */,

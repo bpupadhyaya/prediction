@@ -24,16 +24,35 @@ data class StockDetailUiState(
 @HiltViewModel
 class StockDetailViewModel @Inject constructor(
     private val repo: StockRepository,
-    private val engine: PredictionEngine
+    private val engine: PredictionEngine,
+    private val yahooFetcher: com.prediction.stockmarket.data.sync.YahooFinanceFetcher,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StockDetailUiState())
     val uiState: StateFlow<StockDetailUiState> = _uiState
 
+    /**
+     * Any-symbol support: searched global symbols (7203.T, BTC-USD, SAP.DE...) are
+     * not in the synced universe, so the local DB has no bars for them. Fetch ~5y
+     * from Yahoo on demand and persist, so the chart, prediction, and watchlist
+     * all work for any instrument — local or global.
+     */
+    private suspend fun ensureTickerData(ticker: String) {
+        if (repo.prices(ticker, 600).size >= 253) return
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val bars = try { yahooFetcher.fetchPriceBars(ticker, range = "5y") } catch (_: Exception) { emptyList() }
+            if (bars.isNotEmpty()) {
+                repo.upsertPrices(bars)
+                yahooFetcher.fetchQuote(ticker)?.let { repo.upsertStock(it) }
+            }
+        }
+    }
+
     fun load(ticker: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             try {
+                ensureTickerData(ticker)
                 val price = repo.latestPrice(ticker)?.adjClose
                 val pred = loadOrComputePrediction(ticker, _uiState.value.horizon)
                 val watchlisted = repo.isWatchlisted(ticker)

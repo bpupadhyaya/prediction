@@ -16,6 +16,10 @@ class StockRepository @Inject constructor(
     suspend fun search(query: String): List<StockEntity> =
         stockDao.search("%${query.uppercase()}%")
 
+    suspend fun upsertPrices(bars: List<PriceBarEntity>) = priceDao.upsertAll(bars)
+
+    suspend fun upsertStock(stock: StockEntity) = stockDao.upsertAll(listOf(stock))
+
     suspend fun prices(ticker: String, days: Int = 90): List<PriceBarEntity> =
         priceDao.getPrices(ticker.uppercase(), days)
 

@@ -274,6 +274,18 @@ struct StockDetailView: View {
     private func loadData() async {
         isLoading = true
         loadError = nil
+        // Any-symbol support: searched global symbols (7203.T, BTC-USD, SAP.DE...)
+        // are not in the synced universe — fetch ~5y from Yahoo on demand and
+        // persist so the chart, prediction, and watchlist work for anything.
+        let existing = store.prices(for: ticker, days: 600)
+        if existing.count < 253 {
+            if let bars = try? await YahooFinanceFetcher.fetchPriceBars(ticker: ticker), !bars.isEmpty {
+                try? DatabaseManager.shared.upsertPrices(bars)
+                if let quote = try? await YahooFinanceFetcher.fetchQuote(ticker: ticker) {
+                    try? DatabaseManager.shared.upsertStocks([quote])
+                }
+            }
+        }
         prices = store.prices(for: ticker, days: 90)
         prediction = store.prediction(for: ticker, horizon: selectedHorizon)
         isWatchlisted = store.isWatchlisted(ticker)

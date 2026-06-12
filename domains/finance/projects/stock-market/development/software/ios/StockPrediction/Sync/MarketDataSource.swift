@@ -113,7 +113,10 @@ struct YahooFinanceFetcher {
     }
 
     static func fetchQuote(ticker: String) async throws -> Stock? {
-        let urlStr = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=\(ticker)"
+        guard let crumb = await ensureCrumb(),
+              let crumbEnc = crumb.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+        else { return nil }
+        let urlStr = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=\(ticker)&crumb=\(crumbEnc)"
         guard let url = URL(string: urlStr) else { return nil }
         var req = URLRequest(url: url, timeoutInterval: 20)
         req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")

@@ -52,29 +52,44 @@ class PredictionEngine @Inject constructor(
         )
     }
 
-    // Feature semantics MUST match the training pipeline (desktop trainer.py):
-    //   ma_N          = rolling(N).mean() / close - 1
-    //   volatility_20 = std of daily RETURNS (not price levels)
-    // Input order: return_1d, return_5d, return_20d, ma_5, ma_20, ma_50,
-    //              volatility_20, volume_ratio, rsi  (prices newest-first)
+    // Feature semantics MUST match the training pipeline (desktop trainer.py) and
+    // the exporter's MOBILE_FEATURES order exactly. Prices are newest-first.
+    // 16 features — works for ANY instrument with >= 253 daily bars (stocks on any
+    // exchange, crypto pairs, ETFs, indices) since all inputs are OHLCV-derived.
     private fun buildFeatures(prices: List<PriceBarEntity>): FloatArray? {
-        if (prices.size < 51) return null
+        if (prices.size < 253) return null
         val closes = prices.map { it.adjClose.toFloat() }
         val volumes = prices.map { it.volume.toFloat() }
+        val c0 = closes[0]
 
-        val ret1 = (closes[0] - closes[1]) / closes[1]
-        val ret5 = (closes[0] - closes[5]) / closes[5]
-        val ret20 = (closes[0] - closes[20]) / closes[20]
-        val ma5 = closes.take(5).average().toFloat() / closes[0] - 1f
-        val ma20 = closes.take(20).average().toFloat() / closes[0] - 1f
-        val ma50 = closes.take(50).average().toFloat() / closes[0] - 1f
-        val dailyReturns = (0 until 20).map { i -> closes[i] / closes[i + 1] - 1f }
-        val vol20 = stdDev(dailyReturns)
+        fun ret(n: Int) = (c0 - closes[n]) / closes[n]
+        fun maDev(n: Int) = closes.take(n).average().toFloat() / c0 - 1f
+        fun volStd(n: Int) = sampleStd((0 until n).map { i -> closes[i] / closes[i + 1] - 1f })
+
         val avgVol = volumes.take(20).average().toFloat()
         val volRatio = if (avgVol > 0) volumes[0] / avgVol else 1f
+        val dollarVol = (0 until 20).map { i -> closes[i] * volumes[i] }
+        val avgDollarVol = dollarVol.average().toFloat()
+        val dollarTurnover = if (avgDollarVol > 0) dollarVol[0] / avgDollarVol else 1f
         val rsi = computeRSI(closes.take(15))
+        val high52w = closes.take(252).max()
+        val high52wRatio = if (high52w > 0) c0 / high52w else 1f
 
-        return floatArrayOf(ret1, ret5, ret20, ma5, ma20, ma50, vol20, volRatio, rsi)
+        return floatArrayOf(
+            ret(1), ret(5), ret(20), ret(60), ret(126), ret(252),
+            maDev(5), maDev(20), maDev(50), maDev(200),
+            volStd(20), volStd(60),
+            volRatio, dollarTurnover,
+            rsi, high52wRatio,
+        )
+    }
+
+    /** Sample standard deviation (ddof=1) — matches pandas rolling().std(). */
+    private fun sampleStd(values: List<Float>): Float {
+        if (values.size < 2) return 0f
+        val mean = values.average().toFloat()
+        val variance = values.sumOf { ((it - mean) * (it - mean)).toDouble() } / (values.size - 1)
+        return kotlin.math.sqrt(variance).toFloat()
     }
 
     private fun runInference(features: FloatArray): Float? {

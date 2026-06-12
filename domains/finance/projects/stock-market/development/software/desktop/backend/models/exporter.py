@@ -4,28 +4,16 @@ Export a compact MOBILE prediction model to ONNX.
 IMPORTANT — two models, two contracts:
   • Desktop uses the full 659-feature GBM (model_*.pkl) — it has macro/fundamental/
     cross-asset/sentiment data available server-side.
-  • Mobile (iOS/Android) can only compute 9 price-derived features on-device from
-    the bundled price bars. So the ONNX we ship to mobile MUST be a dedicated
-    9-feature model — exporting the 659-feature model would crash the mobile
-    runners with an input-shape mismatch.
+  • Mobile (iOS/Android) can only compute OHLCV-derived features on-device, so the
+    ONNX we ship to mobile is a dedicated compact model trained on MOBILE_FEATURES
+    below. Because every input is price/volume-derived, the mobile model predicts
+    ANY instrument with enough daily history — stocks on any exchange, crypto
+    pairs, ETFs, indices — serving the "predict any stock or crypto, local or
+    global" mission.
 
-This module trains a small 9-feature GBM on exactly the features the mobile
-PredictionEngine.buildFeatures() computes, and exports it as stock_predictor.onnx.
-
-MOBILE FEATURE CONTRACT (order matters — must match the mobile runners):
-    return_1d, return_5d, return_20d, ma_5, ma_20, ma_50,
-    volatility_20, volume_ratio, rsi
-
-where (desktop semantics — the mobile apps must match these):
-    ma_N           = rolling(N).mean() / close - 1      (NOT close/ma)
-    volatility_20  = std of daily returns               (NOT std of price levels)
-    return_Nd      = close.pct_change(N)
-    volume_ratio   = volume / rolling(20).mean(volume)
-    rsi            = standard 14-day RSI
-
-⚠️ The current iOS/Android buildFeatures() compute `close/ma` and std of price
-levels — they must be updated to the above semantics for predictions to be valid.
-See SESSION 7 handoff notes.
+The mobile contract (names, order, math) is the single source of truth in
+MOBILE_FEATURES; both PredictionEngine.kt (Android) and PredictionEngine.swift
+(iOS) must mirror it exactly.
 
 Output: probabilities (N, 2) float32 — [prob_DOWN, prob_UP]
 
@@ -43,18 +31,29 @@ from backend.config import MODELS_DIR
 
 logger = logging.getLogger(__name__)
 
-# The 9 features the mobile apps can compute on-device, in contract order.
+# The features the mobile apps can compute on-device from OHLCV history alone,
+# in contract order. All formulas must match trainer.build_features() exactly:
+#   return_Nd        = close.pct_change(N)
+#   ma_N             = rolling(N).mean() / close - 1
+#   volatility_N     = std (ddof=1) of daily returns over N
+#   volume_ratio     = volume / rolling(20).mean(volume)
+#   dollar_volume_turnover = (close*vol) / rolling(20).mean(close*vol)
+#   rsi              = SMA-14 RSI
+#   high_52w_ratio   = close / rolling(252).max(close)
+# Minimum history: 253 bars (newest-first on device).
 MOBILE_FEATURES = [
-    "return_1d", "return_5d", "return_20d",
-    "ma_5", "ma_20", "ma_50",
-    "volatility_20", "volume_ratio", "rsi",
+    "return_1d", "return_5d", "return_20d", "return_60d", "return_126d", "return_252d",
+    "ma_5", "ma_20", "ma_50", "ma_200",
+    "volatility_20", "volatility_60",
+    "volume_ratio", "dollar_volume_turnover",
+    "rsi", "high_52w_ratio",
 ]
 N_FEATURES = len(MOBILE_FEATURES)
 ONNX_PATH = MODELS_DIR / "stock_predictor.onnx"
 
 
 def export(verify: bool = False, horizon: str = "1w") -> Path:
-    """Train a 9-feature mobile GBM from the prepared training data and export ONNX."""
+    """Train a compact mobile GBM (MOBILE_FEATURES) from the prepared training data and export ONNX."""
     try:
         from skl2onnx import convert_sklearn
         from skl2onnx.common.data_types import FloatTensorType
@@ -80,7 +79,7 @@ def export(verify: bool = False, horizon: str = "1w") -> Path:
     df = combined.dropna(subset=MOBILE_FEATURES + ["target"])
     X = df[MOBILE_FEATURES].to_numpy(dtype=np.float32)
     y = df["target"].to_numpy(dtype=int)
-    logger.info(f"Training 9-feature mobile GBM on {len(X):,} samples...")
+    logger.info(f"Training {N_FEATURES}-feature mobile GBM on {len(X):,} samples...")
 
     pipeline = Pipeline([
         ("scaler", StandardScaler()),
@@ -107,7 +106,7 @@ def export(verify: bool = False, horizon: str = "1w") -> Path:
         f.write(onnx_model.SerializeToString())
 
     size_kb = ONNX_PATH.stat().st_size / 1024
-    logger.info(f"Exported 9-feature mobile ONNX → {ONNX_PATH}  ({size_kb:.0f} KB)")
+    logger.info(f"Exported {N_FEATURES}-feature mobile ONNX → {ONNX_PATH}  ({size_kb:.0f} KB)")
 
     if verify:
         _verify(onnx_model)
@@ -115,7 +114,7 @@ def export(verify: bool = False, horizon: str = "1w") -> Path:
 
 
 def _verify(onnx_model) -> None:
-    """Confirm the graph accepts a (N, 9) input and emits valid probabilities."""
+    """Confirm the graph accepts a (N, N_FEATURES) input and emits valid probabilities."""
     try:
         import onnxruntime as rt
     except ImportError:
@@ -138,7 +137,7 @@ def _verify(onnx_model) -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    parser = argparse.ArgumentParser(description="Export 9-feature mobile model to ONNX")
+    parser = argparse.ArgumentParser(description="Export compact mobile model to ONNX")
     parser.add_argument("--verify", action="store_true", help="Run onnxruntime sanity check after export")
     args = parser.parse_args()
     export(verify=args.verify)

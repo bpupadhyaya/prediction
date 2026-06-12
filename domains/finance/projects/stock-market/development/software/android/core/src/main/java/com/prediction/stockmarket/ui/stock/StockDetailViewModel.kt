@@ -96,7 +96,7 @@ class StockDetailViewModel @Inject constructor(
     private suspend fun loadOrComputePrediction(ticker: String, horizon: String): PredictionEntity? {
         val cached = repo.prediction(ticker, horizon)
         if (cached != null) return cached
-        val prices = repo.prices(ticker, 120)
+        val prices = repo.prices(ticker, 600)
         return engine.predict(ticker, horizon, prices)
     }
 }

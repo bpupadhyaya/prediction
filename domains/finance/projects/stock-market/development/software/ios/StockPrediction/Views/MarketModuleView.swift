@@ -21,6 +21,12 @@ private let cryptoUniverse: [ModuleInstrument] = [
     .init(symbol: "DOGE-USD", label: "Dogecoin"), .init(symbol: "AVAX-USD", label: "Avalanche"),
     .init(symbol: "DOT-USD", label: "Polkadot"), .init(symbol: "LINK-USD", label: "Chainlink"),
     .init(symbol: "LTC-USD", label: "Litecoin"), .init(symbol: "BCH-USD", label: "Bitcoin Cash"),
+    .init(symbol: "TRX-USD", label: "TRON"), .init(symbol: "XLM-USD", label: "Stellar"),
+    .init(symbol: "XMR-USD", label: "Monero"), .init(symbol: "ETC-USD", label: "Ethereum Classic"),
+    .init(symbol: "FIL-USD", label: "Filecoin"), .init(symbol: "ATOM-USD", label: "Cosmos"),
+    .init(symbol: "UNI7083-USD", label: "Uniswap"), .init(symbol: "AAVE-USD", label: "Aave"),
+    .init(symbol: "ALGO-USD", label: "Algorand"), .init(symbol: "VET-USD", label: "VeChain"),
+    .init(symbol: "HBAR-USD", label: "Hedera"), .init(symbol: "NEAR-USD", label: "NEAR"),
 ]
 
 private let sectorUniverse: [ModuleInstrument] = [
@@ -47,7 +53,14 @@ private let globalUniverse: [ModuleInstrument] = [
     .init(symbol: "000001.SS", label: "Shanghai", sublabel: "China"),
     .init(symbol: "^KS11", label: "KOSPI", sublabel: "South Korea"),
     .init(symbol: "^BSESN", label: "Sensex", sublabel: "India"),
+    .init(symbol: "^NSEI", label: "NIFTY 50", sublabel: "India"),
     .init(symbol: "^AXJO", label: "ASX 200", sublabel: "Australia"),
+    .init(symbol: "^TWII", label: "TAIEX", sublabel: "Taiwan"),
+    .init(symbol: "^STI", label: "Straits Times", sublabel: "Singapore"),
+    .init(symbol: "^JKSE", label: "IDX Composite", sublabel: "Indonesia"),
+    .init(symbol: "^KLSE", label: "KLCI", sublabel: "Malaysia"),
+    .init(symbol: "^MXX", label: "IPC", sublabel: "Mexico"),
+    .init(symbol: "^TA125.TA", label: "TA-125", sublabel: "Israel"),
 ]
 
 private let earningsUniverse: [String] = [
@@ -323,7 +336,7 @@ struct MarketModuleView: View {
             for inst in universe {
                 group.addTask {
                     guard let bars = try? await YahooFinanceFetcher.fetchPriceBars(ticker: inst.symbol),
-                          bars.count >= 51 else { return nil }
+                          bars.count >= 253 else { return nil }
                     let chrono = bars.sorted { $0.date < $1.date }
                     let last = chrono[chrono.count - 1]
                     let prev = chrono[chrono.count - 2]
@@ -370,7 +383,7 @@ struct MarketModuleView: View {
                     var direction: String? = nil
                     var probability: Double? = nil
                     if let bars = try? await YahooFinanceFetcher.fetchPriceBars(ticker: q.symbol),
-                       bars.count >= 51 {
+                       bars.count >= 253 {
                         let newestFirst = bars.sorted { $0.date > $1.date }
                         if let pred = PredictionEngine.shared.predict(fromBars: newestFirst, ticker: q.symbol) {
                             direction = pred.direction

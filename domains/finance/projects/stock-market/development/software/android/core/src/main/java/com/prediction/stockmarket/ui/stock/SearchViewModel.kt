@@ -14,7 +14,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    private val repo: StockRepository
+    private val repo: StockRepository,
+    private val yahooFetcher: com.prediction.stockmarket.data.sync.YahooFinanceFetcher,
 ) : ViewModel() {
 
     private val _results = MutableStateFlow<List<StockEntity>>(emptyList())
@@ -40,7 +41,15 @@ class SearchViewModel @Inject constructor(
             _isLoading.value = true
             _errorMessage.value = null
             try {
-                _results.value = repo.search(query)
+                // Local synced universe answers instantly…
+                val local = repo.search(query)
+                _results.value = local
+                // …then merge global Yahoo results (any exchange, crypto, ETF, index)
+                val remote = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    yahooFetcher.searchSymbols(query)
+                }
+                val seen = local.map { it.ticker }.toSet()
+                _results.value = local + remote.filter { it.ticker !in seen }
             } catch (e: Exception) {
                 _errorMessage.value = "Search failed: ${e.message}"
                 _results.value = emptyList()

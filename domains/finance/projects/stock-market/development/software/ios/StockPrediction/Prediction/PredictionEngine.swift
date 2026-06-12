@@ -62,34 +62,46 @@ final class PredictionEngine {
 
     // MARK: - Feature Engineering
 
-    // Feature semantics MUST match the training pipeline (desktop trainer.py):
-    //   ma_N          = rolling(N).mean() / close - 1
-    //   volatility_20 = std of daily RETURNS (not price levels)
-    // Input order: return_1d, return_5d, return_20d, ma_5, ma_20, ma_50,
-    //              volatility_20, volume_ratio, rsi  (prices newest-first)
+    // Feature semantics MUST match the training pipeline (desktop trainer.py) and
+    // the exporter's MOBILE_FEATURES order exactly. Prices are newest-first.
+    // 16 features — works for ANY instrument with >= 253 daily bars (stocks on any
+    // exchange, crypto pairs, ETFs, indices) since all inputs are OHLCV-derived.
     private func buildFeatures(prices: [PriceBar]) -> [Float]? {
-        guard prices.count >= 51 else { return nil }
+        guard prices.count >= 253 else { return nil }
         let closes = prices.map { Float($0.adjClose) }
         let volumes = prices.map { Float($0.volume) }
+        let c0 = closes[0]
 
-        let ret1 = (closes[0] - closes[1]) / closes[1]
-        let ret5 = (closes[0] - closes[5]) / closes[5]
-        let ret20 = (closes[0] - closes[20]) / closes[20]
+        func ret(_ n: Int) -> Float { (c0 - closes[n]) / closes[n] }
+        func maDev(_ n: Int) -> Float { closes.prefix(n).reduce(0, +) / Float(n) / c0 - 1 }
+        func volStd(_ n: Int) -> Float {
+            sampleStd((0..<n).map { closes[$0] / closes[$0 + 1] - 1 })
+        }
 
-        let ma5 = closes.prefix(5).reduce(0, +) / 5 / closes[0] - 1
-        let ma20 = closes.prefix(20).reduce(0, +) / 20 / closes[0] - 1
-        let ma50 = closes.prefix(50).reduce(0, +) / 50 / closes[0] - 1
-
-        let dailyReturns = (0..<20).map { closes[$0] / closes[$0 + 1] - 1 }
-        let vol20 = standardDeviation(dailyReturns)
-        let volRatio: Float = {
-            let avgVol = volumes.prefix(20).reduce(0, +) / 20
-            return avgVol > 0 ? volumes[0] / avgVol : 1.0
-        }()
-
+        let avgVol = volumes.prefix(20).reduce(0, +) / 20
+        let volRatio: Float = avgVol > 0 ? volumes[0] / avgVol : 1.0
+        let dollarVol = (0..<20).map { closes[$0] * volumes[$0] }
+        let avgDollarVol = dollarVol.reduce(0, +) / 20
+        let dollarTurnover: Float = avgDollarVol > 0 ? dollarVol[0] / avgDollarVol : 1.0
         let rsi = computeRSI(closes: Array(closes.prefix(15)))
+        let high52w = closes.prefix(252).max() ?? c0
+        let high52wRatio: Float = high52w > 0 ? c0 / high52w : 1.0
 
-        return [ret1, ret5, ret20, ma5, ma20, ma50, vol20, volRatio, rsi]
+        return [
+            ret(1), ret(5), ret(20), ret(60), ret(126), ret(252),
+            maDev(5), maDev(20), maDev(50), maDev(200),
+            volStd(20), volStd(60),
+            volRatio, dollarTurnover,
+            rsi, high52wRatio,
+        ]
+    }
+
+    /// Sample standard deviation (ddof=1) — matches pandas rolling().std().
+    private func sampleStd(_ values: [Float]) -> Float {
+        guard values.count > 1 else { return 0 }
+        let mean = values.reduce(0, +) / Float(values.count)
+        let variance = values.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Float(values.count - 1)
+        return sqrt(variance)
     }
 
     private func standardDeviation(_ values: [Float]) -> Float {
@@ -120,7 +132,7 @@ final class PredictionEngine {
         guard let modelURL = Bundle.main.url(forResource: modelName, withExtension: "onnx") else {
             return nil
         }
-        let prices = try DatabaseManager.shared.prices(ticker: ticker, days: 120)
+        let prices = try DatabaseManager.shared.prices(ticker: ticker, days: 600)
         guard let features = buildFeatures(prices: prices) else { return nil }
 
         // OnnxRuntime inference (requires OnnxRuntimeGenAI package)

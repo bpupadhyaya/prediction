@@ -40,8 +40,18 @@ struct SearchView: View {
             .onChange(of: query) { _, newValue in
                 guard !newValue.isEmpty else { results = []; return }
                 isSearching = true
+                // Local synced universe answers instantly…
                 results = store.search(query: newValue)
-                isSearching = false
+                // …then merge global Yahoo results (any exchange, crypto, ETF, index)
+                Task {
+                    let remote = await YahooFinanceFetcher.searchSymbols(query: newValue)
+                    await MainActor.run {
+                        guard query == newValue else { return }   // stale response guard
+                        let seen = Set(results.map(\.ticker))
+                        results += remote.filter { !seen.contains($0.ticker) }
+                        isSearching = false
+                    }
+                }
             }
             .navigationTitle("Lookup")
             .navigationBarTitleDisplayMode(.large)

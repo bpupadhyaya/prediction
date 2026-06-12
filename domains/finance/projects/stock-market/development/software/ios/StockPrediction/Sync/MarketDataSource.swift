@@ -133,6 +133,40 @@ struct YahooFinanceFetcher {
         )
     }
 
+    /// Global symbol search via Yahoo's search API — finds ANY instrument on ANY
+    /// exchange: equities worldwide (7203.T, SAP.DE, RELIANCE.NS, ...), crypto
+    /// pairs, ETFs, indices. Makes the "predict any stock or crypto, local or
+    /// global" mission reachable from the Lookup tab.
+    static func searchSymbols(query: String, limit: Int = 20) async -> [Stock] {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty,
+              let q = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://query1.finance.yahoo.com/v1/finance/search?q=\(q)&quotesCount=\(limit)&newsCount=0&listsCount=0")
+        else { return [] }
+        var req = URLRequest(url: url, timeoutInterval: 15)
+        req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        guard let (data, _) = try? await URLSession.shared.data(for: req),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let quotes = json["quotes"] as? [[String: Any]] else { return [] }
+        return quotes.compactMap { item in
+            guard let symbol = item["symbol"] as? String, !symbol.isEmpty else { return nil }
+            let name = (item["shortname"] as? String)
+                ?? (item["longname"] as? String) ?? symbol
+            let type = item["quoteType"] as? String ?? ""
+            let exchange = (item["exchDisp"] as? String) ?? (item["exchange"] as? String) ?? ""
+            let tag = [type, exchange].filter { !$0.isEmpty }.joined(separator: " · ")
+            return Stock(
+                ticker: symbol,
+                name: name,
+                sector: tag.isEmpty ? nil : tag,
+                industry: nil,
+                marketCap: nil,
+                updatedAt: Date()
+            )
+        }
+    }
+
     /// Lightweight batch quote — name, price, day change, next earnings timestamp.
     struct QuoteLite {
         let symbol: String

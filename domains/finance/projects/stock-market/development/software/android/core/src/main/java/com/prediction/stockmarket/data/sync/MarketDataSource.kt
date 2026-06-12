@@ -54,6 +54,44 @@ class YahooFinanceFetcher @Inject constructor(private val client: OkHttpClient) 
         return parseChartJson(body, ticker)
     }
 
+    /**
+     * Global symbol search via Yahoo's search API — finds ANY instrument on ANY
+     * exchange: equities worldwide (7203.T, SAP.DE, RELIANCE.NS, ...), crypto
+     * pairs, ETFs, indices, futures. This is what makes the app's "predict any
+     * stock or crypto, local or global" mission reachable from the Lookup tab.
+     */
+    fun searchSymbols(query: String, limit: Int = 20): List<StockEntity> {
+        if (query.isBlank()) return emptyList()
+        return try {
+            val q = java.net.URLEncoder.encode(query.trim(), "UTF-8")
+            val url = "https://query1.finance.yahoo.com/v1/finance/search" +
+                "?q=$q&quotesCount=$limit&newsCount=0&listsCount=0"
+            val req = Request.Builder().url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                .header("Accept", "application/json")
+                .build()
+            val body = client.newCall(req).execute().use { it.body?.string() ?: "" }
+            val quotes = JSONObject(body).optJSONArray("quotes") ?: return emptyList()
+            (0 until quotes.length()).mapNotNull { i ->
+                val item = quotes.optJSONObject(i) ?: return@mapNotNull null
+                val symbol = item.optString("symbol")
+                if (symbol.isEmpty()) return@mapNotNull null
+                val name = item.optString("shortname")
+                    .ifEmpty { item.optString("longname") }
+                    .ifEmpty { symbol }
+                val type = item.optString("quoteType")        // EQUITY, CRYPTOCURRENCY, ETF, INDEX…
+                val exchange = item.optString("exchDisp").ifEmpty { item.optString("exchange") }
+                StockEntity(
+                    ticker = symbol,
+                    name = name,
+                    sector = listOf(type, exchange).filter { it.isNotEmpty() }.joinToString(" · "),
+                    industry = null,
+                    marketCap = null,
+                )
+            }
+        } catch (_: Exception) { emptyList() }
+    }
+
     /** Lightweight batch quote — name, price, day change, next earnings timestamp. */
     data class QuoteLite(
         val symbol: String,

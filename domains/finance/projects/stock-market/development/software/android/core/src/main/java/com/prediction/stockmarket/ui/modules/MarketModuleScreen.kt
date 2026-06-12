@@ -56,6 +56,12 @@ private val CRYPTO_UNIVERSE = listOf(
     Instrument("DOGE-USD", "Dogecoin"), Instrument("AVAX-USD", "Avalanche"),
     Instrument("DOT-USD", "Polkadot"), Instrument("LINK-USD", "Chainlink"),
     Instrument("LTC-USD", "Litecoin"), Instrument("BCH-USD", "Bitcoin Cash"),
+    Instrument("TRX-USD", "TRON"), Instrument("XLM-USD", "Stellar"),
+    Instrument("XMR-USD", "Monero"), Instrument("ETC-USD", "Ethereum Classic"),
+    Instrument("FIL-USD", "Filecoin"), Instrument("ATOM-USD", "Cosmos"),
+    Instrument("UNI7083-USD", "Uniswap"), Instrument("AAVE-USD", "Aave"),
+    Instrument("ALGO-USD", "Algorand"), Instrument("VET-USD", "VeChain"),
+    Instrument("HBAR-USD", "Hedera"), Instrument("NEAR-USD", "NEAR"),
 )
 
 private val SECTOR_UNIVERSE = listOf(
@@ -75,7 +81,10 @@ private val GLOBAL_UNIVERSE = listOf(
     Instrument("^STOXX50E", "Euro Stoxx 50", "Eurozone"), Instrument("^N225", "Nikkei 225", "Japan"),
     Instrument("^HSI", "Hang Seng", "Hong Kong"), Instrument("000001.SS", "Shanghai", "China"),
     Instrument("^KS11", "KOSPI", "South Korea"), Instrument("^BSESN", "Sensex", "India"),
-    Instrument("^AXJO", "ASX 200", "Australia"),
+    Instrument("^NSEI", "NIFTY 50", "India"), Instrument("^AXJO", "ASX 200", "Australia"),
+    Instrument("^TWII", "TAIEX", "Taiwan"), Instrument("^STI", "Straits Times", "Singapore"),
+    Instrument("^JKSE", "IDX Composite", "Indonesia"), Instrument("^KLSE", "KLCI", "Malaysia"),
+    Instrument("^MXX", "IPC", "Mexico"), Instrument("^TA125.TA", "TA-125", "Israel"),
 )
 
 // Earnings watch universe — mega caps + high-interest names (merged with watchlist at load)
@@ -150,8 +159,8 @@ class MarketModuleViewModel @Inject constructor(
             universe.map { inst ->
                 async {
                     try {
-                        val bars = fetcher.fetchPriceBars(inst.symbol, range = "1y")
-                        if (bars.size < 51) return@async null
+                        val bars = fetcher.fetchPriceBars(inst.symbol, range = "2y")
+                        if (bars.size < 253) return@async null
                         val chrono = bars.sortedBy { it.date }
                         val last = chrono.last()
                         val prev = chrono[chrono.size - 2]
@@ -186,8 +195,8 @@ class MarketModuleViewModel @Inject constructor(
         upcoming.map { q ->
             async {
                 val pred = try {
-                    val bars = fetcher.fetchPriceBars(q.symbol, range = "1y")
-                    if (bars.size >= 51) engine.predict(q.symbol, "1W", bars.sortedByDescending { it.date }) else null
+                    val bars = fetcher.fetchPriceBars(q.symbol, range = "2y")
+                    if (bars.size >= 253) engine.predict(q.symbol, "1W", bars.sortedByDescending { it.date }) else null
                 } catch (_: Exception) { null }
                 ModuleRow(
                     symbol = q.symbol,

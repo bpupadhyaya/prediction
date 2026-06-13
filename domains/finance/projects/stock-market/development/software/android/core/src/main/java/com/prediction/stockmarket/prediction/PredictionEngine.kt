@@ -133,7 +133,11 @@ class PredictionEngine @Inject constructor(
             val shape = longArrayOf(1, features.size.toLong())
             val tensor = OnnxTensor.createTensor(env, buf, shape)
             val result = sess.run(mapOf("input" to tensor))
-            val probs = (result[0].value as Array<*>)[0] as FloatArray
+            // The model (skl2onnx export) emits two outputs: "label" (int64) and
+            // "probabilities" (float [N, 2]). Select the probabilities output by
+            // name — it is NOT output index 0.
+            val probsOut = result.get("probabilities").orElse(result[1])
+            val probs = (probsOut.value as Array<*>)[0] as FloatArray
             probs[1]  // probability of class 1 (UP)
         } catch (_: Exception) { null }
     }

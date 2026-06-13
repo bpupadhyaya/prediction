@@ -3,6 +3,7 @@
   import HistoryTab from './components/HistoryTab.svelte';
   import SettingsTab from './components/SettingsTab.svelte';
   import OnnxPredictionCard from './components/OnnxPredictionCard.svelte';
+  import ModelTransparency from './components/ModelTransparency.svelte';
   import VideoIntelligenceTab from './components/VideoIntelligenceTab.svelte';
   import type { VideoSignal } from './lib/types';
   import { PARAMETERS } from './lib/parameters';
@@ -65,6 +66,7 @@
     <PredictTab bind:ticker />
   {:else if activeTab === 'model'}
     <OnnxPredictionCard />
+    <ModelTransparency />
   {:else if activeTab === 'history'}
     <HistoryTab />
   {:else if activeTab === 'intelligence'}

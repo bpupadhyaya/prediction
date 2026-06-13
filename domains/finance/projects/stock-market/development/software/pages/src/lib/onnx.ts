@@ -62,14 +62,19 @@ export interface FeatureContribution {
 const sessions: Partial<Record<Horizon, ort.InferenceSession>> = {};
 
 // ── Model metadata (calibration + accuracy + baselines) ────────────────────
-interface HorizonMeta {
+export interface HorizonMeta {
   backtest_accuracy: number;
   calibration: { w: number; b: number };
+  test_up_rate?: number;     // naive "always UP" base rate on the hold-out
+  n_test?: number;           // hold-out sample size
+  brier_raw?: number;
+  brier_calibrated?: number;
 }
-interface ModelMeta {
+export interface ModelMeta {
   features: string[];
   baselines: Record<string, number>;
   horizons: Record<string, HorizonMeta>;
+  note?: string;
 }
 let metaPromise: Promise<ModelMeta | null> | null = null;
 

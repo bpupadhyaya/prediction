@@ -30,11 +30,14 @@
   let asOf = '';
   let resultLabel = '';
 
-  // Crypto Radar — scan the whole keyless crypto universe, rank by conviction.
+  // Radar — scan a whole universe (crypto or stocks), rank by model conviction.
   interface ScanRow { id: string; label: string; probUp: number; direction: 'up' | 'down' | 'neutral'; }
   let scanning = false;
   let scanError = '';
   let scanDone = 0;
+  let scanTotal = 0;
+  let scanKind: 'crypto' | 'stock' = 'crypto';
+  let scanHint = '';
   let scanRows: ScanRow[] = [];
 
   onMount(async () => {
@@ -101,37 +104,55 @@
   }
 
   // Drill from a radar row into the full single-asset prediction + drivers.
-  async function drillInto(id: string) {
-    mode = 'crypto';
-    productId = id;
+  async function drillInto(kind: 'crypto' | 'stock', id: string) {
+    mode = kind;
+    if (kind === 'crypto') productId = id; else stockSymbol = id;
     await run();
     document.querySelector('.result-card[aria-label="Model prediction result"]')
       ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  // Scan every crypto product (keyless Coinbase), predict 1-week, rank by P(up).
-  async function scanCrypto() {
+  // Scan a whole universe (current mode), predict 1-week, rank by calibrated P(up).
+  async function scanMarket() {
     scanError = '';
+    scanHint = '';
     scanRows = [];
     scanDone = 0;
+    scanKind = mode;
+    const items = mode === 'crypto'
+      ? CRYPTO_PRODUCTS.map((p) => ({ id: p.id, label: p.label, fetch: () => fetchCryptoBars(p.id) }))
+      : STOCK_PRESETS.map((s) => ({ id: s, label: s, fetch: () => fetchStockBars(s, { apiKey: twelveKey, proxyUrl: yahooProxy }) }));
+    scanTotal = items.length;
     scanning = true;
     const rows: ScanRow[] = [];
+    let failures = 0;
     try {
-      for (const p of CRYPTO_PRODUCTS) {
+      for (const it of items) {
         try {
-          const bars = await fetchCryptoBars(p.id);
+          const bars = await it.fetch();
           const feats = bars.length >= MIN_BARS ? computeFeatures(bars) : null;
           if (feats) {
             const r = await predictOnnx(feats, '1w');
-            rows.push({ id: p.id, label: p.label, probUp: r.probUp, direction: r.direction });
+            rows.push({ id: it.id, label: it.label, probUp: r.probUp, direction: r.direction });
+          } else {
+            failures += 1;
           }
         } catch {
-          /* skip a coin that fails to fetch — keep scanning the rest */
+          failures += 1;   // skip an asset that fails — keep scanning the rest
         }
         scanDone += 1;
         scanRows = [...rows].sort((a, b) => b.probUp - a.probUp);
       }
-      if (rows.length === 0) throw new Error('No crypto could be scanned right now. Try again shortly.');
+      if (rows.length === 0) {
+        throw new Error(
+          mode === 'stock'
+            ? 'No stocks could be scanned. Deploy the Yahoo proxy (Settings) for keyless global scanning, or add a Twelve Data key.'
+            : 'No crypto could be scanned right now. Try again shortly.',
+        );
+      }
+      if (mode === 'stock' && failures > 0 && !yahooProxy) {
+        scanHint = `${failures} symbol(s) skipped — the free Twelve Data tier is limited. Deploy the Yahoo proxy (Settings) to scan all of them keyless.`;
+      }
     } catch (err) {
       scanError = err instanceof Error ? err.message : String(err);
     } finally {
@@ -200,14 +221,17 @@
       </button>
     </div>
 
-    {#if mode === 'crypto'}
-      <div class="scan-row">
-        <button class="btn-scan" on:click={scanCrypto} disabled={scanning || running}>
-          {scanning ? `⏳ Scanning… ${scanDone}/${CRYPTO_PRODUCTS.length}` : '📡 Scan all crypto — rank by conviction'}
-        </button>
-        <span class="scan-note">1-week outlook across {CRYPTO_PRODUCTS.length} coins · calibrated · keyless</span>
-      </div>
-    {/if}
+    <div class="scan-row">
+      <button class="btn-scan" on:click={scanMarket} disabled={scanning || running}>
+        {#if scanning}⏳ Scanning… {scanDone}/{scanTotal}
+        {:else if mode === 'crypto'}📡 Scan all crypto — rank by conviction
+        {:else}📡 Scan stock presets — rank by conviction{/if}
+      </button>
+      <span class="scan-note">
+        {#if mode === 'crypto'}1-week outlook across {CRYPTO_PRODUCTS.length} coins · calibrated · keyless
+        {:else}1-week outlook across {STOCK_PRESETS.length} presets · calibrated · needs Yahoo proxy or a key{/if}
+      </span>
+    </div>
 
     {#if mode === 'stock'}
       <div class="preset-row">
@@ -236,15 +260,15 @@
     {/if}
 
     {#if scanRows.length > 0}
-      <div class="result-card" role="region" aria-label="Crypto conviction ranking">
+      <div class="result-card" role="region" aria-label="Conviction ranking">
         <div class="result-header">
-          <span class="result-ticker">Crypto Radar</span>
-          <span class="result-asof">1-week outlook · ranked by P(up){scanning ? ` · ${scanDone}/${CRYPTO_PRODUCTS.length}` : ''}</span>
+          <span class="result-ticker">{scanKind === 'crypto' ? 'Crypto' : 'Stock'} Radar</span>
+          <span class="result-asof">1-week outlook · ranked by P(up){scanning ? ` · ${scanDone}/${scanTotal}` : ''}</span>
         </div>
         <ol class="rank-list">
           {#each scanRows as row, i}
             <li>
-              <button class="rank-item" on:click={() => drillInto(row.id)} disabled={running}
+              <button class="rank-item" on:click={() => drillInto(scanKind, row.id)} disabled={running}
                       title="See the full prediction & drivers for {row.label}">
                 <span class="rank-num">{i + 1}</span>
                 <span class="rank-label">{row.label}</span>
@@ -258,9 +282,10 @@
             </li>
           {/each}
         </ol>
+        {#if scanHint}<p class="scan-hint">{scanHint}</p>{/if}
         <p class="result-note">
           Same on-device model, calibrated · ranks the strongest 1-week bullish → bearish read.
-          Tap any coin to see its full prediction & drivers. Probabilistic — not financial advice.
+          Tap any row to see its full prediction & drivers. Probabilistic — not financial advice.
         </p>
       </div>
     {/if}
@@ -456,6 +481,7 @@
   .btn-scan:not(:disabled):hover { background: rgba(99, 102, 241, 0.18); }
   .btn-scan:disabled { opacity: 0.6; cursor: not-allowed; }
   .scan-note { font-size: 0.72rem; color: var(--muted); }
+  .scan-hint { font-size: 0.72rem; color: var(--muted); margin: 0.5rem 0 0; line-height: 1.5; }
 
   .rank-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
   .rank-list li { border-bottom: 1px solid var(--border); }

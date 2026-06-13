@@ -34,6 +34,7 @@ export interface AppSettings {
   corsProxyEnabled: boolean;
   llmModelId: string | null;
   llmDownloaded: boolean;
+  twelveDataApiKey?: string;   // free key (twelvedata.com) for global stock prediction
 }
 
 // ─── Video Intelligence System (YVIS) ───────────────────────────────────────

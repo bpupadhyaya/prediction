@@ -176,6 +176,17 @@
       />
       <span class="field-note">Used to auto-fetch macro data (VIX, yield curve, etc.) into parameter values.</span>
     </div>
+    <div class="field">
+      <label for="td-key">Twelve Data API Key (free at twelvedata.com)</label>
+      <input
+        id="td-key"
+        type="password"
+        placeholder="your_twelvedata_api_key"
+        bind:value={settings.twelveDataApiKey}
+        autocomplete="off"
+      />
+      <span class="field-note">Enables live stock prediction in the Model tab for any global ticker (AAPL works without a key). Crypto needs no key.</span>
+    </div>
     <div class="field toggle-field">
       <label>
         <input type="checkbox" bind:checked={settings.corsProxyEnabled} />

@@ -55,6 +55,45 @@ export async function fetchCryptoBars(productId: string): Promise<Bar[]> {
     .sort((a, b) => b.time - a.time);
 }
 
+// A few well-known tickers shown as quick-pick chips in stock mode.
+export const STOCK_PRESETS = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'GOOGL', 'META', 'SPY'];
+
+/**
+ * Fetch daily bars for ANY global stock via Twelve Data (CORS-enabled, reliable).
+ * Twelve Data's free tier covers worldwide exchanges; the public 'demo' key only
+ * works for AAPL, so a free key (Settings) is needed for other symbols. Symbols
+ * follow Twelve Data notation: "AAPL", "RELIANCE:NSE", "7203:XTKS", "SAP:XETR".
+ * Returns bars newest-first.
+ */
+export async function fetchStockBars(symbol: string, apiKey?: string): Promise<Bar[]> {
+  const key = (apiKey && apiKey.trim()) || 'demo';
+  const url =
+    `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol.trim())}` +
+    `&interval=1day&outputsize=400&apikey=${encodeURIComponent(key)}`;
+  const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+  const json = await resp.json();
+  if (json.status === 'error' || json.code) {
+    const msg: string = json.message || `Twelve Data error ${json.code ?? ''}`;
+    if (String(json.code) === '401' || /api key/i.test(msg)) {
+      throw new Error(
+        key === 'demo'
+          ? `The free demo key only supports AAPL. Add a free Twelve Data API key in Settings to predict ${symbol.toUpperCase()}.`
+          : 'Twelve Data rejected the API key. Check it in Settings.',
+      );
+    }
+    throw new Error(msg);
+  }
+  const values = (json.values ?? []) as Array<{ datetime: string; close: string; volume: string }>;
+  return values
+    .map((v) => ({
+      time: Math.floor(new Date(v.datetime + 'T00:00:00Z').getTime() / 1000),
+      close: parseFloat(v.close),
+      volume: parseFloat(v.volume || '0'),
+    }))
+    .filter((b) => Number.isFinite(b.close))
+    .sort((a, b) => b.time - a.time);   // newest-first
+}
+
 /** Sample standard deviation (ddof=1) — matches pandas rolling().std(). */
 function sampleStd(values: number[]): number {
   if (values.length < 2) return 0;

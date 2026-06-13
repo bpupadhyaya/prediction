@@ -1,12 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { loadModel, predictOnnx, type Horizon, type OnnxPrediction } from '../lib/onnx';
-  import { CRYPTO_PRODUCTS, fetchCryptoBars, computeFeatures, MIN_BARS } from '../lib/market-data';
+  import {
+    CRYPTO_PRODUCTS, fetchCryptoBars, fetchStockBars, STOCK_PRESETS,
+    computeFeatures, MIN_BARS,
+  } from '../lib/market-data';
+  import { loadSettings } from '../lib/store';
 
   const HORIZONS: Horizon[] = ['1d', '1w', '1m'];
   const HORIZON_LABELS: Record<Horizon, string> = { '1d': '1 Day', '1w': '1 Week', '1m': '1 Month' };
 
+  let mode: 'crypto' | 'stock' = 'crypto';
   let productId = 'BTC-USD';
+  let stockSymbol = 'AAPL';
+  let twelveKey = '';
   let modelLoading = true;
   let loadError = '';
   let running = false;
@@ -14,6 +21,7 @@
   let results: Partial<Record<Horizon, OnnxPrediction>> = {};
   let lastPrice: number | null = null;
   let asOf = '';
+  let resultLabel = '';
 
   onMount(async () => {
     modelLoading = true;
@@ -21,6 +29,7 @@
     try {
       // Load all three horizon models up front (each ~110 KB, runs in-browser).
       await Promise.all(HORIZONS.map((h) => loadModel(h)));
+      twelveKey = (await loadSettings()).twelveDataApiKey ?? '';
     } catch (err) {
       loadError = err instanceof Error ? err.message : String(err);
     } finally {
@@ -33,12 +42,17 @@
     results = {};
     running = true;
     try {
-      const bars = await fetchCryptoBars(productId);
+      const label = mode === 'crypto' ? productId : stockSymbol.trim().toUpperCase();
+      if (mode === 'stock' && !label) throw new Error('Enter a stock symbol.');
+      const bars = mode === 'crypto'
+        ? await fetchCryptoBars(productId)
+        : await fetchStockBars(label, twelveKey);
       if (bars.length < MIN_BARS) {
         throw new Error(`Only ${bars.length} days of history available (need ${MIN_BARS}).`);
       }
       lastPrice = bars[0].close;
       asOf = new Date(bars[0].time * 1000).toLocaleDateString();
+      resultLabel = label;
       const features = computeFeatures(bars);
       if (!features) throw new Error('Could not compute features.');
       const out: Partial<Record<Horizon, OnnxPrediction>> = {};
@@ -65,10 +79,11 @@
 </script>
 
 <div class="onnx-card">
-  <h2>Live Crypto Prediction</h2>
+  <h2>Live Market Prediction</h2>
   <p class="subtitle">
     The same 16-feature model the mobile apps use, running entirely in your browser.
-    Live daily prices from Coinbase — no account, no API key, works anywhere.
+    Crypto uses Coinbase (no key, works anywhere); stocks use Twelve Data
+    (AAPL free, any global ticker with a free key in Settings).
   </p>
 
   {#if modelLoading}
@@ -82,16 +97,46 @@
       <div class="error-msg">{loadError}</div>
     </div>
   {:else}
+    <div class="mode-toggle" role="tablist" aria-label="Asset type">
+      <button role="tab" class:active={mode === 'crypto'} aria-selected={mode === 'crypto'}
+              on:click={() => (mode = 'crypto')} disabled={running}>Crypto</button>
+      <button role="tab" class:active={mode === 'stock'} aria-selected={mode === 'stock'}
+              on:click={() => (mode = 'stock')} disabled={running}>Stocks</button>
+    </div>
+
     <div class="run-row">
-      <select bind:value={productId} aria-label="Cryptocurrency" disabled={running}>
-        {#each CRYPTO_PRODUCTS as p}
-          <option value={p.id}>{p.label} ({p.id})</option>
-        {/each}
-      </select>
+      {#if mode === 'crypto'}
+        <select bind:value={productId} aria-label="Cryptocurrency" disabled={running}>
+          {#each CRYPTO_PRODUCTS as p}
+            <option value={p.id}>{p.label} ({p.id})</option>
+          {/each}
+        </select>
+      {:else}
+        <input
+          type="text"
+          bind:value={stockSymbol}
+          aria-label="Stock symbol"
+          placeholder="Symbol (AAPL, 7203:XTKS, RELIANCE:NSE…)"
+          disabled={running}
+          on:keydown={(e) => e.key === 'Enter' && run()}
+        />
+      {/if}
       <button class="btn-run" on:click={run} disabled={running}>
         {running ? '⏳ Fetching & predicting…' : 'Predict'}
       </button>
     </div>
+
+    {#if mode === 'stock'}
+      <div class="preset-row">
+        {#each STOCK_PRESETS as s}
+          <button class="preset-chip" class:sel={stockSymbol.trim().toUpperCase() === s}
+                  on:click={() => (stockSymbol = s)} disabled={running}>{s}</button>
+        {/each}
+        {#if !twelveKey}
+          <span class="preset-note">Only AAPL without a key · add a free Twelve Data key in Settings for any ticker</span>
+        {/if}
+      </div>
+    {/if}
 
     {#if runError}
       <div class="error-box" role="alert">
@@ -103,7 +148,7 @@
     {#if Object.keys(results).length > 0}
       <div class="result-card" role="region" aria-label="Model prediction result">
         <div class="result-header">
-          <span class="result-ticker">{productId}</span>
+          <span class="result-ticker">{resultLabel}</span>
           {#if lastPrice !== null}
             <span class="result-price">${fmtPrice(lastPrice)}</span>
           {/if}
@@ -157,11 +202,28 @@
   .error-title { font-weight: 700; font-size: 0.85rem; color: var(--danger); margin-bottom: 0.3rem; }
   .error-msg { font-size: 0.78rem; color: var(--danger); line-height: 1.5; word-break: break-word; }
 
-  .run-row { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
-  .run-row select {
+  .mode-toggle { display: inline-flex; gap: 0; margin-bottom: 0.9rem; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .mode-toggle button {
+    background: var(--surface); color: var(--muted); border: none; cursor: pointer;
+    padding: 0.4rem 1.1rem; font-size: 0.82rem; font-weight: 600; transition: all 0.15s;
+  }
+  .mode-toggle button.active { background: var(--accent); color: #fff; }
+  .mode-toggle button:disabled { cursor: not-allowed; }
+
+  .run-row { display: flex; gap: 0.6rem; align-items: center; margin-bottom: 0.7rem; flex-wrap: wrap; }
+  .run-row select, .run-row input[type="text"] {
     flex: 1; min-width: 180px; font-size: 0.85rem; padding: 0.5rem 0.7rem;
     border-radius: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border);
   }
+
+  .preset-row { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
+  .preset-chip {
+    background: rgba(100, 116, 139, 0.08); border: 1px solid var(--border); color: var(--text);
+    border-radius: 99px; padding: 0.25rem 0.7rem; font-size: 0.76rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .preset-chip.sel { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .preset-chip:disabled { opacity: 0.55; cursor: not-allowed; }
+  .preset-note { font-size: 0.72rem; color: var(--muted); margin-left: 0.3rem; }
   .btn-run {
     background: var(--accent); border: none; color: #fff; padding: 0.5rem 1.6rem;
     border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.15s;

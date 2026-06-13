@@ -35,6 +35,7 @@ export interface AppSettings {
   llmModelId: string | null;
   llmDownloaded: boolean;
   twelveDataApiKey?: string;   // free key (twelvedata.com) for global stock prediction
+  yahooProxyUrl?: string;      // Cloudflare Worker proxying Yahoo → keyless global stocks
 }
 
 // ─── Video Intelligence System (YVIS) ───────────────────────────────────────

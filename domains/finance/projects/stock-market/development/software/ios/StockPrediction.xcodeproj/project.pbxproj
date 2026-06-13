@@ -11,17 +11,21 @@
 		2450036576B6020B8FB50591 /* VideoTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30D7DC8EA63DF8A063AA109F /* VideoTranscriber.swift */; };
 		29F83FE0C203A5048D8605A5 /* onnxruntime in Frameworks */ = {isa = PBXBuildFile; productRef = 69EE21D643E526B0BF46F21E /* onnxruntime */; };
 		3F262645C429901BBB5A003E /* VideoIntelligenceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2741211BAD83D621BEC418B1 /* VideoIntelligenceModels.swift */; };
+		469DAC03E02653943C9B19B3 /* PreIPOModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0DDE509D243FCBE341A2FA0 /* PreIPOModuleView.swift */; };
 		544B0F9AD0ED419079029514 /* StockDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF6251698A97D66D40EBEC4 /* StockDetailView.swift */; };
+		555568E95E0081412A7E1009 /* ModelMeta.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD54894C18B741DEE7A41FF1 /* ModelMeta.swift */; };
 		5561AF6090A08B8EA83F5528 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 17C1089BD4292BBDDBADC7EC /* Assets.xcassets */; };
 		5BB79C7111B86A23B4C1EEDC /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB166F9E69099E663C8F107 /* AppStore.swift */; };
 		67436A74D3E1D3E1B6763E9B /* StockModuleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49FA768E229EC3B95A65C4D /* StockModuleData.swift */; };
 		6B24555B9DEA11C26241F331 /* parameters.json in Resources */ = {isa = PBXBuildFile; fileRef = A0FD4AEA4B551A71DFC94BF1 /* parameters.json */; };
 		6D62A28C04A60561E4219CE1 /* PredictionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300D00CA90248086837B868D /* PredictionEngine.swift */; };
 		7370846ECF4DE09F277CDE29 /* ModelsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 670935B84430972B857ABAB3 /* ModelsView.swift */; };
+		773A54EA53CC712AF5FE067A /* mobile_model_meta.json in Resources */ = {isa = PBXBuildFile; fileRef = 684658A9290806239A5A323D /* mobile_model_meta.json */; };
 		81448CE71E332A54E3B4CA0E /* MarketDataSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 760A8933C2AF45BB939D3E73 /* MarketDataSource.swift */; };
 		8358CEC78DA0F1D7B82258F4 /* PredictionHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A25826E1CACC7DB692219FAC /* PredictionHomeView.swift */; };
 		8FC0AAED4C3D462802F3DB81 /* SyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB7945C6332BF66EB7263E42 /* SyncManager.swift */; };
 		95BCDCA08768ECB4CD53869F /* SyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29EF6A141FBE93C2BA366856 /* SyncView.swift */; };
+		95D81152A1B63616DBF87A75 /* SpeakerSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 023F043ECF5660A6EDCDBB09 /* SpeakerSuggestions.swift */; };
 		95E6FE070E05A850A5AE81E1 /* StockPredictionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E069B99A97FE71A3E8085A /* StockPredictionApp.swift */; };
 		9D77DDDD54E772FBE800ED47 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0C293E3FEF31332D0E480A7 /* HomeView.swift */; };
 		9D965B6A4DAE3D00DD98DDBA /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562A55815317F1F0A5EF3F55 /* DatabaseManager.swift */; };
@@ -33,6 +37,7 @@
 		CE13A36C7D0A1CE19A4472FF /* ParameterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76ECC4CC28786A21AB18AC7C /* ParameterStore.swift */; };
 		D35F9E42A8D3688F4460D619 /* LLMInferenceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88288A95F56C26D666DEFA02 /* LLMInferenceManager.swift */; };
 		D398D807E789464D8AD19E28 /* stock_predictor.onnx in Resources */ = {isa = PBXBuildFile; fileRef = FA8A08599BB610EF817418DE /* stock_predictor.onnx */; };
+		D4FC0B7D06C5DEFDE32AF4CA /* PredictionExplainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8E62751400F3512D7C6CF2 /* PredictionExplainer.swift */; };
 		DD72248DFEF40773D25F8588 /* LLMCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A4ED44C8E23ED94589F977F /* LLMCatalog.swift */; };
 		E015491B2AA11AD2775E111B /* VideoSignalExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193B28C3BE1B631EDC34C427 /* VideoSignalExtractor.swift */; };
 		E15581B43FA9FF283A860129 /* YouTubeAudioExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C1432DC024F172EC88F8F97 /* YouTubeAudioExtractor.swift */; };
@@ -41,10 +46,13 @@
 		EAA1518071A6DAB4642C99BE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC050853E554016B063A8AF /* ContentView.swift */; };
 		EC1A06410C1425A0F072EF02 /* WatchlistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194CA138F340782C42E0E65D /* WatchlistView.swift */; };
 		F68E83CC15086141B85B34D7 /* VideoIntelligenceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5247A09E48F9DA6A546C65E /* VideoIntelligenceManager.swift */; };
+		F71FE72656C22DBBF27FA055 /* stock_predictor_1m.onnx in Resources */ = {isa = PBXBuildFile; fileRef = D64406356F36E46124ED4D57 /* stock_predictor_1m.onnx */; };
+		FA4BAF9B0F8F3699A62D4C7B /* stock_predictor_1d.onnx in Resources */ = {isa = PBXBuildFile; fileRef = CC5BDC853C891593D0F3AE4E /* stock_predictor_1d.onnx */; };
 		FC3A9398EB4669CF55BD411F /* VideoIntelligenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040C507137304E96C3AC3BFF /* VideoIntelligenceView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		023F043ECF5660A6EDCDBB09 /* SpeakerSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerSuggestions.swift; sourceTree = "<group>"; };
 		040C507137304E96C3AC3BFF /* VideoIntelligenceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoIntelligenceView.swift; sourceTree = "<group>"; };
 		0B4174674EE679E28ED8D7D5 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		0C1432DC024F172EC88F8F97 /* YouTubeAudioExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeAudioExtractor.swift; sourceTree = "<group>"; };
@@ -63,6 +71,7 @@
 		3A4ED44C8E23ED94589F977F /* LLMCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMCatalog.swift; sourceTree = "<group>"; };
 		562A55815317F1F0A5EF3F55 /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
 		670935B84430972B857ABAB3 /* ModelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelsView.swift; sourceTree = "<group>"; };
+		684658A9290806239A5A323D /* mobile_model_meta.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = mobile_model_meta.json; sourceTree = "<group>"; };
 		68E40F5B94A72C0D54171C8C /* PredictionTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredictionTheme.swift; sourceTree = "<group>"; };
 		6FF6251698A97D66D40EBEC4 /* StockDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockDetailView.swift; sourceTree = "<group>"; };
 		760A8933C2AF45BB939D3E73 /* MarketDataSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketDataSource.swift; sourceTree = "<group>"; };
@@ -70,14 +79,19 @@
 		7A0C4AA358D51E799CA5EE4D /* Stock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stock.swift; sourceTree = "<group>"; };
 		807DD58CA01B38BE65CEEC84 /* StockPrediction.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = StockPrediction.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		88288A95F56C26D666DEFA02 /* LLMInferenceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMInferenceManager.swift; sourceTree = "<group>"; };
+		9D8E62751400F3512D7C6CF2 /* PredictionExplainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredictionExplainer.swift; sourceTree = "<group>"; };
 		9EC050853E554016B063A8AF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A0FD4AEA4B551A71DFC94BF1 /* parameters.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = parameters.json; sourceTree = "<group>"; };
 		A25826E1CACC7DB692219FAC /* PredictionHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredictionHomeView.swift; sourceTree = "<group>"; };
 		A49FA768E229EC3B95A65C4D /* StockModuleData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockModuleData.swift; sourceTree = "<group>"; };
 		AB7945C6332BF66EB7263E42 /* SyncManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncManager.swift; sourceTree = "<group>"; };
+		B0DDE509D243FCBE341A2FA0 /* PreIPOModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreIPOModuleView.swift; sourceTree = "<group>"; };
 		B5247A09E48F9DA6A546C65E /* VideoIntelligenceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoIntelligenceManager.swift; sourceTree = "<group>"; };
 		C1E069B99A97FE71A3E8085A /* StockPredictionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockPredictionApp.swift; sourceTree = "<group>"; };
+		CC5BDC853C891593D0F3AE4E /* stock_predictor_1d.onnx */ = {isa = PBXFileReference; path = stock_predictor_1d.onnx; sourceTree = "<group>"; };
+		CD54894C18B741DEE7A41FF1 /* ModelMeta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelMeta.swift; sourceTree = "<group>"; };
 		D08061B3F061C9A8302E5A04 /* MarketModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketModuleView.swift; sourceTree = "<group>"; };
+		D64406356F36E46124ED4D57 /* stock_predictor_1m.onnx */ = {isa = PBXFileReference; path = stock_predictor_1m.onnx; sourceTree = "<group>"; };
 		E0C293E3FEF31332D0E480A7 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		EBB166F9E69099E663C8F107 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		EE3630CC6A3C2C75457A98AA /* PortfolioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortfolioView.swift; sourceTree = "<group>"; };
@@ -117,7 +131,9 @@
 			isa = PBXGroup;
 			children = (
 				88288A95F56C26D666DEFA02 /* LLMInferenceManager.swift */,
+				CD54894C18B741DEE7A41FF1 /* ModelMeta.swift */,
 				300D00CA90248086837B868D /* PredictionEngine.swift */,
+				9D8E62751400F3512D7C6CF2 /* PredictionExplainer.swift */,
 			);
 			path = Prediction;
 			sourceTree = "<group>";
@@ -149,6 +165,7 @@
 				D08061B3F061C9A8302E5A04 /* MarketModuleView.swift */,
 				670935B84430972B857ABAB3 /* ModelsView.swift */,
 				EE3630CC6A3C2C75457A98AA /* PortfolioView.swift */,
+				B0DDE509D243FCBE341A2FA0 /* PreIPOModuleView.swift */,
 				0B4174674EE679E28ED8D7D5 /* SearchView.swift */,
 				6FF6251698A97D66D40EBEC4 /* StockDetailView.swift */,
 				196C873F45FBD0465B994647 /* StockPredictionHomeView.swift */,
@@ -164,6 +181,7 @@
 			children = (
 				3A4ED44C8E23ED94589F977F /* LLMCatalog.swift */,
 				76ECC4CC28786A21AB18AC7C /* ParameterStore.swift */,
+				023F043ECF5660A6EDCDBB09 /* SpeakerSuggestions.swift */,
 				7A0C4AA358D51E799CA5EE4D /* Stock.swift */,
 				2741211BAD83D621BEC418B1 /* VideoIntelligenceModels.swift */,
 			);
@@ -176,7 +194,10 @@
 				1B92E36DEB6E3E8AD8D124BD /* .gitignore */,
 				22BE3761EB7F2D21D09B8C42 /* .gitkeep */,
 				17C1089BD4292BBDDBADC7EC /* Assets.xcassets */,
+				684658A9290806239A5A323D /* mobile_model_meta.json */,
 				A0FD4AEA4B551A71DFC94BF1 /* parameters.json */,
+				CC5BDC853C891593D0F3AE4E /* stock_predictor_1d.onnx */,
+				D64406356F36E46124ED4D57 /* stock_predictor_1m.onnx */,
 				FA8A08599BB610EF817418DE /* stock_predictor.onnx */,
 			);
 			path = Resources;
@@ -288,8 +309,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				5561AF6090A08B8EA83F5528 /* Assets.xcassets in Resources */,
+				773A54EA53CC712AF5FE067A /* mobile_model_meta.json in Resources */,
 				6B24555B9DEA11C26241F331 /* parameters.json in Resources */,
 				D398D807E789464D8AD19E28 /* stock_predictor.onnx in Resources */,
+				FA4BAF9B0F8F3699A62D4C7B /* stock_predictor_1d.onnx in Resources */,
+				F71FE72656C22DBBF27FA055 /* stock_predictor_1m.onnx in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -309,13 +333,17 @@
 				D35F9E42A8D3688F4460D619 /* LLMInferenceManager.swift in Sources */,
 				81448CE71E332A54E3B4CA0E /* MarketDataSource.swift in Sources */,
 				E17BC052BF9AABA0C4897E71 /* MarketModuleView.swift in Sources */,
+				555568E95E0081412A7E1009 /* ModelMeta.swift in Sources */,
 				7370846ECF4DE09F277CDE29 /* ModelsView.swift in Sources */,
 				CE13A36C7D0A1CE19A4472FF /* ParameterStore.swift in Sources */,
 				C6B65F5DEE0A0C3A4F82EBA7 /* PortfolioView.swift in Sources */,
+				469DAC03E02653943C9B19B3 /* PreIPOModuleView.swift in Sources */,
 				6D62A28C04A60561E4219CE1 /* PredictionEngine.swift in Sources */,
+				D4FC0B7D06C5DEFDE32AF4CA /* PredictionExplainer.swift in Sources */,
 				8358CEC78DA0F1D7B82258F4 /* PredictionHomeView.swift in Sources */,
 				A55920B64FF19975A2FDA3BD /* PredictionTheme.swift in Sources */,
 				A512813A52413B1236EB2949 /* SearchView.swift in Sources */,
+				95D81152A1B63616DBF87A75 /* SpeakerSuggestions.swift in Sources */,
 				C27F4CB25182B4C62B93DB9D /* Stock.swift in Sources */,
 				544B0F9AD0ED419079029514 /* StockDetailView.swift in Sources */,
 				67436A74D3E1D3E1B6763E9B /* StockModuleData.swift in Sources */,

@@ -58,6 +58,55 @@ export async function fetchCryptoBars(productId: string): Promise<Bar[]> {
 // A few well-known tickers shown as quick-pick chips in stock mode.
 export const STOCK_PRESETS = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'GOOGL', 'META', 'SPY'];
 
+export interface StockSource {
+  apiKey?: string;     // Twelve Data free key (covers global symbols)
+  proxyUrl?: string;   // Cloudflare Worker that proxies Yahoo (keyless, global)
+}
+
+/**
+ * Fetch daily bars for ANY global stock, KEYLESS, via a Cloudflare Worker that
+ * proxies Yahoo Finance (Yahoo blocks browser CORS directly, so the one-file
+ * worker re-serves it with CORS headers). Deploy the worker in
+ * pages/cloudflare/yahoo-proxy.js and paste its URL in Settings → no API key,
+ * any global symbol. Yahoo notation: "AAPL", "7203.T", "RELIANCE.NS", "SAP.DE".
+ * Returns bars newest-first.
+ */
+export async function fetchStockBarsYahoo(symbol: string, proxyUrl: string): Promise<Bar[]> {
+  const base = proxyUrl.trim().replace(/\/+$/, '');
+  const url = `${base}?symbol=${encodeURIComponent(symbol.trim())}&range=2y&interval=1d`;
+  const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!resp.ok) throw new Error(`Proxy ${resp.status} for ${symbol}. Check the worker URL in Settings.`);
+  const json = await resp.json();
+  const result = json?.chart?.result?.[0];
+  if (json?.chart?.error || !result) {
+    throw new Error(`No data for ${symbol.toUpperCase()} (Yahoo notation, e.g. RELIANCE.NS, 7203.T).`);
+  }
+  const ts: number[] = result.timestamp ?? [];
+  const quote = result.indicators?.quote?.[0] ?? {};
+  const adj = result.indicators?.adjclose?.[0]?.adjclose;
+  const closes: number[] = adj ?? quote.close ?? [];
+  const volumes: number[] = quote.volume ?? [];
+  const bars: Bar[] = [];
+  for (let i = 0; i < ts.length; i++) {
+    const close = closes[i];
+    if (Number.isFinite(close)) bars.push({ time: ts[i], close, volume: volumes[i] ?? 0 });
+  }
+  return bars.sort((a, b) => b.time - a.time);   // newest-first
+}
+
+/**
+ * Fetch daily bars for a stock, preferring the keyless Yahoo proxy when one is
+ * configured and falling back to Twelve Data otherwise.
+ */
+export async function fetchStockBars(symbol: string, src?: StockSource | string): Promise<Bar[]> {
+  // Back-compat: a bare string is treated as a Twelve Data key.
+  const source: StockSource = typeof src === 'string' ? { apiKey: src } : (src ?? {});
+  if (source.proxyUrl && source.proxyUrl.trim()) {
+    return fetchStockBarsYahoo(symbol, source.proxyUrl);
+  }
+  return fetchStockBarsTwelveData(symbol, source.apiKey);
+}
+
 /**
  * Fetch daily bars for ANY global stock via Twelve Data (CORS-enabled, reliable).
  * Twelve Data's free tier covers worldwide exchanges; the public 'demo' key only
@@ -65,7 +114,7 @@ export const STOCK_PRESETS = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMZN', 'GOOGL', '
  * follow Twelve Data notation: "AAPL", "RELIANCE:NSE", "7203:XTKS", "SAP:XETR".
  * Returns bars newest-first.
  */
-export async function fetchStockBars(symbol: string, apiKey?: string): Promise<Bar[]> {
+export async function fetchStockBarsTwelveData(symbol: string, apiKey?: string): Promise<Bar[]> {
   const key = (apiKey && apiKey.trim()) || 'demo';
   const url =
     `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol.trim())}` +

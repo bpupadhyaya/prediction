@@ -6,7 +6,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
@@ -19,8 +22,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.prediction.stockmarket.data.database.PredictionEntity
+import com.prediction.stockmarket.prediction.PredictionExplainer
 
 private val DIRECTION_HORIZONS = listOf("1d", "1w", "1m")
+private val UP_GREEN = Color(0xFF4CAF50)
+private val DOWN_RED = Color(0xFFFF5252)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,7 +106,12 @@ fun StockDetailScreen(
 
                 uiState.prediction?.let { pred ->
                     PredictionCard(pred, viewModel::onHorizonChange)
+                    if (uiState.explanation.isNotEmpty()) {
+                        WhyPredictionCard(pred, uiState.explanation, uiState.rationale)
+                    }
                 }
+
+                SpeakerHint(ticker)
 
                 // Interactive prediction entry point
                 Button(
@@ -161,6 +172,98 @@ private fun PredictionCard(pred: PredictionEntity, onHorizonChange: (String) -> 
                 StatCell("Confidence", "%.0f%%".format(pred.probability * 100))
                 StatCell("Model Acc.", "%.0f%%".format(pred.modelAccuracy * 100))
             }
+        }
+    }
+}
+
+@Composable
+private fun WhyPredictionCard(
+    pred: PredictionEntity,
+    contributions: List<PredictionExplainer.FeatureContribution>,
+    rationale: String,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "Why this prediction",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            if (rationale.isNotBlank()) {
+                Text(
+                    rationale,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            contributions.take(4).forEach { c ->
+                ContributionRow(c)
+            }
+
+            Text(
+                "Model accuracy (out-of-sample): %.0f%%".format(pred.modelAccuracy * 100),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun ContributionRow(c: PredictionExplainer.FeatureContribution) {
+    val color = if (c.pushesUp) UP_GREEN else DOWN_RED
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            if (c.pushesUp) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+            contentDescription = if (c.pushesUp) "pushes up" else "pushes down",
+            tint = color,
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            c.label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            "%+.1f%%".format(c.delta * 100),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = color
+        )
+    }
+}
+
+@Composable
+private fun SpeakerHint(ticker: String) {
+    val names = SpeakerSuggestions.speakers(ticker)
+    if (names.isEmpty()) return
+    val accent = Color(0xFF3B82F6)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = accent.copy(alpha = 0.10f),
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                Icons.Default.RecordVoiceOver,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                "Track for this stock: ${names.joinToString(", ")}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }

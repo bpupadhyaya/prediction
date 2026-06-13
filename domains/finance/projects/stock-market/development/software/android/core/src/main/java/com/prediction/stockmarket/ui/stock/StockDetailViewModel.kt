@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.prediction.stockmarket.data.database.PredictionEntity
 import com.prediction.stockmarket.data.repository.StockRepository
 import com.prediction.stockmarket.prediction.PredictionEngine
+import com.prediction.stockmarket.prediction.PredictionExplainer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +16,9 @@ data class StockDetailUiState(
     val ticker: String = "",
     val latestPrice: Double? = null,
     val prediction: PredictionEntity? = null,
+    /** Transient, perturbation-based explanation for the current prediction. */
+    val explanation: List<PredictionExplainer.FeatureContribution> = emptyList(),
+    val rationale: String = "",
     val isWatchlisted: Boolean = false,
     val horizon: String = "1w",
     val isLoading: Boolean = false,
@@ -53,14 +57,19 @@ class StockDetailViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             try {
                 ensureTickerData(ticker)
+                val horizon = _uiState.value.horizon
                 val price = repo.latestPrice(ticker)?.adjClose
-                val pred = loadOrComputePrediction(ticker, _uiState.value.horizon)
+                val pred = loadOrComputePrediction(ticker, horizon)
+                val (contributions, rationale) = computeExplanation(ticker, horizon, pred)
                 val watchlisted = repo.isWatchlisted(ticker)
                 _uiState.value = StockDetailUiState(
                     ticker = ticker,
                     latestPrice = price,
                     prediction = pred,
+                    explanation = contributions,
+                    rationale = rationale,
                     isWatchlisted = watchlisted,
+                    horizon = horizon,
                     isLoading = false
                 )
             } catch (e: Exception) {
@@ -79,9 +88,12 @@ class StockDetailViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = true)
             try {
                 val pred = loadOrComputePrediction(ticker, horizon)
+                val (contributions, rationale) = computeExplanation(ticker, horizon, pred)
                 _uiState.value = _uiState.value.copy(
                     horizon = horizon,
                     prediction = pred,
+                    explanation = contributions,
+                    rationale = rationale,
                     isLoading = false
                 )
             } catch (e: Exception) {
@@ -117,5 +129,24 @@ class StockDetailViewModel @Inject constructor(
         if (cached != null) return cached
         val prices = repo.prices(ticker, 600)
         return engine.predict(ticker, horizon, prices)
+    }
+
+    /**
+     * Computes the transient "why this prediction" explanation. Runs the model on
+     * perturbed inputs off the main thread; never persisted. Returns an empty
+     * explanation if there is no prediction or insufficient data.
+     */
+    private suspend fun computeExplanation(
+        ticker: String,
+        horizon: String,
+        pred: PredictionEntity?,
+    ): Pair<List<PredictionExplainer.FeatureContribution>, String> {
+        if (pred == null) return emptyList<PredictionExplainer.FeatureContribution>() to ""
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            val prices = repo.prices(ticker, 600)
+            val contributions = engine.explain(prices, horizon)
+            val rationale = PredictionExplainer.rationale(pred.direction, contributions)
+            contributions to rationale
+        }
     }
 }

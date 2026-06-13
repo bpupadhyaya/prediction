@@ -1,0 +1,74 @@
+{
+  "features": [
+    "return_1d",
+    "return_5d",
+    "return_20d",
+    "return_60d",
+    "return_126d",
+    "return_252d",
+    "ma_5",
+    "ma_20",
+    "ma_50",
+    "ma_200",
+    "volatility_20",
+    "volatility_60",
+    "volume_ratio",
+    "dollar_volume_turnover",
+    "rsi",
+    "high_52w_ratio"
+  ],
+  "baselines": {
+    "return_1d": 0.000573309441317561,
+    "return_5d": 0.0028517653807580735,
+    "return_20d": 0.011342756463632812,
+    "return_60d": 0.033557529208035064,
+    "return_126d": 0.07290709104910437,
+    "return_252d": 0.16515086144862393,
+    "ma_5": -0.00010387483477946021,
+    "ma_20": -0.0006192401085403359,
+    "ma_50": -0.0015014320258083926,
+    "ma_200": -0.007049088370194145,
+    "volatility_20": 0.01965051156506204,
+    "volatility_60": 0.020277734897755348,
+    "volume_ratio": 1.0134375186017806,
+    "dollar_volume_turnover": 1.016414396352096,
+    "rsi": 51.86746643180632,
+    "high_52w_ratio": 0.8481198796684898
+  },
+  "horizons": {
+    "1d": {
+      "backtest_accuracy": 0.5579,
+      "test_up_rate": 0.5144,
+      "n_test": 77255,
+      "calibration": {
+        "w": 3.636915,
+        "b": -1.808823
+      },
+      "brier_raw": 0.24968,
+      "brier_calibrated": 0.24777
+    },
+    "1w": {
+      "backtest_accuracy": 0.5487,
+      "test_up_rate": 0.5227,
+      "n_test": 77249,
+      "calibration": {
+        "w": 3.385455,
+        "b": -1.635467
+      },
+      "brier_raw": 0.25141,
+      "brier_calibrated": 0.24888
+    },
+    "1m": {
+      "backtest_accuracy": 0.5472,
+      "test_up_rate": 0.5306,
+      "n_test": 77226,
+      "calibration": {
+        "w": 2.69366,
+        "b": -1.233822
+      },
+      "brier_raw": 0.25216,
+      "brier_calibrated": 0.24834
+    }
+  },
+  "note": "backtest_accuracy is out-of-sample directional accuracy on a time-ordered hold-out (no leakage). calibration maps the raw model probability p_up to an honest probability via sigmoid(w*p_up+b)."
+}

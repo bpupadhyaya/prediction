@@ -42,7 +42,11 @@ struct ContentView: View {
 
             if let moduleId = activeModuleId {
                 Group {
-                    if ["crypto", "earnings", "sectors", "global"].contains(moduleId) {
+                    if moduleId == "pre_ipo" {
+                        PreIPOModuleView(onBack: {
+                            withAnimation(.easeInOut(duration: 0.3)) { activeModuleId = nil }
+                        })
+                    } else if ["crypto", "earnings", "sectors", "global"].contains(moduleId) {
                         MarketModuleView(moduleId: moduleId, onBack: {
                             withAnimation(.easeInOut(duration: 0.3)) { activeModuleId = nil }
                         })
@@ -60,7 +64,9 @@ struct ContentView: View {
     }
 
     private func handleModuleTap(_ moduleId: String) {
-        if marketModuleIds.contains(moduleId) {
+        if moduleId == "pre_ipo" {
+            withAnimation(.easeInOut(duration: 0.3)) { activeModuleId = moduleId }
+        } else if marketModuleIds.contains(moduleId) {
             withAnimation(.easeInOut(duration: 0.25)) { selectedTab = 1 }
         } else {
             withAnimation(.easeInOut(duration: 0.3)) { activeModuleId = moduleId }

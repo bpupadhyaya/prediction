@@ -7,6 +7,7 @@ struct StockDetailView: View {
 
     @State private var prices: [PriceBar] = []
     @State private var prediction: Prediction?
+    @State private var contributions: [FeatureContribution] = []
     @State private var stock: Stock?
     @State private var selectedHorizon = "1w"
     @State private var isWatchlisted = false
@@ -32,8 +33,15 @@ struct StockDetailView: View {
 
                     if let pred = prediction {
                         predictionCard(pred)
+                        if !contributions.isEmpty {
+                            whyCard(pred)
+                        }
                     } else if !isLoading {
                         noPredictionCard
+                    }
+
+                    if !isLoading {
+                        speakerHint
                     }
 
                     interactivePredictButton
@@ -101,6 +109,28 @@ struct StockDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.systemGray6))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    // MARK: - Speaker Suggestion Hint
+
+    @ViewBuilder
+    private var speakerHint: some View {
+        let names = SpeakerSuggestions.speakers(forTicker: ticker, sector: stock?.sector)
+        if !names.isEmpty {
+            HStack(spacing: 8) {
+                Image(systemName: "person.wave.2.fill")
+                    .font(.caption)
+                    .foregroundStyle(PredictionTheme.accent)
+                Text("Track for this stock: \(names.joined(separator: ", "))")
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                Spacer()
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(PredictionTheme.accent.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
     }
 
     // MARK: - Interactive Predict Button
@@ -224,6 +254,7 @@ struct StockDetailView: View {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         prediction = store.prediction(for: ticker, horizon: selectedHorizon)
                     }
+                    refreshExplanation()
                 }
             }
 
@@ -269,6 +300,60 @@ struct StockDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
+    // MARK: - Why This Prediction
+
+    private func whyCard(_ pred: Prediction) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Why this prediction")
+                .font(.headline)
+                .foregroundStyle(.primary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(contributions.prefix(4)), id: \.feature) { c in
+                    HStack(spacing: 10) {
+                        Image(systemName: c.pushesUp ? "chevron.up" : "chevron.down")
+                            .font(.caption.bold())
+                            .foregroundStyle(c.pushesUp ? .green : .red)
+                            .frame(width: 14)
+                        Text(c.label)
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Text(String(format: "%+.0f%%", c.delta * 100))
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(c.pushesUp ? .green : .red)
+                    }
+                }
+            }
+
+            Text(PredictionExplainer.rationale(direction: pred.direction, contributions: contributions))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(String(format: "Model accuracy (out-of-sample): %.0f%%", pred.modelAccuracy * 100))
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// Recompute perturbation-based contributions for the current horizon off the
+    /// main thread (16+ ONNX inferences), then publish on the main actor.
+    private func refreshExplanation() {
+        let symbol = ticker
+        let horizon = selectedHorizon
+        Task.detached(priority: .userInitiated) {
+            // buildFeatures needs >= 253 newest-first bars (prices(days:) is date desc).
+            let bars = (try? DatabaseManager.shared.prices(ticker: symbol, days: 600)) ?? []
+            let result = PredictionEngine.shared.explain(fromBars: bars, horizon: horizon)
+            await MainActor.run { contributions = result }
+        }
+    }
+
     // MARK: - Data Loading
 
     private func loadData() async {
@@ -295,5 +380,6 @@ struct StockDetailView: View {
             loadError = "Could not load stock info: \(error.localizedDescription)"
         }
         isLoading = false
+        if prediction != nil { refreshExplanation() }
     }
 }

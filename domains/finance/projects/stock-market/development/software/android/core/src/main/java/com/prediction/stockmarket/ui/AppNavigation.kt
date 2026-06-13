@@ -94,7 +94,9 @@ fun AppNavigation() {
             composable("stockhome") {
                 StockPredictionHomeScreen { sectionId ->
                     if (sectionId.isNotBlank()) {
-                        if (sectionId in marketSectionIds) {
+                        if (sectionId == "pre_ipo") {
+                            navController.navigate("stock_module/pre_ipo")
+                        } else if (sectionId in marketSectionIds) {
                             navController.navigate("market") {
                                 popUpTo("stockhome") { saveState = true }
                                 launchSingleTop = true
@@ -143,7 +145,11 @@ fun AppNavigation() {
                 arguments = listOf(navArgument("moduleId") { type = NavType.StringType })
             ) { backstack ->
                 val moduleId = backstack.arguments?.getString("moduleId").orEmpty()
-                if (moduleId in setOf("crypto", "earnings", "sectors", "global")) {
+                if (moduleId == "pre_ipo") {
+                    com.prediction.stockmarket.ui.modules.PreIPOModuleScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                } else if (moduleId in setOf("crypto", "earnings", "sectors", "global")) {
                     com.prediction.stockmarket.ui.modules.MarketModuleScreen(
                         moduleId = moduleId,
                         onBack = { navController.popBackStack() },

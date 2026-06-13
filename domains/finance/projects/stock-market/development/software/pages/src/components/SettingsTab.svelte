@@ -187,6 +187,17 @@
       />
       <span class="field-note">Enables live stock prediction in the Model tab for any global ticker (AAPL works without a key). Crypto needs no key.</span>
     </div>
+    <div class="field">
+      <label for="yahoo-proxy">Yahoo proxy URL (keyless global stocks)</label>
+      <input
+        id="yahoo-proxy"
+        type="url"
+        placeholder="https://yahoo-proxy.you.workers.dev"
+        bind:value={settings.yahooProxyUrl}
+        autocomplete="off"
+      />
+      <span class="field-note">Optional. Deploy the one-file Cloudflare Worker in <code>pages/cloudflare/yahoo-proxy.js</code> and paste its URL to predict ANY global stock with no API key (uses Yahoo notation: AAPL, RELIANCE.NS, 7203.T). Takes priority over the Twelve Data key.</span>
+    </div>
     <div class="field toggle-field">
       <label>
         <input type="checkbox" bind:checked={settings.corsProxyEnabled} />

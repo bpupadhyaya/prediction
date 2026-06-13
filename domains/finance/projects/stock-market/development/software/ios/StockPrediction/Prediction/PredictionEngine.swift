@@ -51,23 +51,25 @@ final class PredictionEngine {
               let session = try? OnnxRuntimeSession(modelPath: modelURL.path),
               let output = try? session.run(input: features) else { return nil }
 
-        let probUp = output[1]
+        let rawProbUp = output[1]
+        // Honest, calibrated up-probability — drives direction, confidence, magnitude.
+        let probUp = ModelMeta.shared.calibrate(rawProbUp: Double(rawProbUp), horizon: horizon)
         let direction = probUp >= 0.5 ? "UP" : "DOWN"
         let closesForVol = bars.map { Float($0.adjClose) }
         let volatility = closesForVol.count >= 21
             ? standardDeviation((0..<20).map { closesForVol[$0] / closesForVol[$0 + 1] - 1 })
             : 0
-        let magnitude = abs(Double(probUp) - 0.5) * 2
+        let magnitude = abs(probUp - 0.5) * 2
         let expectedLow  = probUp >= 0.5 ?  magnitude * 0.5 : -magnitude
         let expectedHigh = probUp >= 0.5 ?  magnitude       : -magnitude * 0.5
 
         return Prediction(
             ticker: ticker, horizon: horizon, direction: direction,
-            probability: Double(probUp),
+            probability: probUp,
             expectedReturnLow: min(expectedLow, expectedHigh),
             expectedReturnHigh: max(expectedLow, expectedHigh),
             volatility: Double(volatility),
-            modelAccuracy: 0.54,
+            modelAccuracy: ModelMeta.shared.accuracy(horizon: horizon),
             generatedAt: Date()
         )
     }
@@ -78,7 +80,7 @@ final class PredictionEngine {
     // the exporter's MOBILE_FEATURES order exactly. Prices are newest-first.
     // 16 features — works for ANY instrument with >= 253 daily bars (stocks on any
     // exchange, crypto pairs, ETFs, indices) since all inputs are OHLCV-derived.
-    private func buildFeatures(prices: [PriceBar]) -> [Float]? {
+    func buildFeatures(prices: [PriceBar]) -> [Float]? {
         guard prices.count >= 253 else { return nil }
         let closes = prices.map { Float($0.adjClose) }
         let volumes = prices.map { Float($0.volume) }
@@ -151,26 +153,53 @@ final class PredictionEngine {
         let session = try OnnxRuntimeSession(modelPath: modelURL.path)
         let output = try session.run(input: features)
 
-        let probUp = output[1]   // probability of UP class
+        let rawProbUp = output[1]   // raw probability of UP class
+        // Honest, calibrated up-probability — drives direction, confidence, magnitude.
+        let probUp = ModelMeta.shared.calibrate(rawProbUp: Double(rawProbUp), horizon: horizon)
         let direction = probUp >= 0.5 ? "UP" : "DOWN"
 
         let closesForVol = prices.map { Float($0.adjClose) }
         let volatility = closesForVol.count >= 21
             ? standardDeviation((0..<20).map { closesForVol[$0] / closesForVol[$0 + 1] - 1 })
             : 0
-        let magnitude = abs(Double(probUp) - 0.5) * 2
+        let magnitude = abs(probUp - 0.5) * 2
         let expectedLow  = probUp >= 0.5 ?  magnitude * 0.5 : -magnitude
         let expectedHigh = probUp >= 0.5 ?  magnitude       : -magnitude * 0.5
 
         return Prediction(
             ticker: ticker, horizon: horizon, direction: direction,
-            probability: Double(probUp),
+            probability: probUp,
             expectedReturnLow: min(expectedLow, expectedHigh),
             expectedReturnHigh: max(expectedLow, expectedHigh),
             volatility: Double(volatility),
-            modelAccuracy: 0.54,    // placeholder — loaded from bundled metadata
+            modelAccuracy: ModelMeta.shared.accuracy(horizon: horizon),
             generatedAt: Date()
         )
+    }
+
+    // MARK: - Explainability
+
+    /// Perturbation-based "why this prediction" attribution over the 16 features.
+    /// Reuses the bundled ONNX session: scores the actual feature row, then 16
+    /// single-row inferences each with one feature reset to its neutral baseline.
+    /// Scores are calibrated, so contributions are in honest-probability units.
+    /// Returns [] when the model is unavailable. ~17 cheap single-row inferences.
+    func explain(features: [Float], horizon: String) -> [FeatureContribution] {
+        guard let modelURL = modelURL(for: horizon),
+              let session = try? OnnxRuntimeSession(modelPath: modelURL.path) else {
+            return []
+        }
+        let score: ([Float]) -> Double = { input in
+            guard let output = try? session.run(input: input), output.count >= 2 else { return 0.5 }
+            return ModelMeta.shared.calibrate(rawProbUp: Double(output[1]), horizon: horizon)
+        }
+        return PredictionExplainer.contributions(features: features, horizon: horizon, score: score)
+    }
+
+    /// Convenience: build features from newest-first bars, then explain.
+    func explain(fromBars bars: [PriceBar], horizon: String) -> [FeatureContribution] {
+        guard let features = buildFeatures(prices: bars) else { return [] }
+        return explain(features: features, horizon: horizon)
     }
 }
 

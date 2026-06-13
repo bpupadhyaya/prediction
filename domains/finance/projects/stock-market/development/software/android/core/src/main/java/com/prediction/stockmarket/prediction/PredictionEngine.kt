@@ -47,7 +47,10 @@ class PredictionEngine @Inject constructor(
 
     fun predict(ticker: String, horizon: String, prices: List<PriceBarEntity>): PredictionEntity? {
         val features = buildFeatures(prices) ?: return null
-        val prob = runInference(features, horizon) ?: return null
+        val rawProb = runInference(features, horizon) ?: return null
+        ModelMeta.ensureLoaded(context)
+        // Calibrate the raw model probability into an honest P(up).
+        val prob = ModelMeta.calibrate(rawProb, horizon)
         val direction = if (prob >= 0.5f) "UP" else "DOWN"
         val closes = prices.map { it.adjClose.toFloat() }
         val vol = if (closes.size >= 21)
@@ -62,9 +65,25 @@ class PredictionEngine @Inject constructor(
             expectedReturnLow = if (prob >= 0.5f) -0.02 else -0.05,
             expectedReturnHigh = if (prob >= 0.5f) 0.05 else 0.02,
             volatility = vol.toDouble(),
-            modelAccuracy = 0.54,
+            modelAccuracy = ModelMeta.accuracy(horizon),
             generatedAt = Date()
         )
+    }
+
+    /**
+     * Perturbation-based explanation of a prediction. Builds the same 16 features
+     * from [prices], then for each feature measures how the CALIBRATED P(up)
+     * changes when that feature is reset to its training baseline. Reuses the
+     * loaded OrtSession. Computed transiently at tap time — never persisted.
+     */
+    fun explain(prices: List<PriceBarEntity>, horizon: String): List<PredictionExplainer.FeatureContribution> {
+        val features = buildFeatures(prices) ?: return emptyList()
+        ModelMeta.ensureLoaded(context)
+        val score: (FloatArray) -> Double = { f ->
+            val raw = runInference(f, horizon) ?: 0.5f
+            ModelMeta.calibrate(raw, horizon).toDouble()
+        }
+        return PredictionExplainer.explain(features, horizon, score)
     }
 
     // Feature semantics MUST match the training pipeline (desktop trainer.py) and

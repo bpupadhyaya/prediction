@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { loadModel, predictOnnx, type Horizon, type OnnxPrediction } from '../lib/onnx';
+  import {
+    loadModel, predictOnnx, explainOnnx, rationale,
+    type Horizon, type OnnxPrediction, type FeatureContribution,
+  } from '../lib/onnx';
   import {
     CRYPTO_PRODUCTS, fetchCryptoBars, fetchStockBars, STOCK_PRESETS,
     computeFeatures, MIN_BARS,
@@ -14,11 +17,15 @@
   let productId = 'BTC-USD';
   let stockSymbol = 'AAPL';
   let twelveKey = '';
+  let yahooProxy = '';
   let modelLoading = true;
   let loadError = '';
   let running = false;
   let runError = '';
   let results: Partial<Record<Horizon, OnnxPrediction>> = {};
+  let drivers: FeatureContribution[] = [];
+  let driversRationale = '';
+  let selectedHorizon: Horizon = '1w';
   let lastPrice: number | null = null;
   let asOf = '';
   let resultLabel = '';
@@ -29,7 +36,9 @@
     try {
       // Load all three horizon models up front (each ~110 KB, runs in-browser).
       await Promise.all(HORIZONS.map((h) => loadModel(h)));
-      twelveKey = (await loadSettings()).twelveDataApiKey ?? '';
+      const s = await loadSettings();
+      twelveKey = s.twelveDataApiKey ?? '';
+      yahooProxy = s.yahooProxyUrl ?? '';
     } catch (err) {
       loadError = err instanceof Error ? err.message : String(err);
     } finally {
@@ -37,16 +46,20 @@
     }
   });
 
+  let lastFeatures: Float32Array | null = null;
+
   async function run() {
     runError = '';
     results = {};
+    drivers = [];
+    driversRationale = '';
     running = true;
     try {
       const label = mode === 'crypto' ? productId : stockSymbol.trim().toUpperCase();
       if (mode === 'stock' && !label) throw new Error('Enter a stock symbol.');
       const bars = mode === 'crypto'
         ? await fetchCryptoBars(productId)
-        : await fetchStockBars(label, twelveKey);
+        : await fetchStockBars(label, { apiKey: twelveKey, proxyUrl: yahooProxy });
       if (bars.length < MIN_BARS) {
         throw new Error(`Only ${bars.length} days of history available (need ${MIN_BARS}).`);
       }
@@ -55,14 +68,29 @@
       resultLabel = label;
       const features = computeFeatures(bars);
       if (!features) throw new Error('Could not compute features.');
+      lastFeatures = features;
       const out: Partial<Record<Horizon, OnnxPrediction>> = {};
       for (const h of HORIZONS) out[h] = await predictOnnx(features, h);
       results = out;
+      await explainFor(selectedHorizon);
     } catch (err) {
       runError = err instanceof Error ? err.message : String(err);
     } finally {
       running = false;
     }
+  }
+
+  // Compute the top drivers + rationale for one horizon (perturbation attribution).
+  async function explainFor(h: Horizon) {
+    selectedHorizon = h;
+    if (!lastFeatures || !results[h]) { drivers = []; driversRationale = ''; return; }
+    drivers = await explainOnnx(lastFeatures, h);
+    driversRationale = rationale(results[h]!.direction, drivers);
+  }
+
+  function fmtDelta(d: number): string {
+    const pts = Math.abs(d) * 100;
+    return `${d >= 0 ? '+' : '−'}${pts.toFixed(1)} pts`;
   }
 
   function badgeClass(dir: 'up' | 'down' | 'neutral'): string {
@@ -159,7 +187,12 @@
           {#each HORIZONS as h}
             {#if results[h]}
               {@const r = results[h]}
-              <div class="horizon-cell">
+              <button
+                class="horizon-cell"
+                class:explained={selectedHorizon === h}
+                on:click={() => explainFor(h)}
+                title="Show what drives the {HORIZON_LABELS[h]} prediction"
+              >
                 <div class="horizon-label">{HORIZON_LABELS[h]}</div>
                 <span class="direction-badge {badgeClass(r.direction)}">{dirLabel(r.direction)}</span>
                 <div class="horizon-prob">
@@ -169,14 +202,47 @@
                   <div class="result-bar-up" style="width:{r.probUp}%"></div>
                   <div class="result-bar-down" style="width:{r.probDown}%"></div>
                 </div>
-              </div>
+                {#if r.accuracy > 0}
+                  <div class="horizon-acc">{r.accuracy.toFixed(1)}% accurate</div>
+                {/if}
+              </button>
             {/if}
           {/each}
         </div>
 
+        {#if drivers.length > 0}
+          {@const selAcc = results[selectedHorizon]?.accuracy ?? 0}
+          <div class="why-box">
+            <div class="why-head">
+              Why this {HORIZON_LABELS[selectedHorizon]} prediction
+              {#if selAcc > 0}
+                <span class="why-acc">model {selAcc.toFixed(1)}% accurate out-of-sample</span>
+              {/if}
+            </div>
+            {#if driversRationale}
+              <p class="why-rationale">{driversRationale}</p>
+            {/if}
+            <ul class="why-list">
+              {#each drivers as d}
+                <li class="why-item">
+                  <span class="why-arrow" class:up={d.pushesUp} class:down={!d.pushesUp}>
+                    {d.pushesUp ? '▲' : '▼'}
+                  </span>
+                  <span class="why-label">{d.label}</span>
+                  <span class="why-delta" class:up={d.pushesUp} class:down={!d.pushesUp}>{fmtDelta(d.delta)}</span>
+                </li>
+              {/each}
+            </ul>
+            <p class="why-foot">
+              Each driver = how much P(up) moves when that signal is reset to its historical norm.
+              Tap a horizon above to explain it.
+            </p>
+          </div>
+        {/if}
+
         <p class="result-note">
           16-feature GradientBoosting classifier · same model as iOS/Android · 100% on-device.
-          Probabilistic — not financial advice.
+          Probabilities are calibrated; accuracy is out-of-sample. Probabilistic — not financial advice.
         </p>
       </div>
     {/if}
@@ -247,10 +313,31 @@
   .horizon-cell {
     background: rgba(100, 116, 139, 0.06); border: 1px solid var(--border);
     border-radius: 10px; padding: 0.8rem 0.9rem;
+    width: 100%; text-align: left; cursor: pointer; font: inherit; color: inherit;
+    transition: border-color 0.15s, background 0.15s;
   }
+  .horizon-cell:hover { border-color: var(--accent); }
+  .horizon-cell.explained { border-color: var(--accent); background: rgba(99, 102, 241, 0.07); }
   .horizon-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.5rem; }
   .horizon-prob { font-size: 0.78rem; color: var(--muted); margin: 0.45rem 0 0.4rem; }
   .horizon-prob .up { color: var(--accent2); font-weight: 700; }
+  .horizon-acc { font-size: 0.68rem; color: var(--muted); margin-top: 0.35rem; }
+
+  .why-box {
+    background: rgba(99, 102, 241, 0.05); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 0.8rem;
+  }
+  .why-head { font-size: 0.82rem; font-weight: 700; color: var(--text); display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+  .why-acc { font-size: 0.7rem; font-weight: 600; color: var(--muted); }
+  .why-rationale { font-size: 0.8rem; color: var(--text); line-height: 1.55; margin: 0.5rem 0 0.7rem; }
+  .why-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+  .why-item { display: flex; align-items: center; gap: 0.55rem; font-size: 0.8rem; }
+  .why-arrow { font-size: 0.7rem; width: 0.9rem; text-align: center; }
+  .why-arrow.up, .why-delta.up { color: var(--accent2); }
+  .why-arrow.down, .why-delta.down { color: var(--danger); }
+  .why-label { flex: 1; color: var(--text); }
+  .why-delta { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .why-foot { font-size: 0.7rem; color: var(--muted); margin: 0.7rem 0 0; line-height: 1.5; }
 
   .direction-badge {
     font-size: 0.72rem; font-weight: 700; padding: 0.18rem 0.65rem;

@@ -100,6 +100,15 @@
     return `${d >= 0 ? '+' : '−'}${pts.toFixed(1)} pts`;
   }
 
+  // Drill from a radar row into the full single-asset prediction + drivers.
+  async function drillInto(id: string) {
+    mode = 'crypto';
+    productId = id;
+    await run();
+    document.querySelector('.result-card[aria-label="Model prediction result"]')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   // Scan every crypto product (keyless Coinbase), predict 1-week, rank by P(up).
   async function scanCrypto() {
     scanError = '';
@@ -234,21 +243,24 @@
         </div>
         <ol class="rank-list">
           {#each scanRows as row, i}
-            <li class="rank-item">
-              <span class="rank-num">{i + 1}</span>
-              <span class="rank-label">{row.label}</span>
-              <span class="rank-id">{row.id}</span>
-              <span class="direction-badge {badgeClass(row.direction)}">{dirLabel(row.direction)}</span>
-              <span class="rank-prob" class:up={row.probUp >= 50} class:down={row.probUp < 50}>{row.probUp.toFixed(1)}%</span>
-              <span class="rank-bar-wrap" role="presentation">
-                <span class="rank-bar" class:up={row.probUp >= 50} class:down={row.probUp < 50} style="width:{row.probUp}%"></span>
-              </span>
+            <li>
+              <button class="rank-item" on:click={() => drillInto(row.id)} disabled={running}
+                      title="See the full prediction & drivers for {row.label}">
+                <span class="rank-num">{i + 1}</span>
+                <span class="rank-label">{row.label}</span>
+                <span class="rank-id">{row.id}</span>
+                <span class="direction-badge {badgeClass(row.direction)}">{dirLabel(row.direction)}</span>
+                <span class="rank-prob" class:up={row.probUp >= 50} class:down={row.probUp < 50}>{row.probUp.toFixed(1)}%</span>
+                <span class="rank-bar-wrap" role="presentation">
+                  <span class="rank-bar" class:up={row.probUp >= 50} class:down={row.probUp < 50} style="width:{row.probUp}%"></span>
+                </span>
+              </button>
             </li>
           {/each}
         </ol>
         <p class="result-note">
           Same on-device model, calibrated · ranks the strongest 1-week bullish → bearish read.
-          Probabilistic — not financial advice.
+          Tap any coin to see its full prediction & drivers. Probabilistic — not financial advice.
         </p>
       </div>
     {/if}
@@ -446,11 +458,16 @@
   .scan-note { font-size: 0.72rem; color: var(--muted); }
 
   .rank-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+  .rank-list li { border-bottom: 1px solid var(--border); }
+  .rank-list li:last-child { border-bottom: none; }
   .rank-item {
     display: grid; grid-template-columns: 1.4rem 1fr auto auto auto; align-items: center;
-    gap: 0.55rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.82rem;
+    gap: 0.55rem; padding: 0.4rem 0.3rem; font-size: 0.82rem;
+    width: 100%; text-align: left; background: none; border: none; color: inherit; font-family: inherit;
+    cursor: pointer; border-radius: 6px; transition: background 0.12s;
   }
-  .rank-item:last-child { border-bottom: none; }
+  .rank-item:not(:disabled):hover { background: rgba(99, 102, 241, 0.08); }
+  .rank-item:disabled { cursor: default; }
   .rank-num { color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; font-weight: 700; }
   .rank-label { color: var(--text); font-weight: 600; }
   .rank-id { color: var(--muted); font-size: 0.72rem; }

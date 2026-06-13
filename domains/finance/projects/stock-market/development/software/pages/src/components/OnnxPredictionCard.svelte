@@ -38,6 +38,8 @@
   let scanTotal = 0;
   let scanKind: 'crypto' | 'stock' = 'crypto';
   let scanHint = '';
+  let scanHorizon: Horizon = '1w';
+  let scannedHorizonLabel = '1 Week';
   let scanRows: ScanRow[] = [];
 
   onMount(async () => {
@@ -119,6 +121,7 @@
     scanRows = [];
     scanDone = 0;
     scanKind = mode;
+    scannedHorizonLabel = HORIZON_LABELS[scanHorizon];
     const items = mode === 'crypto'
       ? CRYPTO_PRODUCTS.map((p) => ({ id: p.id, label: p.label, fetch: () => fetchCryptoBars(p.id) }))
       : STOCK_PRESETS.map((s) => ({ id: s, label: s, fetch: () => fetchStockBars(s, { apiKey: twelveKey, proxyUrl: yahooProxy }) }));
@@ -132,7 +135,7 @@
           const bars = await it.fetch();
           const feats = bars.length >= MIN_BARS ? computeFeatures(bars) : null;
           if (feats) {
-            const r = await predictOnnx(feats, '1w');
+            const r = await predictOnnx(feats, scanHorizon);
             rows.push({ id: it.id, label: it.label, probUp: r.probUp, direction: r.direction });
           } else {
             failures += 1;
@@ -227,9 +230,15 @@
         {:else if mode === 'crypto'}📡 Scan all crypto — rank by conviction
         {:else}📡 Scan stock presets — rank by conviction{/if}
       </button>
+      <div class="scan-horizon" role="group" aria-label="Radar horizon">
+        {#each HORIZONS as h}
+          <button class="sh-btn" class:sel={scanHorizon === h} on:click={() => (scanHorizon = h)}
+                  disabled={scanning} title="Rank by the {HORIZON_LABELS[h]} model">{h}</button>
+        {/each}
+      </div>
       <span class="scan-note">
-        {#if mode === 'crypto'}1-week outlook across {CRYPTO_PRODUCTS.length} coins · calibrated · keyless
-        {:else}1-week outlook across {STOCK_PRESETS.length} presets · calibrated · needs Yahoo proxy or a key{/if}
+        {#if mode === 'crypto'}{HORIZON_LABELS[scanHorizon]} outlook across {CRYPTO_PRODUCTS.length} coins · calibrated · keyless
+        {:else}{HORIZON_LABELS[scanHorizon]} outlook across {STOCK_PRESETS.length} presets · calibrated · needs Yahoo proxy or a key{/if}
       </span>
     </div>
 
@@ -263,7 +272,7 @@
       <div class="result-card" role="region" aria-label="Conviction ranking">
         <div class="result-header">
           <span class="result-ticker">{scanKind === 'crypto' ? 'Crypto' : 'Stock'} Radar</span>
-          <span class="result-asof">1-week outlook · ranked by P(up){scanning ? ` · ${scanDone}/${scanTotal}` : ''}</span>
+          <span class="result-asof">{scannedHorizonLabel} outlook · ranked by P(up){scanning ? ` · ${scanDone}/${scanTotal}` : ''}</span>
         </div>
         <ol class="rank-list">
           {#each scanRows as row, i}
@@ -284,7 +293,7 @@
         </ol>
         {#if scanHint}<p class="scan-hint">{scanHint}</p>{/if}
         <p class="result-note">
-          Same on-device model, calibrated · ranks the strongest 1-week bullish → bearish read.
+          Same on-device model, calibrated · ranks the strongest {scannedHorizonLabel} bullish → bearish read.
           Tap any row to see its full prediction & drivers. Probabilistic — not financial advice.
         </p>
       </div>
@@ -482,6 +491,13 @@
   .btn-scan:disabled { opacity: 0.6; cursor: not-allowed; }
   .scan-note { font-size: 0.72rem; color: var(--muted); }
   .scan-hint { font-size: 0.72rem; color: var(--muted); margin: 0.5rem 0 0; line-height: 1.5; }
+  .scan-horizon { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+  .sh-btn {
+    background: var(--surface); color: var(--muted); border: none; cursor: pointer;
+    padding: 0.3rem 0.6rem; font-size: 0.75rem; font-weight: 700; font-family: inherit; transition: all 0.12s;
+  }
+  .sh-btn.sel { background: var(--accent); color: #fff; }
+  .sh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .rank-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
   .rank-list li { border-bottom: 1px solid var(--border); }

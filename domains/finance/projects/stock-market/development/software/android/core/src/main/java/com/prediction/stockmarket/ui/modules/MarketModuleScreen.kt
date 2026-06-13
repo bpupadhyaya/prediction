@@ -48,7 +48,7 @@ import kotlin.math.min
 
 // ─── Instrument universes ─────────────────────────────────────────────────────
 
-private data class Instrument(val symbol: String, val label: String, val sublabel: String = "")
+internal data class Instrument(val symbol: String, val label: String, val sublabel: String = "")
 
 private val CRYPTO_UNIVERSE = listOf(
     Instrument("BTC-USD", "Bitcoin"), Instrument("ETH-USD", "Ethereum"),
@@ -215,13 +215,14 @@ class MarketModuleViewModel @Inject constructor(
     }
 }
 
-// ─── Crypto Radar (scan & rank by model conviction) ───────────────────────────
+// ─── Radar (scan & rank by model conviction) ──────────────────────────────────
 //
-// Fetches the whole crypto universe, runs the on-device 1-week model on each
-// coin, and ranks the results by calibrated P(up) descending (most bullish →
-// most bearish). Per-coin fetch failures are skipped so one bad coin never
-// stops the scan. Reuses YahooFinanceFetcher + PredictionEngine — no new data
-// layer, no changes to the engine. Mirrors the web "Crypto Radar".
+// Fetches a whole instrument universe (crypto, sector ETFs, or global indices),
+// runs the on-device 1-week model on each instrument, and ranks the results by
+// calibrated P(up) descending (most bullish → most bearish). Per-instrument
+// fetch failures are skipped so one bad symbol never stops the scan. Reuses
+// YahooFinanceFetcher + PredictionEngine — no new data layer, no changes to the
+// engine. Parameterized by universe + title so it serves every scannable module.
 
 data class RadarRow(
     val symbol: String,
@@ -239,7 +240,7 @@ data class RadarUiState(
 )
 
 @HiltViewModel
-class CryptoRadarViewModel @Inject constructor(
+class RadarViewModel @Inject constructor(
     private val fetcher: YahooFinanceFetcher,
     private val engine: PredictionEngine,
 ) : ViewModel() {
@@ -247,20 +248,26 @@ class CryptoRadarViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(RadarUiState())
     val uiState: StateFlow<RadarUiState> = _uiState.asStateFlow()
 
-    fun startIfNeeded() {
+    // Universe is injected once by the overlay (the only runtime input) so the
+    // identical scan/rank logic is reused across crypto, sectors, and global.
+    private var universe: List<Instrument> = emptyList()
+
+    internal fun startIfNeeded(universe: List<Instrument>) {
         if (_uiState.value.started) return
+        this.universe = universe
         scan()
     }
 
     fun scan() {
+        val universe = this.universe
         _uiState.value = RadarUiState(
-            isScanning = true, scanned = 0, total = CRYPTO_UNIVERSE.size,
+            isScanning = true, scanned = 0, total = universe.size,
             rows = emptyList(), started = true,
         )
         viewModelScope.launch {
             val collected = java.util.Collections.synchronizedList(mutableListOf<RadarRow>())
             withContext(Dispatchers.IO) {
-                CRYPTO_UNIVERSE.map { inst ->
+                universe.map { inst ->
                     async {
                         val row = try {
                             val bars = fetcher.fetchPriceBars(inst.symbol, range = "2y")
@@ -271,7 +278,7 @@ class CryptoRadarViewModel @Inject constructor(
                                 else RadarRow(inst.symbol, inst.label, pred.direction, pred.probability)
                             }
                         } catch (_: Exception) {
-                            // Per-coin failures are skipped so one bad coin never stops the scan.
+                            // Per-instrument failures are skipped so one bad symbol never stops the scan.
                             null
                         }
                         // Update progress + ranked list progressively as results stream in.
@@ -288,13 +295,15 @@ class CryptoRadarViewModel @Inject constructor(
 }
 
 @Composable
-fun CryptoRadarOverlay(
+internal fun RadarOverlay(
+    title: String,
+    universe: List<Instrument>,
     onClose: () -> Unit,
     onOpenTicker: (String) -> Unit,
-    viewModel: CryptoRadarViewModel = hiltViewModel(),
+    viewModel: RadarViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
-    LaunchedEffect(Unit) { viewModel.startIfNeeded() }
+    LaunchedEffect(Unit) { viewModel.startIfNeeded(universe) }
 
     Column(
         modifier = Modifier
@@ -328,7 +337,7 @@ fun CryptoRadarOverlay(
             }
             Spacer(Modifier.width(12.dp))
             Column {
-                Text("Crypto Radar", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                Text(title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Color.White)
                 Text(
                     if (state.isScanning) "1-week outlook · ranked by P(up) · ${state.scanned}/${state.total}"
                     else "1-week outlook · ranked by P(up)",
@@ -508,9 +517,9 @@ fun MarketModuleScreen(
                     Button(onClick = { viewModel.load(moduleId, force = true) }) { Text("Retry") }
                 }
             }
-            moduleId == "sectors" -> SectorContent(state.rows, onOpenTicker)
+            moduleId == "sectors" -> SectorContent(state.rows, onOpenTicker, onScanRadar = { showRadar = true })
             else -> LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
-                if (moduleId == "crypto") {
+                if (radarFor(moduleId) != null) {
                     item { ScanRadarButton(onClick = { showRadar = true }) }
                 }
                 items(state.rows, key = { it.symbol }) { row ->
@@ -526,11 +535,26 @@ fun MarketModuleScreen(
     }
 
     if (showRadar) {
-        CryptoRadarOverlay(
-            onClose = { showRadar = false },
-            onOpenTicker = { t -> showRadar = false; onOpenTicker(t) },
-        )
+        val radar = radarFor(moduleId)
+        if (radar != null) {
+            RadarOverlay(
+                title = radar.first,
+                universe = radar.second,
+                onClose = { showRadar = false },
+                onOpenTicker = { t -> showRadar = false; onOpenTicker(t) },
+            )
+        }
     }
+}
+
+// Modules that support a live "scan & rank" radar, with their title + universe.
+// Excludes S&P 500 / Nasdaq 100 / Hot Stocks / Earnings — universes too large or
+// DB-backed to scan live.
+private fun radarFor(moduleId: String): Pair<String, List<Instrument>>? = when (moduleId) {
+    "crypto"  -> "Crypto Radar" to CRYPTO_UNIVERSE
+    "sectors" -> "Sector Radar" to SECTOR_UNIVERSE
+    "global"  -> "Global Radar" to GLOBAL_UNIVERSE
+    else      -> null
 }
 
 @Composable
@@ -567,8 +591,10 @@ private fun ScanRadarButton(onClick: () -> Unit) {
 // ─── Sector heat map + list ──────────────────────────────────────────────────
 
 @Composable
-private fun SectorContent(rows: List<ModuleRow>, onOpenTicker: (String) -> Unit) {
+private fun SectorContent(rows: List<ModuleRow>, onOpenTicker: (String) -> Unit, onScanRadar: () -> Unit) {
     LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+        item { ScanRadarButton(onClick = onScanRadar) }
+        item { Spacer(Modifier.height(8.dp)) }
         item {
             Text(
                 "1-week performance map",

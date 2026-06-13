@@ -30,6 +30,13 @@
   let asOf = '';
   let resultLabel = '';
 
+  // Crypto Radar — scan the whole keyless crypto universe, rank by conviction.
+  interface ScanRow { id: string; label: string; probUp: number; direction: 'up' | 'down' | 'neutral'; }
+  let scanning = false;
+  let scanError = '';
+  let scanDone = 0;
+  let scanRows: ScanRow[] = [];
+
   onMount(async () => {
     modelLoading = true;
     loadError = '';
@@ -93,6 +100,36 @@
     return `${d >= 0 ? '+' : '−'}${pts.toFixed(1)} pts`;
   }
 
+  // Scan every crypto product (keyless Coinbase), predict 1-week, rank by P(up).
+  async function scanCrypto() {
+    scanError = '';
+    scanRows = [];
+    scanDone = 0;
+    scanning = true;
+    const rows: ScanRow[] = [];
+    try {
+      for (const p of CRYPTO_PRODUCTS) {
+        try {
+          const bars = await fetchCryptoBars(p.id);
+          const feats = bars.length >= MIN_BARS ? computeFeatures(bars) : null;
+          if (feats) {
+            const r = await predictOnnx(feats, '1w');
+            rows.push({ id: p.id, label: p.label, probUp: r.probUp, direction: r.direction });
+          }
+        } catch {
+          /* skip a coin that fails to fetch — keep scanning the rest */
+        }
+        scanDone += 1;
+        scanRows = [...rows].sort((a, b) => b.probUp - a.probUp);
+      }
+      if (rows.length === 0) throw new Error('No crypto could be scanned right now. Try again shortly.');
+    } catch (err) {
+      scanError = err instanceof Error ? err.message : String(err);
+    } finally {
+      scanning = false;
+    }
+  }
+
   function badgeClass(dir: 'up' | 'down' | 'neutral'): string {
     return dir === 'up' ? 'badge-up' : dir === 'down' ? 'badge-down' : 'badge-neutral';
   }
@@ -154,6 +191,15 @@
       </button>
     </div>
 
+    {#if mode === 'crypto'}
+      <div class="scan-row">
+        <button class="btn-scan" on:click={scanCrypto} disabled={scanning || running}>
+          {scanning ? `⏳ Scanning… ${scanDone}/${CRYPTO_PRODUCTS.length}` : '📡 Scan all crypto — rank by conviction'}
+        </button>
+        <span class="scan-note">1-week outlook across {CRYPTO_PRODUCTS.length} coins · calibrated · keyless</span>
+      </div>
+    {/if}
+
     {#if mode === 'stock'}
       <div class="preset-row">
         {#each STOCK_PRESETS as s}
@@ -170,6 +216,40 @@
       <div class="error-box" role="alert">
         <div class="error-title">Could not predict</div>
         <div class="error-msg">{runError}</div>
+      </div>
+    {/if}
+
+    {#if scanError}
+      <div class="error-box" role="alert">
+        <div class="error-title">Scan failed</div>
+        <div class="error-msg">{scanError}</div>
+      </div>
+    {/if}
+
+    {#if scanRows.length > 0}
+      <div class="result-card" role="region" aria-label="Crypto conviction ranking">
+        <div class="result-header">
+          <span class="result-ticker">Crypto Radar</span>
+          <span class="result-asof">1-week outlook · ranked by P(up){scanning ? ` · ${scanDone}/${CRYPTO_PRODUCTS.length}` : ''}</span>
+        </div>
+        <ol class="rank-list">
+          {#each scanRows as row, i}
+            <li class="rank-item">
+              <span class="rank-num">{i + 1}</span>
+              <span class="rank-label">{row.label}</span>
+              <span class="rank-id">{row.id}</span>
+              <span class="direction-badge {badgeClass(row.direction)}">{dirLabel(row.direction)}</span>
+              <span class="rank-prob" class:up={row.probUp >= 50} class:down={row.probUp < 50}>{row.probUp.toFixed(1)}%</span>
+              <span class="rank-bar-wrap" role="presentation">
+                <span class="rank-bar" class:up={row.probUp >= 50} class:down={row.probUp < 50} style="width:{row.probUp}%"></span>
+              </span>
+            </li>
+          {/each}
+        </ol>
+        <p class="result-note">
+          Same on-device model, calibrated · ranks the strongest 1-week bullish → bearish read.
+          Probabilistic — not financial advice.
+        </p>
       </div>
     {/if}
 
@@ -355,4 +435,30 @@
   .result-bar-down { background: var(--danger); transition: width 0.3s ease; }
 
   .result-note { font-size: 0.75rem; color: var(--muted); margin: 0.6rem 0 0; line-height: 1.5; }
+
+  .scan-row { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .btn-scan {
+    background: rgba(99, 102, 241, 0.1); border: 1px solid var(--accent); color: var(--text);
+    padding: 0.45rem 1rem; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-scan:not(:disabled):hover { background: rgba(99, 102, 241, 0.18); }
+  .btn-scan:disabled { opacity: 0.6; cursor: not-allowed; }
+  .scan-note { font-size: 0.72rem; color: var(--muted); }
+
+  .rank-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+  .rank-item {
+    display: grid; grid-template-columns: 1.4rem 1fr auto auto auto; align-items: center;
+    gap: 0.55rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.82rem;
+  }
+  .rank-item:last-child { border-bottom: none; }
+  .rank-num { color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; font-weight: 700; }
+  .rank-label { color: var(--text); font-weight: 600; }
+  .rank-id { color: var(--muted); font-size: 0.72rem; }
+  .rank-prob { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .rank-prob.up { color: var(--accent2); }
+  .rank-prob.down { color: var(--danger); }
+  .rank-bar-wrap { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: rgba(100,116,139,0.15); overflow: hidden; }
+  .rank-bar { display: block; height: 100%; }
+  .rank-bar.up { background: var(--accent2); }
+  .rank-bar.down { background: var(--danger); }
 </style>

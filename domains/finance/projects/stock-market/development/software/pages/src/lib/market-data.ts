@@ -37,6 +37,18 @@ export const CRYPTO_PRODUCTS: CryptoProduct[] = [
   { id: 'ALGO-USD', label: 'Algorand' },
   { id: 'NEAR-USD', label: 'NEAR' },
   { id: 'FIL-USD', label: 'Filecoin' },
+  { id: 'MKR-USD', label: 'Maker' },
+  { id: 'CRV-USD', label: 'Curve' },
+  { id: 'COMP-USD', label: 'Compound' },
+  { id: 'SNX-USD', label: 'Synthetix' },
+  { id: 'GRT-USD', label: 'The Graph' },
+  { id: 'SAND-USD', label: 'The Sandbox' },
+  { id: 'MANA-USD', label: 'Decentraland' },
+  { id: 'AXS-USD', label: 'Axie Infinity' },
+  { id: 'APT-USD', label: 'Aptos' },
+  { id: 'ARB-USD', label: 'Arbitrum' },
+  { id: 'OP-USD', label: 'Optimism' },
+  { id: 'INJ-USD', label: 'Injective' },
 ];
 
 /**

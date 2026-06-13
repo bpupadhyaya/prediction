@@ -94,6 +94,7 @@ struct MarketModuleView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var selectedTicker: String?
+    @State private var showRadar = false
 
     private var module: StockModule? { stockModules.first { $0.id == moduleId } }
     // Index symbols (^GSPC, 000001.SS) have no detail screen — only plain tickers navigate.
@@ -130,6 +131,12 @@ struct MarketModuleView: View {
             }
             .navigationDestination(item: $selectedTicker) { ticker in
                 StockDetailView(ticker: ticker)
+            }
+            .sheet(isPresented: $showRadar) {
+                CryptoRadarView(onSelect: { ticker in
+                    showRadar = false
+                    selectedTicker = ticker
+                })
             }
         }
         .task { await load() }
@@ -185,6 +192,9 @@ struct MarketModuleView: View {
     private var content: some View {
         ScrollView {
             LazyVStack(spacing: 8) {
+                if moduleId == "crypto" {
+                    scanRadarButton
+                }
                 if moduleId == "sectors" {
                     sectorHeatMap
                     Text("Forecasts")
@@ -208,6 +218,32 @@ struct MarketModuleView: View {
             }
             .padding(.horizontal, 12)
         }
+    }
+
+    private var scanRadarButton: some View {
+        Button {
+            showRadar = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "dot.radiowaves.left.and.right")
+                Text("Scan all — rank by conviction")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 13)
+            .background(
+                LinearGradient(colors: [Color(red: 0.024, green: 0.235, blue: 0.294),
+                                        Color(red: 0.039, green: 0.416, blue: 0.514)],
+                               startPoint: .leading, endPoint: .trailing)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .padding(.bottom, 2)
     }
 
     private var sectorHeatMap: some View {

@@ -24,6 +24,7 @@
 		81448CE71E332A54E3B4CA0E /* MarketDataSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 760A8933C2AF45BB939D3E73 /* MarketDataSource.swift */; };
 		8358CEC78DA0F1D7B82258F4 /* PredictionHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A25826E1CACC7DB692219FAC /* PredictionHomeView.swift */; };
 		8FC0AAED4C3D462802F3DB81 /* SyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB7945C6332BF66EB7263E42 /* SyncManager.swift */; };
+		9495202C1D2EEED23D247745 /* CryptoRadarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8642D2FE5600069CA731A376 /* CryptoRadarView.swift */; };
 		95BCDCA08768ECB4CD53869F /* SyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29EF6A141FBE93C2BA366856 /* SyncView.swift */; };
 		95D81152A1B63616DBF87A75 /* SpeakerSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 023F043ECF5660A6EDCDBB09 /* SpeakerSuggestions.swift */; };
 		95E6FE070E05A850A5AE81E1 /* StockPredictionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E069B99A97FE71A3E8085A /* StockPredictionApp.swift */; };
@@ -78,6 +79,7 @@
 		76ECC4CC28786A21AB18AC7C /* ParameterStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParameterStore.swift; sourceTree = "<group>"; };
 		7A0C4AA358D51E799CA5EE4D /* Stock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stock.swift; sourceTree = "<group>"; };
 		807DD58CA01B38BE65CEEC84 /* StockPrediction.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = StockPrediction.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8642D2FE5600069CA731A376 /* CryptoRadarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoRadarView.swift; sourceTree = "<group>"; };
 		88288A95F56C26D666DEFA02 /* LLMInferenceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMInferenceManager.swift; sourceTree = "<group>"; };
 		9D8E62751400F3512D7C6CF2 /* PredictionExplainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PredictionExplainer.swift; sourceTree = "<group>"; };
 		9EC050853E554016B063A8AF /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -160,6 +162,7 @@
 		A972AB751CB8F3AEC23F7A1D /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				8642D2FE5600069CA731A376 /* CryptoRadarView.swift */,
 				E0C293E3FEF31332D0E480A7 /* HomeView.swift */,
 				28E522D9A77511EDF7F80FC4 /* InteractiveParameterView.swift */,
 				D08061B3F061C9A8302E5A04 /* MarketModuleView.swift */,
@@ -326,6 +329,7 @@
 			files = (
 				5BB79C7111B86A23B4C1EEDC /* AppStore.swift in Sources */,
 				EAA1518071A6DAB4642C99BE /* ContentView.swift in Sources */,
+				9495202C1D2EEED23D247745 /* CryptoRadarView.swift in Sources */,
 				9D965B6A4DAE3D00DD98DDBA /* DatabaseManager.swift in Sources */,
 				9D77DDDD54E772FBE800ED47 /* HomeView.swift in Sources */,
 				B5770900664C90C88D5BB948 /* InteractiveParameterView.swift in Sources */,

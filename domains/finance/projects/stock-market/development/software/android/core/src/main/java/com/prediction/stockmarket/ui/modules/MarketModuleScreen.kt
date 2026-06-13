@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -214,6 +215,204 @@ class MarketModuleViewModel @Inject constructor(
     }
 }
 
+// ─── Crypto Radar (scan & rank by model conviction) ───────────────────────────
+//
+// Fetches the whole crypto universe, runs the on-device 1-week model on each
+// coin, and ranks the results by calibrated P(up) descending (most bullish →
+// most bearish). Per-coin fetch failures are skipped so one bad coin never
+// stops the scan. Reuses YahooFinanceFetcher + PredictionEngine — no new data
+// layer, no changes to the engine. Mirrors the web "Crypto Radar".
+
+data class RadarRow(
+    val symbol: String,
+    val name: String,
+    val direction: String,   // "UP" / "DOWN"
+    val probUp: Double,       // calibrated P(up)
+)
+
+data class RadarUiState(
+    val isScanning: Boolean = false,
+    val scanned: Int = 0,
+    val total: Int = 0,
+    val rows: List<RadarRow> = emptyList(),
+    val started: Boolean = false,
+)
+
+@HiltViewModel
+class CryptoRadarViewModel @Inject constructor(
+    private val fetcher: YahooFinanceFetcher,
+    private val engine: PredictionEngine,
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(RadarUiState())
+    val uiState: StateFlow<RadarUiState> = _uiState.asStateFlow()
+
+    fun startIfNeeded() {
+        if (_uiState.value.started) return
+        scan()
+    }
+
+    fun scan() {
+        _uiState.value = RadarUiState(
+            isScanning = true, scanned = 0, total = CRYPTO_UNIVERSE.size,
+            rows = emptyList(), started = true,
+        )
+        viewModelScope.launch {
+            val collected = java.util.Collections.synchronizedList(mutableListOf<RadarRow>())
+            withContext(Dispatchers.IO) {
+                CRYPTO_UNIVERSE.map { inst ->
+                    async {
+                        val row = try {
+                            val bars = fetcher.fetchPriceBars(inst.symbol, range = "2y")
+                            if (bars.size < 253) null
+                            else {
+                                val pred = engine.predict(inst.symbol, "1W", bars.sortedByDescending { it.date })
+                                if (pred?.direction == null) null
+                                else RadarRow(inst.symbol, inst.label, pred.direction, pred.probability)
+                            }
+                        } catch (_: Exception) {
+                            // Per-coin failures are skipped so one bad coin never stops the scan.
+                            null
+                        }
+                        // Update progress + ranked list progressively as results stream in.
+                        if (row != null) collected.add(row)
+                        val ranked = synchronized(collected) { collected.sortedByDescending { it.probUp } }
+                        val cur = _uiState.value
+                        _uiState.value = cur.copy(scanned = cur.scanned + 1, rows = ranked)
+                    }
+                }.awaitAll()
+            }
+            _uiState.value = _uiState.value.copy(isScanning = false)
+        }
+    }
+}
+
+@Composable
+fun CryptoRadarOverlay(
+    onClose: () -> Unit,
+    onOpenTicker: (String) -> Unit,
+    viewModel: CryptoRadarViewModel = hiltViewModel(),
+) {
+    val state by viewModel.uiState.collectAsState()
+    LaunchedEffect(Unit) { viewModel.startIfNeeded() }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0B1526))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onClose) {
+                Icon(Icons.Default.ChevronLeft, contentDescription = "Close", tint = Color.White)
+                Text("Back", color = Color.White, fontWeight = FontWeight.Medium)
+            }
+            Spacer(Modifier.weight(1f))
+        }
+
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier.size(44.dp).clip(CircleShape)
+                    .background(Brush.linearGradient(listOf(Color(0xFF063C4B), Color(0xFF10ACC9)))),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Default.Radar, contentDescription = "Radar", tint = Color(0xFF67DFF0), modifier = Modifier.size(24.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("Crypto Radar", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                Text(
+                    if (state.isScanning) "1-week outlook · ranked by P(up) · ${state.scanned}/${state.total}"
+                    else "1-week outlook · ranked by P(up)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.6f),
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        if (state.isScanning && state.rows.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Color(0xFF67DFF0))
+                    Spacer(Modifier.height(12.dp))
+                    Text("Scanning ${state.scanned}/${state.total}…", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        } else {
+            LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                itemsIndexed(state.rows, key = { _, r -> r.symbol }) { idx, row ->
+                    RadarCard(rank = idx + 1, row = row, onClick = { onOpenTicker(row.symbol) })
+                }
+                item {
+                    Text(
+                        "Same on-device model, calibrated — ranks the strongest 1-week bullish → bearish read. Probabilistic — not financial advice.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.35f),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RadarCard(rank: Int, row: RadarRow, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF13243F)),
+        shape = RoundedCornerShape(14.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "$rank",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = Color.White.copy(alpha = 0.55f),
+                modifier = Modifier.width(26.dp),
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(row.name, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = Color.White)
+                Text(row.symbol, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.5f))
+            }
+            RadarBadge(row.direction, row.probUp)
+        }
+    }
+}
+
+@Composable
+private fun RadarBadge(direction: String, probUp: Double) {
+    val (label, bg, fg) = if (direction.uppercase() == "UP")
+        Triple("▲ Bullish ${(probUp * 100).toInt()}%", Color(0xFF14532D), Color(0xFF4ADE80))
+    else
+        Triple("▼ Bearish ${((1.0 - probUp) * 100).toInt()}%", Color(0xFF601A1A), Color(0xFFF87171))
+    Surface(shape = RoundedCornerShape(8.dp), color = bg) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = fg,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+        )
+    }
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 private data class ModuleChrome(
@@ -241,6 +440,8 @@ fun MarketModuleScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     LaunchedEffect(moduleId) { viewModel.load(moduleId) }
+
+    var showRadar by remember { mutableStateOf(false) }
 
     val chrome = chromeFor(moduleId)
     val gradient = Brush.linearGradient(
@@ -309,6 +510,9 @@ fun MarketModuleScreen(
             }
             moduleId == "sectors" -> SectorContent(state.rows, onOpenTicker)
             else -> LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                if (moduleId == "crypto") {
+                    item { ScanRadarButton(onClick = { showRadar = true }) }
+                }
                 items(state.rows, key = { it.symbol }) { row ->
                     InstrumentCard(
                         row = row,
@@ -318,6 +522,44 @@ fun MarketModuleScreen(
                 }
                 item { DisclaimerFooter() }
             }
+        }
+    }
+
+    if (showRadar) {
+        CryptoRadarOverlay(
+            onClose = { showRadar = false },
+            onOpenTicker = { t -> showRadar = false; onOpenTicker(t) },
+        )
+    }
+}
+
+@Composable
+private fun ScanRadarButton(onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = Color.Transparent,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(Brush.horizontalGradient(listOf(Color(0xFF063C4B), Color(0xFF0A6A83))))
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.Radar, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Scan all — rank by conviction",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = Color.White,
+            )
+            Spacer(Modifier.weight(1f))
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
         }
     }
 }

@@ -10,7 +10,7 @@ export interface ExportPayload {
 }
 
 function download(content: string | Uint8Array, filename: string, mime: string): void {
-  const blob = new Blob([content], { type: mime });
+  const blob = new Blob([content as BlobPart], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

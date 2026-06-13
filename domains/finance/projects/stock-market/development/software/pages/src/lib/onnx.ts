@@ -1,133 +1,100 @@
-// Phase 3 — ONNX browser inference
-// GradientBoosting classifier hosted at GitHub Releases.
-// Input: (1, 9) float32 tensor "X" with 9 technical features.
-// Output: (1, 2) float32 — [probDown, probUp].
+// Browser ONNX inference — the SAME 16-feature mobile model the iOS/Android apps
+// bundle, running locally in the browser. One model per horizon (1d/1w/1m).
+//
+// Input : (1, 16) float32 tensor "input".
+// Output: "probabilities" (1, 2) float32 — [probDown, probUp].
 
 import * as ort from 'onnxruntime-web';
 
-const MODEL_URL =
-  'https://github.com/bpupadhyaya/prediction/releases/download/v1.0.0/stock_predictor.onnx';
+export type Horizon = '1d' | '1w' | '1m';
 
-export interface OnnxFeatures {
-  return_1d: number;
-  return_5d: number;
-  return_20d: number;
-  ma5_ratio: number;
-  ma20_ratio: number;
-  ma50_ratio: number;
-  volatility_20: number;
-  volume_ratio: number;
-  rsi: number;
+// Bundled with the site (public/). BASE_URL handles the GitHub Pages subpath.
+const MODEL_FILES: Record<Horizon, string> = {
+  '1d': 'stock_predictor_1d.onnx',
+  '1w': 'stock_predictor.onnx',
+  '1m': 'stock_predictor_1m.onnx',
+};
+
+function modelUrl(horizon: Horizon): string {
+  const base = (import.meta as any).env?.BASE_URL || '/';
+  return `${base}${MODEL_FILES[horizon]}`;
 }
 
 export interface OnnxPrediction {
-  probUp: number;
+  probUp: number;       // 0–100, one decimal
   probDown: number;
   direction: 'up' | 'down' | 'neutral';
-  confidence: number;
+  confidence: number;   // 0–100
 }
 
-// Module-level singleton — loaded once, reused.
-let session: ort.InferenceSession | null = null;
+// One cached InferenceSession per horizon.
+const sessions: Partial<Record<Horizon, ort.InferenceSession>> = {};
 
-/**
- * Download the ONNX model and create an InferenceSession.
- * Reports download progress via onProgress (0–100).
- */
-export async function loadModel(onProgress?: (pct: number) => void): Promise<void> {
-  if (session) return; // already loaded
-
+export async function loadModel(
+  horizon: Horizon = '1w',
+  onProgress?: (pct: number) => void,
+): Promise<void> {
+  if (sessions[horizon]) return;
   onProgress?.(0);
 
-  const response = await fetch(MODEL_URL);
+  const response = await fetch(modelUrl(horizon));
   if (!response.ok) {
-    throw new Error(`Failed to fetch ONNX model: ${response.status} ${response.statusText}`);
+    throw new Error(`Failed to fetch model: ${response.status} ${response.statusText}`);
   }
 
-  const contentLength = response.headers.get('Content-Length');
-  const total = contentLength ? parseInt(contentLength, 10) : 0;
-
-  // Read body with progress tracking if Content-Length is known.
+  const total = parseInt(response.headers.get('Content-Length') || '0', 10);
   const reader = response.body?.getReader();
   if (!reader) {
-    throw new Error('Streaming response body not supported in this browser.');
+    sessions[horizon] = await ort.InferenceSession.create(await response.arrayBuffer());
+    onProgress?.(100);
+    return;
   }
 
   const chunks: Uint8Array[] = [];
   let received = 0;
-
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     if (value) {
       chunks.push(value);
       received += value.byteLength;
-      if (total > 0) {
-        onProgress?.(Math.min(99, Math.round((received / total) * 100)));
-      }
+      if (total > 0) onProgress?.(Math.min(99, Math.round((received / total) * 100)));
     }
   }
-
-  // Concatenate all chunks into a single ArrayBuffer.
   const buffer = new Uint8Array(received);
   let offset = 0;
-  for (const chunk of chunks) {
-    buffer.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
+  for (const c of chunks) { buffer.set(c, offset); offset += c.byteLength; }
 
-  session = await ort.InferenceSession.create(buffer.buffer);
+  sessions[horizon] = await ort.InferenceSession.create(buffer.buffer);
   onProgress?.(100);
 }
 
-/**
- * Run inference on a set of 9 technical features.
- * The model must be loaded first via loadModel().
- */
-export async function predictOnnx(features: OnnxFeatures): Promise<OnnxPrediction> {
-  if (!session) {
-    throw new Error('ONNX model is not loaded. Call loadModel() first.');
-  }
+/** Run the 16-feature model. `features` must be in MOBILE_FEATURES order. */
+export async function predictOnnx(features: Float32Array, horizon: Horizon = '1w'): Promise<OnnxPrediction> {
+  const session = sessions[horizon];
+  if (!session) throw new Error(`Model for ${horizon} not loaded. Call loadModel() first.`);
+  if (features.length !== 16) throw new Error(`Expected 16 features, got ${features.length}`);
 
-  // Features in the exact order the model expects.
-  const data = new Float32Array([
-    features.return_1d,
-    features.return_5d,
-    features.return_20d,
-    features.ma5_ratio,
-    features.ma20_ratio,
-    features.ma50_ratio,
-    features.volatility_20,
-    features.volume_ratio,
-    features.rsi,
-  ]);
+  const tensor = new ort.Tensor('float32', features, [1, 16]);
+  const results = await session.run({ input: tensor });
 
-  const tensor = new ort.Tensor('float32', data, [1, 9]);
-  const results = await session.run({ X: tensor });
-
-  // Extract output — first output tensor contains [probDown, probUp].
-  const outputKey = Object.keys(results)[0];
-  if (!outputKey) {
-    throw new Error('ONNX model returned no output tensors.');
-  }
-  const outputData = results[outputKey].data as Float32Array;
-  const probDown = outputData[0] ?? 0.5;
-  const probUp = outputData[1] ?? 0.5;
+  const probsTensor = results['probabilities'] ?? results[Object.keys(results).slice(-1)[0]];
+  const probs = probsTensor.data as Float32Array;
+  const probDown = probs[0] ?? 0.5;
+  const probUp = probs[1] ?? 0.5;
 
   const diff = Math.abs(probUp - probDown);
   const direction: 'up' | 'down' | 'neutral' =
-    diff < 0.05 ? 'neutral' : probUp > probDown ? 'up' : 'down';
-  const confidence = Math.round(Math.max(probUp, probDown) * 100);
+    diff < 0.02 ? 'neutral' : probUp > probDown ? 'up' : 'down';
 
   return {
-    probUp: Math.round(probUp * 1000) / 10,    // one decimal percent
+    probUp: Math.round(probUp * 1000) / 10,
     probDown: Math.round(probDown * 1000) / 10,
     direction,
-    confidence,
+    confidence: Math.round(Math.max(probUp, probDown) * 100),
   };
 }
 
-/** Returns true if the model session is ready for inference. */
-export function isModelLoaded(): boolean {
-  return session !== null;
+export function isModelLoaded(horizon: Horizon = '1w'): boolean {
+  return !!sessions[horizon];
 }

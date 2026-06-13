@@ -64,7 +64,7 @@
   {#if activeTab === 'predict'}
     <PredictTab bind:ticker />
   {:else if activeTab === 'model'}
-    <OnnxPredictionCard {ticker} />
+    <OnnxPredictionCard />
   {:else if activeTab === 'history'}
     <HistoryTab />
   {:else if activeTab === 'intelligence'}

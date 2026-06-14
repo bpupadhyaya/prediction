@@ -29,6 +29,15 @@ export interface PredictionSnapshot {
   createdAt: string;    // ISO timestamp
 }
 
+// A user-saved asset for the Watchlist conviction scan.
+export interface WatchlistItem {
+  id: string;               // `${kind}:${assetId}`
+  kind: 'crypto' | 'stock';
+  assetId: string;          // Coinbase product or stock symbol
+  label: string;
+  addedAt: string;          // ISO
+}
+
 // A logged prediction we can later score against the real outcome.
 export interface TrackedPrediction {
   id: string;

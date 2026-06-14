@@ -8,8 +8,11 @@
     CRYPTO_PRODUCTS, fetchCryptoBars, fetchStockBars, STOCK_PRESETS,
     computeFeatures, MIN_BARS,
   } from '../lib/market-data';
-  import { loadSettings, logPredictions } from '../lib/store';
-  import type { TrackedPrediction } from '../lib/types';
+  import {
+    loadSettings, logPredictions,
+    loadWatchlist, addToWatchlist, removeFromWatchlist,
+  } from '../lib/store';
+  import type { TrackedPrediction, WatchlistItem } from '../lib/types';
 
   const HORIZON_DAYS: Record<Horizon, number> = { '1d': 1, '1w': 7, '1m': 30 };
 
@@ -34,16 +37,21 @@
   let resultLabel = '';
 
   // Radar — scan a whole universe (crypto or stocks), rank by model conviction.
-  interface ScanRow { id: string; label: string; probUp: number; direction: 'up' | 'down' | 'neutral'; }
+  interface ScanRow { id: string; label: string; kind: 'crypto' | 'stock'; probUp: number; direction: 'up' | 'down' | 'neutral'; }
   let scanning = false;
   let scanError = '';
   let scanDone = 0;
   let scanTotal = 0;
-  let scanKind: 'crypto' | 'stock' = 'crypto';
+  let scanTitle = 'Crypto Radar';
   let scanHint = '';
   let scanHorizon: Horizon = '1w';
   let scannedHorizonLabel = '1 Week';
   let scanRows: ScanRow[] = [];
+
+  // Watchlist
+  let watchlist: WatchlistItem[] = [];
+  $: currentWatchId = mode === 'crypto' ? `crypto:${productId}` : `stock:${stockSymbol.trim().toUpperCase()}`;
+  $: resultSaved = watchlist.some((w) => w.id === currentWatchId);
 
   onMount(async () => {
     modelLoading = true;
@@ -54,6 +62,7 @@
       const s = await loadSettings();
       twelveKey = s.twelveDataApiKey ?? '';
       yahooProxy = s.yahooProxyUrl ?? '';
+      watchlist = await loadWatchlist();
     } catch (err) {
       loadError = err instanceof Error ? err.message : String(err);
     } finally {
@@ -145,17 +154,22 @@
       ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  // Scan a whole universe (current mode), predict 1-week, rank by calibrated P(up).
-  async function scanMarket() {
+  interface ScanItem { id: string; label: string; kind: 'crypto' | 'stock'; fetch: () => Promise<any[]>; }
+
+  function fetchForKind(kind: 'crypto' | 'stock', id: string) {
+    return kind === 'crypto'
+      ? fetchCryptoBars(id)
+      : fetchStockBars(id, { apiKey: twelveKey, proxyUrl: yahooProxy });
+  }
+
+  // Core scan: run each item through the model, rank by calibrated P(up).
+  async function runScan(items: ScanItem[], title: string, stockHintCheck = false) {
     scanError = '';
     scanHint = '';
     scanRows = [];
     scanDone = 0;
-    scanKind = mode;
+    scanTitle = title;
     scannedHorizonLabel = HORIZON_LABELS[scanHorizon];
-    const items = mode === 'crypto'
-      ? CRYPTO_PRODUCTS.map((p) => ({ id: p.id, label: p.label, fetch: () => fetchCryptoBars(p.id) }))
-      : STOCK_PRESETS.map((s) => ({ id: s, label: s, fetch: () => fetchStockBars(s, { apiKey: twelveKey, proxyUrl: yahooProxy }) }));
     scanTotal = items.length;
     scanning = true;
     const rows: ScanRow[] = [];
@@ -167,31 +181,57 @@
           const feats = bars.length >= MIN_BARS ? computeFeatures(bars) : null;
           if (feats) {
             const r = await predictOnnx(feats, scanHorizon);
-            rows.push({ id: it.id, label: it.label, probUp: r.probUp, direction: r.direction });
-          } else {
-            failures += 1;
-          }
-        } catch {
-          failures += 1;   // skip an asset that fails — keep scanning the rest
-        }
+            rows.push({ id: it.id, label: it.label, kind: it.kind, probUp: r.probUp, direction: r.direction });
+          } else { failures += 1; }
+        } catch { failures += 1; }
         scanDone += 1;
         scanRows = [...rows].sort((a, b) => b.probUp - a.probUp);
       }
       if (rows.length === 0) {
         throw new Error(
-          mode === 'stock'
-            ? 'No stocks could be scanned. Deploy the Yahoo proxy (Settings) for keyless global scanning, or add a Twelve Data key.'
-            : 'No crypto could be scanned right now. Try again shortly.',
+          stockHintCheck
+            ? 'Nothing could be scanned. Deploy the Yahoo proxy (Settings) for keyless global stocks, or add a Twelve Data key.'
+            : 'Nothing could be scanned right now. Try again shortly.',
         );
       }
-      if (mode === 'stock' && failures > 0 && !yahooProxy) {
-        scanHint = `${failures} symbol(s) skipped — the free Twelve Data tier is limited. Deploy the Yahoo proxy (Settings) to scan all of them keyless.`;
+      if (stockHintCheck && failures > 0 && !yahooProxy) {
+        scanHint = `${failures} symbol(s) skipped — the free Twelve Data tier is limited. Deploy the Yahoo proxy (Settings) to scan them all keyless.`;
       }
     } catch (err) {
       scanError = err instanceof Error ? err.message : String(err);
     } finally {
       scanning = false;
     }
+  }
+
+  function scanMarket() {
+    const items: ScanItem[] = mode === 'crypto'
+      ? CRYPTO_PRODUCTS.map((p) => ({ id: p.id, label: p.label, kind: 'crypto' as const, fetch: () => fetchCryptoBars(p.id) }))
+      : STOCK_PRESETS.map((s) => ({ id: s, label: s, kind: 'stock' as const, fetch: () => fetchStockBars(s, { apiKey: twelveKey, proxyUrl: yahooProxy }) }));
+    return runScan(items, mode === 'crypto' ? 'Crypto Radar' : 'Stock Radar', mode === 'stock');
+  }
+
+  function scanWatchlist() {
+    if (watchlist.length === 0) { scanError = 'Your watchlist is empty. Save assets with the ☆ button after a prediction.'; return; }
+    const hasStocks = watchlist.some((w) => w.kind === 'stock');
+    const items: ScanItem[] = watchlist.map((w) => ({
+      id: w.assetId, label: w.label, kind: w.kind, fetch: () => fetchForKind(w.kind, w.assetId),
+    }));
+    return runScan(items, 'Watchlist Radar', hasStocks);
+  }
+
+  async function toggleWatch() {
+    if (!resultLabel) return;
+    const id = currentWatchId;
+    if (resultSaved) {
+      await removeFromWatchlist(id);
+    } else {
+      await addToWatchlist({
+        id, kind: mode, assetId: mode === 'crypto' ? productId : resultLabel,
+        label: resultLabel, addedAt: new Date().toISOString(),
+      });
+    }
+    watchlist = await loadWatchlist();
   }
 
   function badgeClass(dir: 'up' | 'down' | 'neutral'): string {
@@ -267,6 +307,11 @@
                   disabled={scanning} title="Rank by the {HORIZON_LABELS[h]} model">{h}</button>
         {/each}
       </div>
+      {#if watchlist.length > 0}
+        <button class="btn-scan watch" on:click={scanWatchlist} disabled={scanning || running}>
+          ★ Scan my watchlist ({watchlist.length})
+        </button>
+      {/if}
       <span class="scan-note">
         {#if mode === 'crypto'}{HORIZON_LABELS[scanHorizon]} outlook across {CRYPTO_PRODUCTS.length} coins · calibrated · keyless
         {:else}{HORIZON_LABELS[scanHorizon]} outlook across {STOCK_PRESETS.length} presets · calibrated · needs Yahoo proxy or a key{/if}
@@ -302,13 +347,13 @@
     {#if scanRows.length > 0}
       <div class="result-card" role="region" aria-label="Conviction ranking">
         <div class="result-header">
-          <span class="result-ticker">{scanKind === 'crypto' ? 'Crypto' : 'Stock'} Radar</span>
+          <span class="result-ticker">{scanTitle}</span>
           <span class="result-asof">{scannedHorizonLabel} outlook · ranked by P(up){scanning ? ` · ${scanDone}/${scanTotal}` : ''}</span>
         </div>
         <ol class="rank-list">
           {#each scanRows as row, i}
             <li>
-              <button class="rank-item" on:click={() => drillInto(scanKind, row.id)} disabled={running}
+              <button class="rank-item" on:click={() => drillInto(row.kind, row.id)} disabled={running}
                       title="See the full prediction & drivers for {row.label}">
                 <span class="rank-num">{i + 1}</span>
                 <span class="rank-label">{row.label}</span>
@@ -338,6 +383,10 @@
             <span class="result-price">${fmtPrice(lastPrice)}</span>
           {/if}
           <span class="result-asof">as of {asOf}</span>
+          <button class="btn-watch" class:saved={resultSaved} on:click={toggleWatch}
+                  title={resultSaved ? 'Remove from watchlist' : 'Save to watchlist'}>
+            {resultSaved ? '★ Watchlisted' : '☆ Watchlist'}
+          </button>
         </div>
 
         <div class="horizon-grid">
@@ -529,6 +578,14 @@
   }
   .sh-btn.sel { background: var(--accent); color: #fff; }
   .sh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-scan.watch { background: rgba(245, 197, 24, 0.12); border-color: rgba(245, 197, 24, 0.5); }
+  .btn-scan.watch:not(:disabled):hover { background: rgba(245, 197, 24, 0.2); }
+  .btn-watch {
+    margin-left: auto; background: none; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 7px; padding: 0.25rem 0.7rem; font-size: 0.74rem; font-weight: 600; cursor: pointer; transition: all 0.12s;
+  }
+  .btn-watch:hover { border-color: var(--accent); color: var(--text); }
+  .btn-watch.saved { color: #f5c518; border-color: rgba(245, 197, 24, 0.5); }
 
   .rank-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
   .rank-list li { border-bottom: 1px solid var(--border); }

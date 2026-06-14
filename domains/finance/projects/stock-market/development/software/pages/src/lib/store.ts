@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { PredictionSnapshot, AppSettings, ParamState, TrackedPrediction } from './types';
+import type { PredictionSnapshot, AppSettings, ParamState, TrackedPrediction, WatchlistItem } from './types';
 
 interface AppDB extends DBSchema {
   paramStates: {
@@ -19,13 +19,17 @@ interface AppDB extends DBSchema {
     key: string;   // prediction id
     value: TrackedPrediction;
   };
+  watchlist: {
+    key: string;   // `${kind}:${assetId}`
+    value: WatchlistItem;
+  };
 }
 
 let _db: IDBPDatabase<AppDB> | null = null;
 
 async function getDB(): Promise<IDBPDatabase<AppDB>> {
   if (_db) return _db;
-  _db = await openDB<AppDB>('stock-predictor', 2, {
+  _db = await openDB<AppDB>('stock-predictor', 3, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         db.createObjectStore('paramStates', { keyPath: 'ticker' });
@@ -36,9 +40,28 @@ async function getDB(): Promise<IDBPDatabase<AppDB>> {
       if (oldVersion < 2) {
         db.createObjectStore('trackRecord', { keyPath: 'id' });
       }
+      if (oldVersion < 3) {
+        db.createObjectStore('watchlist', { keyPath: 'id' });
+      }
     },
   });
   return _db;
+}
+
+// ─── Watchlist ──────────────────────────────────────────────────────────────
+export async function loadWatchlist(): Promise<WatchlistItem[]> {
+  const db = await getDB();
+  return db.getAll('watchlist');
+}
+
+export async function addToWatchlist(item: WatchlistItem): Promise<void> {
+  const db = await getDB();
+  await db.put('watchlist', item);
+}
+
+export async function removeFromWatchlist(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('watchlist', id);
 }
 
 // ─── Prediction track record ───────────────────────────────────────────────

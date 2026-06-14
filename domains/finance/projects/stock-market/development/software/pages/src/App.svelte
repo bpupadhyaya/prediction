@@ -4,12 +4,13 @@
   import SettingsTab from './components/SettingsTab.svelte';
   import OnnxPredictionCard from './components/OnnxPredictionCard.svelte';
   import ModelTransparency from './components/ModelTransparency.svelte';
+  import TrackRecordTab from './components/TrackRecordTab.svelte';
   import VideoIntelligenceTab from './components/VideoIntelligenceTab.svelte';
   import type { VideoSignal } from './lib/types';
   import { PARAMETERS } from './lib/parameters';
   import { loadParamStates, saveParamStates } from './lib/store';
 
-  let activeTab: 'predict' | 'model' | 'history' | 'settings' | 'intelligence' = 'predict';
+  let activeTab: 'predict' | 'model' | 'record' | 'history' | 'settings' | 'intelligence' = 'predict';
   let ticker = 'AAPL';
 
   // When a YVIS signal is applied, inject it into the predict tab's parameter state
@@ -55,6 +56,7 @@
   <nav>
     <button class:active={activeTab === 'predict'}      on:click={() => activeTab = 'predict'}>Predict</button>
     <button class:active={activeTab === 'model'}        on:click={() => activeTab = 'model'}>Model</button>
+    <button class:active={activeTab === 'record'}       on:click={() => activeTab = 'record'}>Record</button>
     <button class:active={activeTab === 'history'}      on:click={() => activeTab = 'history'}>History</button>
     <button class:active={activeTab === 'intelligence'} on:click={() => activeTab = 'intelligence'}>Intelligence</button>
     <button class:active={activeTab === 'settings'}     on:click={() => activeTab = 'settings'}>Settings</button>
@@ -67,6 +69,8 @@
   {:else if activeTab === 'model'}
     <OnnxPredictionCard />
     <ModelTransparency />
+  {:else if activeTab === 'record'}
+    <TrackRecordTab />
   {:else if activeTab === 'history'}
     <HistoryTab />
   {:else if activeTab === 'intelligence'}

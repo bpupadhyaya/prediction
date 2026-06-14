@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { PredictionSnapshot, AppSettings, ParamState } from './types';
+import type { PredictionSnapshot, AppSettings, ParamState, TrackedPrediction } from './types';
 
 interface AppDB extends DBSchema {
   paramStates: {
@@ -15,21 +15,54 @@ interface AppDB extends DBSchema {
     key: string;
     value: AppSettings & { key: string };
   };
+  trackRecord: {
+    key: string;   // prediction id
+    value: TrackedPrediction;
+  };
 }
 
 let _db: IDBPDatabase<AppDB> | null = null;
 
 async function getDB(): Promise<IDBPDatabase<AppDB>> {
   if (_db) return _db;
-  _db = await openDB<AppDB>('stock-predictor', 1, {
-    upgrade(db) {
-      db.createObjectStore('paramStates', { keyPath: 'ticker' });
-      const ss = db.createObjectStore('snapshots', { keyPath: 'id' });
-      ss.createIndex('by-ticker-date', ['ticker', 'date']);
-      db.createObjectStore('settings', { keyPath: 'key' });
+  _db = await openDB<AppDB>('stock-predictor', 2, {
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        db.createObjectStore('paramStates', { keyPath: 'ticker' });
+        const ss = db.createObjectStore('snapshots', { keyPath: 'id' });
+        ss.createIndex('by-ticker-date', ['ticker', 'date']);
+        db.createObjectStore('settings', { keyPath: 'key' });
+      }
+      if (oldVersion < 2) {
+        db.createObjectStore('trackRecord', { keyPath: 'id' });
+      }
     },
   });
   return _db;
+}
+
+// ─── Prediction track record ───────────────────────────────────────────────
+export async function logPredictions(preds: TrackedPrediction[]): Promise<void> {
+  if (preds.length === 0) return;
+  const db = await getDB();
+  const tx = db.transaction('trackRecord', 'readwrite');
+  await Promise.all(preds.map((p) => tx.store.put(p)));
+  await tx.done;
+}
+
+export async function loadTrackRecord(): Promise<TrackedPrediction[]> {
+  const db = await getDB();
+  return db.getAll('trackRecord');
+}
+
+export async function saveTrackedPrediction(p: TrackedPrediction): Promise<void> {
+  const db = await getDB();
+  await db.put('trackRecord', p);
+}
+
+export async function clearTrackRecord(): Promise<void> {
+  const db = await getDB();
+  await db.clear('trackRecord');
 }
 
 export async function loadParamStates(ticker: string): Promise<Record<string, ParamState> | null> {

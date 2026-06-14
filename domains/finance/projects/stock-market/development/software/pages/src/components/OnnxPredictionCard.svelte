@@ -8,7 +8,10 @@
     CRYPTO_PRODUCTS, fetchCryptoBars, fetchStockBars, STOCK_PRESETS,
     computeFeatures, MIN_BARS,
   } from '../lib/market-data';
-  import { loadSettings } from '../lib/store';
+  import { loadSettings, logPredictions } from '../lib/store';
+  import type { TrackedPrediction } from '../lib/types';
+
+  const HORIZON_DAYS: Record<Horizon, number> = { '1d': 1, '1w': 7, '1m': 30 };
 
   const HORIZONS: Horizon[] = ['1d', '1w', '1m'];
   const HORIZON_LABELS: Record<Horizon, string> = { '1d': '1 Day', '1w': '1 Week', '1m': '1 Month' };
@@ -85,11 +88,39 @@
       for (const h of HORIZONS) out[h] = await predictOnnx(features, h);
       results = out;
       await explainFor(selectedHorizon);
+      await logRunToTrackRecord(label, out);
     } catch (err) {
       runError = err instanceof Error ? err.message : String(err);
     } finally {
       running = false;
     }
+  }
+
+  // Log this run's predictions (all horizons) to the on-device track record so
+  // they can be scored against the real outcome once each horizon elapses.
+  async function logRunToTrackRecord(label: string, out: Partial<Record<Horizon, OnnxPrediction>>) {
+    if (lastPrice == null) return;
+    const now = new Date();
+    const entries: TrackedPrediction[] = [];
+    for (const h of HORIZONS) {
+      const r = out[h];
+      if (!r) continue;
+      const matures = new Date(now.getTime() + HORIZON_DAYS[h] * 86400_000);
+      entries.push({
+        id: `${label}-${h}-${now.getTime()}`,
+        asset: label,
+        assetId: mode === 'crypto' ? productId : label,
+        kind: mode,
+        horizon: h,
+        direction: r.direction,
+        probUp: r.probUp,
+        priceAtPrediction: lastPrice,
+        predictedAt: now.toISOString(),
+        maturesAt: matures.toISOString(),
+        resolved: false,
+      });
+    }
+    try { await logPredictions(entries); } catch { /* non-fatal */ }
   }
 
   // Compute the top drivers + rationale for one horizon (perturbation attribution).

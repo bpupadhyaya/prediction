@@ -29,6 +29,25 @@ export interface PredictionSnapshot {
   createdAt: string;    // ISO timestamp
 }
 
+// A logged prediction we can later score against the real outcome.
+export interface TrackedPrediction {
+  id: string;
+  asset: string;            // display label, e.g. "Bitcoin" or "AAPL"
+  assetId: string;          // fetch id: Coinbase product or stock symbol
+  kind: 'crypto' | 'stock';
+  horizon: '1d' | '1w' | '1m';
+  direction: 'up' | 'down' | 'neutral';
+  probUp: number;           // calibrated %, 0–100
+  priceAtPrediction: number;
+  predictedAt: string;      // ISO
+  maturesAt: string;        // ISO — when the horizon elapses
+  resolved: boolean;
+  actualPrice?: number;
+  actualReturnPct?: number; // signed %
+  correct?: boolean;
+  resolvedAt?: string;      // ISO
+}
+
 export interface AppSettings {
   fredApiKey: string;
   corsProxyEnabled: boolean;

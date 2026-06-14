@@ -49,6 +49,10 @@ object ModelMeta {
     private val accuracies = mutableMapOf<String, Double>()
     private val calibrations = mutableMapOf<String, Calibration>()
     private val baselines = mutableMapOf<String, Float>()
+    private val testUpRates = mutableMapOf<String, Double>()
+    private val brierRaw = mutableMapOf<String, Double>()
+    private val brierCalibrated = mutableMapOf<String, Double>()
+    private val nTests = mutableMapOf<String, Int>()
 
     /** Maps a UI horizon string to the metadata horizon key. Mirrors engine asset mapping. */
     private fun metaKey(horizon: String): String = when {
@@ -79,6 +83,10 @@ object ModelMeta {
                     val key = keys.next()
                     val h = hz.getJSONObject(key)
                     accuracies[key] = h.optDouble("backtest_accuracy", Double.NaN)
+                    if (h.has("test_up_rate")) testUpRates[key] = h.getDouble("test_up_rate")
+                    if (h.has("brier_raw")) brierRaw[key] = h.getDouble("brier_raw")
+                    if (h.has("brier_calibrated")) brierCalibrated[key] = h.getDouble("brier_calibrated")
+                    if (h.has("n_test")) nTests[key] = h.getInt("n_test")
                     h.optJSONObject("calibration")?.let { c ->
                         calibrations[key] = Calibration(
                             w = c.optDouble("w", 1.0),
@@ -109,4 +117,19 @@ object ModelMeta {
     fun baseline(feature: String): Float = baselines[feature] ?: 0f
 
     fun label(feature: String): String = featureLabels[feature] ?: feature
+
+    /** Naive "always up" base rate on the hold-out for a horizon; null if absent. */
+    fun testUpRate(horizon: String): Double? = testUpRates[metaKey(horizon)]
+
+    /** Brier score before calibration for a horizon; null if absent. */
+    fun brierRaw(horizon: String): Double? = brierRaw[metaKey(horizon)]
+
+    /** Brier score after Platt calibration for a horizon; null if absent. */
+    fun brierCalibrated(horizon: String): Double? = brierCalibrated[metaKey(horizon)]
+
+    /** Hold-out sample count for a horizon; null if absent. */
+    fun nTest(horizon: String): Int? = nTests[metaKey(horizon)]
+
+    /** Whether usable horizon metadata was loaded. */
+    fun isLoaded(): Boolean = accuracies.isNotEmpty()
 }

@@ -39,6 +39,7 @@
 		D35F9E42A8D3688F4460D619 /* LLMInferenceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88288A95F56C26D666DEFA02 /* LLMInferenceManager.swift */; };
 		D398D807E789464D8AD19E28 /* stock_predictor.onnx in Resources */ = {isa = PBXBuildFile; fileRef = FA8A08599BB610EF817418DE /* stock_predictor.onnx */; };
 		D4FC0B7D06C5DEFDE32AF4CA /* PredictionExplainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D8E62751400F3512D7C6CF2 /* PredictionExplainer.swift */; };
+		D83548D9BA16C99DA0D30B20 /* ModelTransparencyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C273436AF9F911993CEBB2D3 /* ModelTransparencyView.swift */; };
 		DD72248DFEF40773D25F8588 /* LLMCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A4ED44C8E23ED94589F977F /* LLMCatalog.swift */; };
 		E015491B2AA11AD2775E111B /* VideoSignalExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193B28C3BE1B631EDC34C427 /* VideoSignalExtractor.swift */; };
 		E15581B43FA9FF283A860129 /* YouTubeAudioExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C1432DC024F172EC88F8F97 /* YouTubeAudioExtractor.swift */; };
@@ -90,6 +91,7 @@
 		B0DDE509D243FCBE341A2FA0 /* PreIPOModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreIPOModuleView.swift; sourceTree = "<group>"; };
 		B5247A09E48F9DA6A546C65E /* VideoIntelligenceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoIntelligenceManager.swift; sourceTree = "<group>"; };
 		C1E069B99A97FE71A3E8085A /* StockPredictionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockPredictionApp.swift; sourceTree = "<group>"; };
+		C273436AF9F911993CEBB2D3 /* ModelTransparencyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelTransparencyView.swift; sourceTree = "<group>"; };
 		CC5BDC853C891593D0F3AE4E /* stock_predictor_1d.onnx */ = {isa = PBXFileReference; path = stock_predictor_1d.onnx; sourceTree = "<group>"; };
 		CD54894C18B741DEE7A41FF1 /* ModelMeta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelMeta.swift; sourceTree = "<group>"; };
 		D08061B3F061C9A8302E5A04 /* MarketModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketModuleView.swift; sourceTree = "<group>"; };
@@ -167,6 +169,7 @@
 				28E522D9A77511EDF7F80FC4 /* InteractiveParameterView.swift */,
 				D08061B3F061C9A8302E5A04 /* MarketModuleView.swift */,
 				670935B84430972B857ABAB3 /* ModelsView.swift */,
+				C273436AF9F911993CEBB2D3 /* ModelTransparencyView.swift */,
 				EE3630CC6A3C2C75457A98AA /* PortfolioView.swift */,
 				B0DDE509D243FCBE341A2FA0 /* PreIPOModuleView.swift */,
 				0B4174674EE679E28ED8D7D5 /* SearchView.swift */,
@@ -338,6 +341,7 @@
 				81448CE71E332A54E3B4CA0E /* MarketDataSource.swift in Sources */,
 				E17BC052BF9AABA0C4897E71 /* MarketModuleView.swift in Sources */,
 				555568E95E0081412A7E1009 /* ModelMeta.swift in Sources */,
+				D83548D9BA16C99DA0D30B20 /* ModelTransparencyView.swift in Sources */,
 				7370846ECF4DE09F277CDE29 /* ModelsView.swift in Sources */,
 				CE13A36C7D0A1CE19A4472FF /* ParameterStore.swift in Sources */,
 				C6B65F5DEE0A0C3A4F82EBA7 /* PortfolioView.swift in Sources */,

@@ -19,6 +19,14 @@ final class ModelMeta {
     struct HorizonMeta {
         let backtestAccuracy: Double
         let calibration: Calibration
+        /// Naive "always up" base rate on the hold-out (nil if absent).
+        let testUpRate: Double?
+        /// Brier score before calibration (nil if absent).
+        let brierRaw: Double?
+        /// Brier score after Platt calibration (nil if absent).
+        let brierCalibrated: Double?
+        /// Hold-out sample count (nil if absent).
+        let nTest: Int?
     }
 
     /// Ordered feature names (MOBILE_FEATURES order). Empty if meta missing.
@@ -80,7 +88,11 @@ final class ModelMeta {
                       let b = (cal["b"] as? NSNumber)?.doubleValue else { continue }
                 h[key] = HorizonMeta(
                     backtestAccuracy: acc,
-                    calibration: Calibration(w: w, b: b)
+                    calibration: Calibration(w: w, b: b),
+                    testUpRate: (dict["test_up_rate"] as? NSNumber)?.doubleValue,
+                    brierRaw: (dict["brier_raw"] as? NSNumber)?.doubleValue,
+                    brierCalibrated: (dict["brier_calibrated"] as? NSNumber)?.doubleValue,
+                    nTest: (dict["n_test"] as? NSNumber)?.intValue
                 )
             }
             horizons = h
@@ -125,6 +137,26 @@ final class ModelMeta {
     /// Human label for a feature name, falling back to the raw name.
     func label(for feature: String) -> String {
         Self.labels[feature] ?? feature
+    }
+
+    /// Naive "always up" base rate on the hold-out for the horizon (nil if absent).
+    func testUpRate(horizon: String) -> Double? {
+        horizons[metaKey(for: horizon)]?.testUpRate
+    }
+
+    /// Brier score before calibration for the horizon (nil if absent).
+    func brierRaw(horizon: String) -> Double? {
+        horizons[metaKey(for: horizon)]?.brierRaw
+    }
+
+    /// Brier score after Platt calibration for the horizon (nil if absent).
+    func brierCalibrated(horizon: String) -> Double? {
+        horizons[metaKey(for: horizon)]?.brierCalibrated
+    }
+
+    /// Hold-out sample count for the horizon (nil if absent).
+    func nTest(horizon: String) -> Int? {
+        horizons[metaKey(for: horizon)]?.nTest
     }
 
     /// Whether usable metadata was loaded.

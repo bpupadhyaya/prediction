@@ -3,6 +3,7 @@ import SwiftUI
 struct StockPredictionHomeView: View {
     let onModuleTap: (String) -> Void
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+    @State private var showTransparency = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,6 +25,9 @@ struct StockPredictionHomeView: View {
         .background(PredictionTheme.homeBg.ignoresSafeArea())
         .ignoresSafeArea(edges: .top)
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showTransparency) {
+            ModelTransparencyView()
+        }
     }
 
     private var heroHeader: some View {
@@ -47,6 +51,24 @@ struct StockPredictionHomeView: View {
                 .background(.white.opacity(0.15))
                 .clipShape(Capsule())
                 .padding(.top, 8)
+
+                Button {
+                    showTransparency = true
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 10))
+                        Text("How accurate is this model?")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.white.opacity(0.22))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 6)
             }
             .frame(maxWidth: .infinity)
         }

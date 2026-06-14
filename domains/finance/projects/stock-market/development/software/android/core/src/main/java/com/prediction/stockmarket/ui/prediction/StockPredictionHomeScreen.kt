@@ -97,12 +97,18 @@ private val stockHeroBrush = Brush.linearGradient(
 
 @Composable
 fun StockPredictionHomeScreen(onSectionSelect: (String) -> Unit) {
+    var showTransparency by remember { mutableStateOf(false) }
+
+    if (showTransparency) {
+        ModelTransparencyDialog(onDismiss = { showTransparency = false })
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(PredictionColors.homeBg)
     ) {
-        StockHeroHeader()
+        StockHeroHeader(onTransparencyClick = { showTransparency = true })
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
@@ -121,7 +127,7 @@ fun StockPredictionHomeScreen(onSectionSelect: (String) -> Unit) {
 }
 
 @Composable
-private fun StockHeroHeader() {
+private fun StockHeroHeader(onTransparencyClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -173,6 +179,35 @@ private fun StockHeroHeader() {
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.White.copy(alpha = 0.9f)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            Surface(
+                shape = RoundedCornerShape(50.dp),
+                color = Color.White.copy(alpha = 0.22f),
+                onClick = onTransparencyClick
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                        .semantics { contentDescription = "How accurate is this model?" },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VerifiedUser,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Text(
+                        text = "How accurate is this model?",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
                     )
                 }
             }

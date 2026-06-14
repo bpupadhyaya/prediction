@@ -248,29 +248,55 @@ struct MarketModuleView: View {
 
     private var sectorHeatMap: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("1-week performance map")
+            Text("Conviction heat-map · model P(up) over 1 week")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.6))
                 .padding(.horizontal, 4)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 2), spacing: 6) {
                 ForEach(rows) { row in
-                    let intensity = min(abs(row.ret1w) / 4.0, 1.0)
-                    let base = row.ret1w >= 0 ? Color(red: 0.086, green: 0.639, blue: 0.290)
-                                              : Color(red: 0.863, green: 0.149, blue: 0.149)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(row.symbol).font(.caption.bold()).foregroundStyle(.white)
-                        Text(formatPct(row.ret1w)).font(.caption2).foregroundStyle(.white.opacity(0.85))
+                        HStack {
+                            Text(row.symbol).font(.caption.bold()).foregroundStyle(.white)
+                            Spacer()
+                            Text(convictionLabel(row.probability))
+                                .font(.subheadline.bold()).foregroundStyle(.white)
+                        }
+                        Text(row.name).font(.caption2).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+                        Text("\(formatPct(row.changePct1d)) today")
+                            .font(.caption2).foregroundStyle(.white.opacity(0.7))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .frame(height: 56)
-                    .background(base.opacity(0.25 + 0.6 * intensity))
+                    .padding(10)
+                    .frame(height: 72)
+                    .background(convictionColor(row.probability))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .onTapGesture { selectedTicker = row.symbol }
                 }
             }
         }
         .padding(.bottom, 8)
+    }
+
+    // Maps the model's calibrated P(up) (0..1) to a tile color. 50% is neutral;
+    // the further from 50%, the stronger the green (bullish) / red (bearish).
+    // Blended over the dark card base so faint convictions stay readable.
+    private func convictionColor(_ probability: Double?) -> Color {
+        guard let probability else { return Color(red: 0.118, green: 0.161, blue: 0.231) }
+        let t = max(-1.0, min(1.0, ((probability * 100.0) - 50.0) / 50.0))
+        let intensity = min(1.0, abs(t) * 2.2)
+        let conviction = t >= 0 ? (r: 0.086, g: 0.639, b: 0.290)
+                                : (r: 0.863, g: 0.149, b: 0.149)
+        let base = (r: 0.075, g: 0.141, b: 0.247)
+        return Color(
+            red: base.r + (conviction.r - base.r) * intensity,
+            green: base.g + (conviction.g - base.g) * intensity,
+            blue: base.b + (conviction.b - base.b) * intensity
+        )
+    }
+
+    private func convictionLabel(_ probability: Double?) -> String {
+        guard let probability else { return "—" }
+        return "\(Int(probability * 100))%"
     }
 
     private func instrumentCard(_ row: ModuleRow) -> some View {

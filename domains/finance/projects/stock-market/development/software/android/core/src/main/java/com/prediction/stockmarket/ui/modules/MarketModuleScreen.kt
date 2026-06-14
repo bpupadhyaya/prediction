@@ -597,35 +597,38 @@ private fun SectorContent(rows: List<ModuleRow>, onOpenTicker: (String) -> Unit,
         item { Spacer(Modifier.height(8.dp)) }
         item {
             Text(
-                "1-week performance map",
+                "Conviction heat-map · model P(up) over 1 week",
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.White.copy(alpha = 0.6f),
                 modifier = Modifier.padding(start = 4.dp, bottom = 6.dp),
             )
-            // Fixed-height grid: 12 tiles / 3 columns = 4 rows of 64dp + spacing
+            // Fixed-height grid: 12 tiles / 2 columns = 6 rows of 72dp + spacing
             LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier.fillMaxWidth().height(296.dp),
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxWidth().height(498.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 userScrollEnabled = false,
             ) {
                 items(rows, key = { it.symbol }) { row ->
-                    val intensity = min(abs(row.ret1w) / 4.0, 1.0).toFloat()
-                    val tileColor =
-                        if (row.ret1w >= 0) Color(0xFF16A34A).copy(alpha = 0.25f + 0.6f * intensity)
-                        else Color(0xFFDC2626).copy(alpha = 0.25f + 0.6f * intensity)
+                    val tileColor = convictionColor(row.probability)
                     Column(
                         modifier = Modifier
-                            .height(64.dp)
+                            .height(72.dp)
+                            .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
                             .background(tileColor)
                             .clickable { onOpenTicker(row.symbol) }
-                            .padding(8.dp),
+                            .padding(10.dp),
                         verticalArrangement = Arrangement.Center,
                     ) {
-                        Text(row.symbol, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color.White)
-                        Text(formatPct(row.ret1w), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.85f))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(row.symbol, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                            Spacer(Modifier.weight(1f))
+                            Text(convictionLabel(row.probability), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                        }
+                        Text(row.name, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.85f), maxLines = 1)
+                        Text(formatPct(row.changePct1d) + " today", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
                     }
                 }
             }
@@ -721,6 +724,32 @@ private fun DisclaimerFooter() {
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
     )
+}
+
+// ─── Conviction heat-map helpers ──────────────────────────────────────────────
+//
+// Maps the model's calibrated P(up) (0..1) to a tile color. 50% is neutral; the
+// further from 50%, the stronger the green (bullish) or red (bearish). Tiles stay
+// on the dark theme via a dark base blended with the conviction color by alpha.
+
+private fun convictionColor(probability: Double?): Color {
+    // No model read → neutral slate tile.
+    if (probability == null) return Color(0xFF1E293B)
+    val t = (((probability * 100.0) - 50.0) / 50.0).coerceIn(-1.0, 1.0) // signed [-1,1]
+    val intensity = min(1.0, abs(t) * 2.2).toFloat()
+    val conviction = if (t >= 0) Color(0xFF16A34A) else Color(0xFFDC2626)
+    // Blend over a dark base so faint convictions are still readable in dark theme.
+    val base = Color(0xFF13243F)
+    return Color(
+        red = base.red + (conviction.red - base.red) * intensity,
+        green = base.green + (conviction.green - base.green) * intensity,
+        blue = base.blue + (conviction.blue - base.blue) * intensity,
+    )
+}
+
+private fun convictionLabel(probability: Double?): String {
+    if (probability == null) return "—"
+    return "${(probability * 100).toInt()}%"
 }
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────

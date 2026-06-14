@@ -79,6 +79,23 @@ interface PortfolioDao {
     suspend fun remove(ticker: String)
 }
 
+@Dao
+interface TrackedPredictionDao {
+    @Query("SELECT * FROM tracked_predictions ORDER BY predictedAt DESC")
+    suspend fun getAll(): List<TrackedPredictionEntity>
+
+    /** Insert-or-ignore: at most one entry per (ticker, horizon, calendar-day) via id. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun log(entry: TrackedPredictionEntity)
+
+    /** Upsert used when scoring a matured prediction (replaces the existing row). */
+    @Upsert
+    suspend fun save(entry: TrackedPredictionEntity)
+
+    @Query("DELETE FROM tracked_predictions")
+    suspend fun clear()
+}
+
 // ─── Video Intelligence DAOs ──────────────────────────────────────────────────
 
 @Dao

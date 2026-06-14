@@ -52,22 +52,41 @@ struct StockPredictionHomeView: View {
                 .clipShape(Capsule())
                 .padding(.top, 8)
 
-                Button {
-                    showTransparency = true
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 10))
-                        Text("How accurate is this model?")
-                            .font(.system(size: 11, weight: .semibold))
+                HStack(spacing: 8) {
+                    Button {
+                        showTransparency = true
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 10))
+                            Text("How accurate is this model?")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.white.opacity(0.22))
+                        .clipShape(Capsule())
                     }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.white.opacity(0.22))
-                    .clipShape(Capsule())
+                    .buttonStyle(.plain)
+
+                    NavigationLink {
+                        TrackRecordView()
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "chart.bar.doc.horizontal")
+                                .font(.system(size: 10))
+                            Text("Track Record")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.white.opacity(0.22))
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
                 .padding(.top, 6)
             }
             .frame(maxWidth: .infinity)

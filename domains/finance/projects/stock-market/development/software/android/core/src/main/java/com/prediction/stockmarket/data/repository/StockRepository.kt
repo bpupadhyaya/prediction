@@ -11,7 +11,8 @@ class StockRepository @Inject constructor(
     private val priceDao: PriceDao,
     private val predictionDao: PredictionDao,
     private val watchlistDao: WatchlistDao,
-    private val portfolioDao: PortfolioDao
+    private val portfolioDao: PortfolioDao,
+    private val trackedPredictionDao: TrackedPredictionDao
 ) {
     suspend fun search(query: String): List<StockEntity> =
         stockDao.search("%${query.uppercase()}%")
@@ -50,4 +51,18 @@ class StockRepository @Inject constructor(
 
     suspend fun removeHolding(ticker: String) =
         portfolioDao.remove(ticker.uppercase())
+
+    // ─── Track Record ──────────────────────────────────────────────────────────
+
+    suspend fun trackedPredictions(): List<TrackedPredictionEntity> =
+        trackedPredictionDao.getAll()
+
+    /** Insert-or-ignore; deduped per (ticker, horizon, calendar-day) by id. */
+    suspend fun logTrackedPrediction(entry: TrackedPredictionEntity) =
+        trackedPredictionDao.log(entry)
+
+    suspend fun saveTrackedPrediction(entry: TrackedPredictionEntity) =
+        trackedPredictionDao.save(entry)
+
+    suspend fun clearTrackedPredictions() = trackedPredictionDao.clear()
 }

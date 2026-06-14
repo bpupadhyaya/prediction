@@ -17,8 +17,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         VideoSourceEntity::class,
         VideoSignalEntity::class,
         ChannelTrackEntity::class,
+        // Track Record (added in version 3)
+        TrackedPredictionEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -33,6 +35,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun videoSourceDao(): VideoSourceDao
     abstract fun videoSignalDao(): VideoSignalDao
     abstract fun channelTrackDao(): ChannelTrackDao
+
+    // Track Record DAO
+    abstract fun trackedPredictionDao(): TrackedPredictionDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -92,6 +97,30 @@ abstract class AppDatabase : RoomDatabase() {
 
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vs_ticker ON video_signals(ticker)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_vs_video ON video_signals(videoId)")
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS tracked_predictions (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        ticker TEXT NOT NULL,
+                        horizon TEXT NOT NULL,
+                        direction TEXT NOT NULL,
+                        probability REAL NOT NULL,
+                        priceAtPrediction REAL NOT NULL,
+                        predictedAt INTEGER NOT NULL,
+                        maturesAt INTEGER NOT NULL,
+                        resolved INTEGER NOT NULL,
+                        actualPrice REAL,
+                        actualReturnPct REAL,
+                        correct INTEGER,
+                        resolvedAt INTEGER
+                    )
+                    """.trimIndent()
+                )
             }
         }
     }

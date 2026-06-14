@@ -92,7 +92,9 @@ fun AppNavigation() {
     ) { padding ->
         NavHost(navController, startDestination = "stockhome") {
             composable("stockhome") {
-                StockPredictionHomeScreen { sectionId ->
+                StockPredictionHomeScreen(
+                    onTrackRecord = { navController.navigate("track_record") }
+                ) { sectionId ->
                     if (sectionId.isNotBlank()) {
                         if (sectionId == "pre_ipo") {
                             navController.navigate("stock_module/pre_ipo")
@@ -107,6 +109,11 @@ fun AppNavigation() {
                         }
                     }
                 }
+            }
+            composable("track_record") {
+                com.prediction.stockmarket.ui.trackrecord.TrackRecordScreen(
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable("market") { HomeScreen(navController, padding) }
             composable("search") {

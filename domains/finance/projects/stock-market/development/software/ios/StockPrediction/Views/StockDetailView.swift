@@ -255,6 +255,7 @@ struct StockDetailView: View {
                         prediction = store.prediction(for: ticker, horizon: selectedHorizon)
                     }
                     refreshExplanation()
+                    logTrackRecord()
                 }
             }
 
@@ -381,5 +382,35 @@ struct StockDetailView: View {
         }
         isLoading = false
         if prediction != nil { refreshExplanation() }
+        logTrackRecord()
+    }
+
+    /// Log the currently-shown prediction to the on-device track record. Deduped to
+    /// at most one entry per (ticker, horizon, calendar-day) via the composite id +
+    /// insert-or-ignore. Additive: failures never affect the detail flow.
+    private func logTrackRecord() {
+        guard let pred = prediction else { return }
+        guard let price = store.latestPrice(for: ticker), price > 0 else { return }
+        let now = Date()
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyyMMdd"
+        fmt.timeZone = .current
+        let id = "\(ticker)-\(selectedHorizon)-\(fmt.string(from: now))"
+        let entry = TrackedPrediction(
+            id: id,
+            ticker: ticker,
+            horizon: selectedHorizon,
+            direction: pred.direction,
+            probability: pred.probability,
+            priceAtPrediction: price,
+            predictedAt: now,
+            maturesAt: TrackedPrediction.maturity(for: selectedHorizon, from: now),
+            resolved: false,
+            actualPrice: nil,
+            actualReturnPct: nil,
+            correct: nil,
+            resolvedAt: nil
+        )
+        try? DatabaseManager.shared.logTrackedPrediction(entry)
     }
 }

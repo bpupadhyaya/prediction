@@ -107,6 +107,24 @@ final class DatabaseManager {
             try db.create(index: "video_signals_ticker", on: "video_signals", columns: ["ticker"], ifNotExists: true)
         }
 
+        migrator.registerMigration("v3") { db in
+            try db.create(table: "tracked_predictions", ifNotExists: true) { t in
+                t.column("id", .text).primaryKey()
+                t.column("ticker", .text).notNull()
+                t.column("horizon", .text).notNull()
+                t.column("direction", .text).notNull()
+                t.column("probability", .double).notNull()
+                t.column("priceAtPrediction", .double).notNull()
+                t.column("predictedAt", .datetime).notNull()
+                t.column("maturesAt", .datetime).notNull()
+                t.column("resolved", .boolean).notNull().defaults(to: false)
+                t.column("actualPrice", .double)
+                t.column("actualReturnPct", .double)
+                t.column("correct", .boolean)
+                t.column("resolvedAt", .datetime)
+            }
+        }
+
         try migrator.migrate(dbQueue)
     }
 
@@ -300,6 +318,33 @@ final class DatabaseManager {
             }
 
             return records
+        }
+    }
+
+    // MARK: - Track Record
+
+    /// Insert-or-ignore: at most one entry per (ticker, horizon, calendar-day) via the
+    /// composite id. Never overwrites a possibly-resolved row for the same day.
+    func logTrackedPrediction(_ p: TrackedPrediction) throws {
+        try dbQueue.write { db in
+            try p.insert(db, onConflict: .ignore)
+        }
+    }
+
+    /// Upsert used when scoring a matured prediction (replaces the existing row).
+    func saveTrackedPrediction(_ p: TrackedPrediction) throws {
+        try dbQueue.write { db in try p.save(db) }
+    }
+
+    func trackedPredictions() throws -> [TrackedPrediction] {
+        try dbQueue.read { db in
+            try TrackedPrediction.order(Column("predictedAt").desc).fetchAll(db)
+        }
+    }
+
+    func clearTrackedPredictions() throws {
+        try dbQueue.write { db in
+            _ = try TrackedPrediction.deleteAll(db)
         }
     }
 

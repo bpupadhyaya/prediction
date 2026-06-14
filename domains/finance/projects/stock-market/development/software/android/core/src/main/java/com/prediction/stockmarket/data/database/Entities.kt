@@ -63,6 +63,28 @@ data class PortfolioEntity(
     val addedAt: Date
 )
 
+/**
+ * One prediction the user viewed, logged on-device and scored against the real
+ * outcome once its horizon elapses. Mirrors the web `TrackedPrediction`.
+ * id = "ticker-horizon-yyyyMMdd" dedupes to one entry per calendar day.
+ */
+@Entity(tableName = "tracked_predictions")
+data class TrackedPredictionEntity(
+    @PrimaryKey val id: String,
+    val ticker: String,
+    val horizon: String,            // "1d" | "1w" | "1m"
+    val direction: String,          // "UP" | "DOWN" | "NEUTRAL"
+    val probability: Double,        // calibrated, 0.0–1.0
+    val priceAtPrediction: Double,
+    val predictedAt: Date,
+    val maturesAt: Date,
+    val resolved: Boolean,
+    val actualPrice: Double?,
+    val actualReturnPct: Double?,
+    val correct: Boolean?,
+    val resolvedAt: Date?
+)
+
 // ─── Video Intelligence Entities ─────────────────────────────────────────────
 
 @Entity(tableName = "video_sources")

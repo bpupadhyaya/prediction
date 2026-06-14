@@ -96,7 +96,10 @@ private val stockHeroBrush = Brush.linearGradient(
 )
 
 @Composable
-fun StockPredictionHomeScreen(onSectionSelect: (String) -> Unit) {
+fun StockPredictionHomeScreen(
+    onTrackRecord: () -> Unit = {},
+    onSectionSelect: (String) -> Unit
+) {
     var showTransparency by remember { mutableStateOf(false) }
 
     if (showTransparency) {
@@ -108,7 +111,10 @@ fun StockPredictionHomeScreen(onSectionSelect: (String) -> Unit) {
             .fillMaxSize()
             .background(PredictionColors.homeBg)
     ) {
-        StockHeroHeader(onTransparencyClick = { showTransparency = true })
+        StockHeroHeader(
+            onTransparencyClick = { showTransparency = true },
+            onTrackRecordClick = onTrackRecord
+        )
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
@@ -127,7 +133,7 @@ fun StockPredictionHomeScreen(onSectionSelect: (String) -> Unit) {
 }
 
 @Composable
-private fun StockHeroHeader(onTransparencyClick: () -> Unit) {
+private fun StockHeroHeader(onTransparencyClick: () -> Unit, onTrackRecordClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -185,30 +191,59 @@ private fun StockHeroHeader(onTransparencyClick: () -> Unit) {
 
             Spacer(Modifier.height(6.dp))
 
-            Surface(
-                shape = RoundedCornerShape(50.dp),
-                color = Color.White.copy(alpha = 0.22f),
-                onClick = onTransparencyClick
-            ) {
-                Row(
-                    modifier = Modifier
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                        .semantics { contentDescription = "How accurate is this model?" },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Surface(
+                    shape = RoundedCornerShape(50.dp),
+                    color = Color.White.copy(alpha = 0.22f),
+                    onClick = onTransparencyClick
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.VerifiedUser,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Text(
-                        text = "How accurate is this model?",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
+                    Row(
+                        modifier = Modifier
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                            .semantics { contentDescription = "How accurate is this model?" },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VerifiedUser,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = "How accurate is this model?",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(50.dp),
+                    color = Color.White.copy(alpha = 0.22f),
+                    onClick = onTrackRecordClick
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                            .semantics { contentDescription = "Prediction track record" },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Assessment,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = "Track Record",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }

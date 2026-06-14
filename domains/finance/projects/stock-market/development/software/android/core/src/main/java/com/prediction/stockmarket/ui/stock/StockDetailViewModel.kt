@@ -72,6 +72,7 @@ class StockDetailViewModel @Inject constructor(
                     horizon = horizon,
                     isLoading = false
                 )
+                logTrackRecord(ticker, horizon, pred, price)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
@@ -96,6 +97,7 @@ class StockDetailViewModel @Inject constructor(
                     rationale = rationale,
                     isLoading = false
                 )
+                logTrackRecord(ticker, horizon, pred, _uiState.value.latestPrice)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
@@ -120,6 +122,53 @@ class StockDetailViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     errorMessage = "Failed to update watchlist: ${e.message}"
                 )
+            }
+        }
+    }
+
+    /**
+     * Log the currently-shown prediction to the on-device track record. Deduped to
+     * at most one entry per (ticker, horizon, calendar-day) via the composite id +
+     * insert-or-ignore. Additive: failures never affect the detail flow.
+     */
+    private fun logTrackRecord(
+        ticker: String,
+        horizon: String,
+        pred: PredictionEntity?,
+        price: Double?,
+    ) {
+        if (pred == null || price == null || price <= 0.0) return
+        viewModelScope.launch {
+            try {
+                val now = java.util.Date()
+                val fmt = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US)
+                val id = "$ticker-$horizon-${fmt.format(now)}"
+                val days = when (horizon) {
+                    "1d" -> 1; "1w" -> 7; "1m" -> 30; else -> 7
+                }
+                val cal = java.util.Calendar.getInstance().apply {
+                    time = now
+                    add(java.util.Calendar.DAY_OF_YEAR, days)
+                }
+                repo.logTrackedPrediction(
+                    com.prediction.stockmarket.data.database.TrackedPredictionEntity(
+                        id = id,
+                        ticker = ticker,
+                        horizon = horizon,
+                        direction = pred.direction,
+                        probability = pred.probability,
+                        priceAtPrediction = price,
+                        predictedAt = now,
+                        maturesAt = cal.time,
+                        resolved = false,
+                        actualPrice = null,
+                        actualReturnPct = null,
+                        correct = null,
+                        resolvedAt = null
+                    )
+                )
+            } catch (_: Exception) {
+                // ignore — never break the detail flow
             }
         }
     }

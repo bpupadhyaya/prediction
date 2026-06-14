@@ -15,6 +15,7 @@
 		544B0F9AD0ED419079029514 /* StockDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF6251698A97D66D40EBEC4 /* StockDetailView.swift */; };
 		555568E95E0081412A7E1009 /* ModelMeta.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD54894C18B741DEE7A41FF1 /* ModelMeta.swift */; };
 		5561AF6090A08B8EA83F5528 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 17C1089BD4292BBDDBADC7EC /* Assets.xcassets */; };
+		55B069AE423D4C711982CDAC /* TrackRecordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128B786EF03FCFFCFF6A1284 /* TrackRecordView.swift */; };
 		5BB79C7111B86A23B4C1EEDC /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB166F9E69099E663C8F107 /* AppStore.swift */; };
 		67436A74D3E1D3E1B6763E9B /* StockModuleData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49FA768E229EC3B95A65C4D /* StockModuleData.swift */; };
 		6B24555B9DEA11C26241F331 /* parameters.json in Resources */ = {isa = PBXBuildFile; fileRef = A0FD4AEA4B551A71DFC94BF1 /* parameters.json */; };
@@ -58,6 +59,7 @@
 		040C507137304E96C3AC3BFF /* VideoIntelligenceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoIntelligenceView.swift; sourceTree = "<group>"; };
 		0B4174674EE679E28ED8D7D5 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		0C1432DC024F172EC88F8F97 /* YouTubeAudioExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeAudioExtractor.swift; sourceTree = "<group>"; };
+		128B786EF03FCFFCFF6A1284 /* TrackRecordView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackRecordView.swift; sourceTree = "<group>"; };
 		17C1089BD4292BBDDBADC7EC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		193B28C3BE1B631EDC34C427 /* VideoSignalExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoSignalExtractor.swift; sourceTree = "<group>"; };
 		194CA138F340782C42E0E65D /* WatchlistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistView.swift; sourceTree = "<group>"; };
@@ -176,6 +178,7 @@
 				6FF6251698A97D66D40EBEC4 /* StockDetailView.swift */,
 				196C873F45FBD0465B994647 /* StockPredictionHomeView.swift */,
 				29EF6A141FBE93C2BA366856 /* SyncView.swift */,
+				128B786EF03FCFFCFF6A1284 /* TrackRecordView.swift */,
 				040C507137304E96C3AC3BFF /* VideoIntelligenceView.swift */,
 				194CA138F340782C42E0E65D /* WatchlistView.swift */,
 			);
@@ -359,6 +362,7 @@
 				08621CBB51B1D931AB300DB6 /* StockPredictionHomeView.swift in Sources */,
 				8FC0AAED4C3D462802F3DB81 /* SyncManager.swift in Sources */,
 				95BCDCA08768ECB4CD53869F /* SyncView.swift in Sources */,
+				55B069AE423D4C711982CDAC /* TrackRecordView.swift in Sources */,
 				F68E83CC15086141B85B34D7 /* VideoIntelligenceManager.swift in Sources */,
 				3F262645C429901BBB5A003E /* VideoIntelligenceModels.swift in Sources */,
 				FC3A9398EB4669CF55BD411F /* VideoIntelligenceView.swift in Sources */,

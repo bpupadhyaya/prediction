@@ -26,7 +26,7 @@ object AppModule {
     @Provides @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
         Room.databaseBuilder(ctx, AppDatabase::class.java, "stock_prediction.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .build()
 
     @Provides fun provideStockDao(db: AppDatabase): StockDao = db.stockDao()
@@ -39,6 +39,9 @@ object AppModule {
     @Provides fun provideVideoSourceDao(db: AppDatabase): VideoSourceDao = db.videoSourceDao()
     @Provides fun provideVideoSignalDao(db: AppDatabase): VideoSignalDao = db.videoSignalDao()
     @Provides fun provideChannelTrackDao(db: AppDatabase): ChannelTrackDao = db.channelTrackDao()
+
+    // Track Record DAO
+    @Provides fun provideTrackedPredictionDao(db: AppDatabase): TrackedPredictionDao = db.trackedPredictionDao()
 
     @Provides @Singleton
     fun provideVideoIntelligenceManager(
